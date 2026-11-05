@@ -116,7 +116,7 @@ export default function Coach() {
               />
               <span className="font-semibold text-sm w-20 truncate uppercase" style={{ color: s.color }}>{s.name}</span>
               <code className="text-xs bg-gray-100 rounded px-2 py-1 flex-1 truncate">/practice/{id}/squad/{s.id}</code>
-              <button onClick={() => copyLink(s.id)} className="text-sm bg-garnet text-white rounded px-3 py-1">
+              <button onClick={() => copyLink(s.id)} className="text-sm text-white rounded px-3 py-1" style={{ background: s.color }}>
                 {copied === s.id ? "Copied!" : "Copy"}
               </button>
             </div>
