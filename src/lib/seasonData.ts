@@ -34,12 +34,14 @@ export interface SeasonInput {
 export interface HistoryPoint {
   practiceId: string; date: string;
   pts: number; ts: number; efg: number; per: number; cp: number;
+  tally: RawTally;
 }
 export interface PlayerSeason {
   playerId: string; name: string; jersey: string;
   gp: number;
   pod: number; // Player of the Day count
   total: Computed;
+  tally: RawTally; // season raw totals
   ptsPerG: number; cpPerG: number; perAvg: number;
   drills: { baylorAvg: number; ninetyAvg: number; transPct: number; ftAvg: number };
   history: HistoryPoint[];
@@ -92,8 +94,9 @@ export function buildSeason(input: SeasonInput): SeasonResult {
 
     const history: HistoryPoint[] = [...practiceSet]
       .map((pid) => {
-        const c = compute(perPP.get(`${playerId}|${pid}`) ?? emptyTally());
-        return { practiceId: pid, date: dateById.get(pid) ?? "", pts: c.pts, ts: c.ts, efg: c.efg, per: c.per, cp: c.casper };
+        const t = perPP.get(`${playerId}|${pid}`) ?? emptyTally();
+        const c = compute(t);
+        return { practiceId: pid, date: dateById.get(pid) ?? "", pts: c.pts, ts: c.ts, efg: c.efg, per: c.per, cp: c.casper, tally: t };
       })
       .sort((a, b) => (a.date < b.date ? -1 : 1));
 
@@ -104,6 +107,7 @@ export function buildSeason(input: SeasonInput): SeasonResult {
 
     out.push({
       playerId, name: meta.name, jersey: meta.jersey, gp, pod: podCount.get(playerId) ?? 0, total,
+      tally: totals.get(playerId) ?? emptyTally(),
       ptsPerG: total.pts / gp, cpPerG: total.casper / gp, perAvg: mean(history.map((h) => h.per)),
       drills: {
         baylorAvg: mean(pick("baylor").map((d) => Number(d.makes))),

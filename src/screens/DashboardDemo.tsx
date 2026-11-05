@@ -18,7 +18,7 @@ export default function DashboardDemo() {
         <DashboardSummary team={season.team} grades={season.grades} />
       </div>
       <div className="mt-4">
-        <DashboardView players={season.players} />
+        <DashboardView players={season.players} playerHref={(id) => `/player-demo/${id}`} />
       </div>
     </div>
   );

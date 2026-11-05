@@ -1,4 +1,5 @@
 import { Fragment, useState } from "react";
+import { Link } from "react-router-dom";
 import type { PlayerSeason, HistoryPoint } from "../lib/seasonData";
 import { pct } from "../lib/stats";
 
@@ -76,7 +77,8 @@ function PlayerDetail({ p }: { p: PlayerSeason }) {
   );
 }
 
-export default function DashboardView({ players }: { players: PlayerSeason[] }) {
+export default function DashboardView({ players, playerHref }: { players: PlayerSeason[]; playerHref?: (id: string) => string }) {
+  const href = playerHref ?? ((id: string) => `/player/${id}`);
   const [sort, setSort] = useState<SortKey>("cpTot");
   const [open, setOpen] = useState<string | null>(null);
 
@@ -109,7 +111,11 @@ export default function DashboardView({ players }: { players: PlayerSeason[] }) 
             <Fragment key={p.playerId}>
               <tr className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => setOpen(open === p.playerId ? null : p.playerId)}>
                 <td className="p-2 text-gray-500">{p.jersey}</td>
-                <td className="p-2 font-semibold">{p.name}</td>
+                <td className="p-2 font-semibold">
+                  <Link to={href(p.playerId)} onClick={(e) => e.stopPropagation()} className="text-garnet hover:underline">
+                    {p.name}
+                  </Link>
+                </td>
                 {COLS.map((c) => (
                   <td key={c.key} className="p-2">{c.fmt(p)}</td>
                 ))}

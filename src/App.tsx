@@ -10,6 +10,8 @@ import ReportDemo from "./screens/ReportDemo";
 import Dashboard from "./screens/Dashboard";
 import DashboardDemo from "./screens/DashboardDemo";
 import CourtDemo from "./screens/CourtDemo";
+import PlayerDashboard from "./screens/PlayerDashboard";
+import PlayerDashboardDemo from "./screens/PlayerDashboardDemo";
 import LiveEntryDemo from "./screens/LiveEntryDemo";
 import CoachEntryDemo from "./screens/CoachEntryDemo";
 import History from "./screens/History";
@@ -48,6 +50,8 @@ export default function App() {
           <Route path="/report-demo" element={<ReportDemo />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard-demo" element={<DashboardDemo />} />
+          <Route path="/player/:playerId" element={<PlayerDashboard />} />
+          <Route path="/player-demo/:playerId" element={<PlayerDashboardDemo />} />
           <Route path="/court-demo" element={<CourtDemo />} />
           <Route path="/live-demo" element={<LiveEntryDemo />} />
           <Route path="/coach-entry-demo" element={<CoachEntryDemo />} />
