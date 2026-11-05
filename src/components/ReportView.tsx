@@ -61,9 +61,12 @@ export default function ReportView({ m }: { m: ReportModel }) {
     <div style={{ width: 1120, background: "#fff", color: "#000", fontFamily: F_BODY, padding: 16 }}>
       {/* header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #B20000", paddingBottom: 6 }}>
-        <div>
-          <div style={{ fontFamily: F_GOTHIC, fontSize: 8, letterSpacing: "0.2em", color: "#B20000" }}>VIRGINIA EPISCOPAL SCHOOL</div>
-          <div style={{ fontFamily: F_COMPRESSED, fontSize: 30, fontWeight: 700, letterSpacing: "0.02em", color: "#000", lineHeight: 1 }}>BOYS BASKETBALL</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <img src="/ves-shield.png" alt="VES" style={{ height: 46, width: "auto" }} />
+          <div>
+            <div style={{ fontFamily: F_GOTHIC, fontSize: 8, letterSpacing: "0.2em", color: "#B20000" }}>VIRGINIA EPISCOPAL SCHOOL</div>
+            <div style={{ fontFamily: F_COMPRESSED, fontSize: 30, fontWeight: 700, letterSpacing: "0.02em", color: "#000", lineHeight: 1 }}>BOYS BASKETBALL</div>
+          </div>
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontFamily: F_COMPRESSED, fontSize: 18, letterSpacing: "0.12em", fontWeight: 600, color: "#B20000" }}>PRACTICE REPORT</div>

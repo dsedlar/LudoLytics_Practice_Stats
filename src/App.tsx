@@ -14,8 +14,11 @@ export default function App() {
     <div className="min-h-screen">
       <header className="bg-deep-garnet text-ivory no-print">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="sport-lockup text-lg">
-            VES Basketball · <span className="text-white/70">Ludolytics</span>
+          <Link to="/" className="flex items-center gap-2.5">
+            <img src="/ves-shield.png" alt="VES" className="h-7 w-auto" />
+            <span className="sport-lockup text-lg">
+              VES Basketball · <span className="text-white/70">Ludolytics</span>
+            </span>
           </Link>
           <span className="eyebrow text-[10px] text-ivory/70">Practice Stats</span>
         </div>
