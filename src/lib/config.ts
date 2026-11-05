@@ -128,3 +128,21 @@ export const DEFAULT_SQUADS = [
   { name: "Garnet", color: "#B20000" },
   { name: "Navy", color: "#00142D" },
 ];
+
+// Map common team-color names to a hex so a squad's color matches its name
+// (e.g. "Grey" is grey, "Garnet" is garnet). Returns null if unrecognized.
+export function colorForSquadName(name: string): string | null {
+  const n = name.trim().toLowerCase();
+  const map: Record<string, string> = {
+    garnet: "#B20000", red: "#B20000", crimson: "#B20000", scarlet: "#B20000",
+    maroon: "#7B1E3B",
+    grey: "#6B7280", gray: "#6B7280", silver: "#8A8F98",
+    navy: "#00142D", blue: "#1D4ED8", royal: "#1D4ED8",
+    white: "#111827", black: "#111827",
+    gold: "#B8860B", yellow: "#B8860B",
+    green: "#1B7A3D",
+    orange: "#D1551F",
+    purple: "#6D28D9", violet: "#6D28D9",
+  };
+  return map[n] ?? null;
+}

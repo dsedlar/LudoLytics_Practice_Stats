@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { parsePlanFile } from "../lib/parsePracticePlan";
-import { DEFAULT_SQUADS } from "../lib/config";
+import { DEFAULT_SQUADS, colorForSquadName } from "../lib/config";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { createPracticeFromDraft, toISODate } from "../lib/db";
 import type { DraftPlayer, PracticeDraft } from "../lib/types";
@@ -44,12 +44,14 @@ export default function Setup() {
           players.push({ jersey: p.jersey, name: p.name, squad: -1, present: true });
         }
       });
+      const nameA = plan.squads[0]?.name || DEFAULT_SQUADS[0].name;
+      const nameB = plan.squads[1]?.name || DEFAULT_SQUADS[1].name;
       setDraft({
         dateISO: toISODate(plan.date),
         startTime: plan.time,
         squads: [
-          { name: plan.squads[0]?.name || DEFAULT_SQUADS[0].name, color: DEFAULT_SQUADS[0].color },
-          { name: plan.squads[1]?.name || DEFAULT_SQUADS[1].name, color: DEFAULT_SQUADS[1].color },
+          { name: nameA, color: colorForSquadName(nameA) ?? DEFAULT_SQUADS[0].color },
+          { name: nameB, color: colorForSquadName(nameB) ?? DEFAULT_SQUADS[1].color },
         ],
         players,
       });
@@ -151,7 +153,13 @@ export default function Setup() {
                 />
                 <input
                   value={draft.squads[bucket].name}
-                  onChange={(e) => update((d) => (d.squads[bucket].name = e.target.value))}
+                  onChange={(e) =>
+                    update((d) => {
+                      d.squads[bucket].name = e.target.value;
+                      const c = colorForSquadName(e.target.value);
+                      if (c) d.squads[bucket].color = c;
+                    })
+                  }
                   className="font-bold text-lg border-b flex-1 outline-none"
                 />
               </div>

@@ -258,6 +258,11 @@ export async function setSquadLosses(squadId: string, losses: number) {
   if (error) throw error;
 }
 
+export async function setSquadColor(squadId: string, color: string) {
+  const { error } = await client().from("squads").update({ color }).eq("id", squadId);
+  if (error) throw error;
+}
+
 export async function finishPractice(practiceId: string, finishTime: string) {
   const { error } = await client()
     .from("practices")

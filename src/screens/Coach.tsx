@@ -4,7 +4,7 @@ import { usePracticeData } from "../lib/usePracticeData";
 import { tallyByPlayer } from "../lib/aggregate";
 import { compute, emptyTally, addTally, pct, type RawTally } from "../lib/stats";
 import { GRADE_SCALE } from "../lib/config";
-import { setGrade, finishPractice, setSquadWins, setSquadLosses, updatePractice } from "../lib/db";
+import { setGrade, finishPractice, setSquadWins, setSquadLosses, setSquadColor, updatePractice } from "../lib/db";
 
 export default function Coach() {
   const { id = "" } = useParams();
@@ -74,10 +74,17 @@ export default function Coach() {
 
       {/* device links */}
       <div className="mt-5 bg-white border rounded-lg p-3">
-        <h2 className="font-semibold text-sm text-gray-600 mb-2">Analyst device links (open one per squad)</h2>
+        <h2 className="font-semibold text-sm text-gray-600 mb-2">Analyst device links (open one per squad) · tap the swatch to recolor</h2>
         <div className="grid sm:grid-cols-2 gap-2">
           {bundle.squads.map((s) => (
             <div key={s.id} className="flex items-center gap-2">
+              <input
+                type="color"
+                value={s.color}
+                onChange={(e) => run(() => setSquadColor(s.id, e.target.value))}
+                className="w-6 h-6 rounded border cursor-pointer"
+                title={`${s.name} color`}
+              />
               <span className="font-semibold text-sm w-20 truncate" style={{ color: s.color }}>{s.name}</span>
               <code className="text-xs bg-gray-100 rounded px-2 py-1 flex-1 truncate">/practice/{id}/squad/{s.id}</code>
               <button onClick={() => copyLink(s.id)} className="text-sm bg-garnet text-white rounded px-3 py-1">
