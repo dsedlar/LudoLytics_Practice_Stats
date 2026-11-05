@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { usePracticeData } from "../lib/usePracticeData";
 import { tallyByPlayer } from "../lib/aggregate";
 import { compute, emptyTally, addTally, pct, type RawTally } from "../lib/stats";
@@ -112,7 +112,9 @@ export default function Coach() {
         >
           Finish practice
         </button>
-        <span className="ml-3 text-sm text-gray-500">The one-page report & PDF land in Phase 2.</span>
+        <Link to={`/practice/${id}/report`} className="ml-3 bg-garnet text-white px-5 py-3 rounded-lg font-semibold">
+          View report →
+        </Link>
       </div>
     </div>
   );

@@ -1,0 +1,377 @@
+import {
+  type ReportModel,
+  type StatBlock,
+  type SegmentLine,
+  type DrillLine,
+  type PlayerLine,
+} from "../lib/reportData";
+import { GRADE_SCALE } from "../lib/config";
+
+// ---- formatting ----
+const p = (x: number) => `${Math.round(x * 100)}%`;
+const f2 = (x: number) => x.toFixed(2);
+const f1 = (x: number) => x.toFixed(1);
+const ma = (m: number, a: number) => `${m}-${a}`;
+const dash = (s: string, show: boolean) => (show ? s : "–");
+
+// ---- heat map ----
+const TIER = ["#f4b8b8", "#f5e6a8", "#cfe8c0", "#9ed69e", "#4fae5a"];
+function pctTier(v: number) {
+  if (v < 0.35) return 0;
+  if (v < 0.45) return 1;
+  if (v < 0.52) return 2;
+  if (v < 0.6) return 3;
+  return 4;
+}
+function cpTier(v: number) {
+  if (v < 5) return 0;
+  if (v < 8) return 1;
+  if (v < 11) return 2;
+  if (v < 15) return 3;
+  return 4;
+}
+function perTier(v: number) {
+  if (v < 0) return 0;
+  if (v < 8) return 1;
+  if (v < 14) return 2;
+  if (v < 20) return 3;
+  return 4;
+}
+const bg = (tier: number | null): React.CSSProperties => (tier == null ? {} : { background: TIER[tier] });
+
+function Bar({ title }: { title: string }) {
+  return (
+    <div style={{ background: "#7a0019", color: "#fff", fontWeight: 800, fontSize: 10, letterSpacing: 1, padding: "3px 8px" }}>
+      {title}
+    </div>
+  );
+}
+
+const th: React.CSSProperties = { padding: "2px 4px", fontWeight: 700, fontSize: 8, color: "#555", borderBottom: "1px solid #ddd", textAlign: "center", whiteSpace: "nowrap" };
+const td: React.CSSProperties = { padding: "2px 4px", fontSize: 9, textAlign: "center", borderBottom: "1px solid #f0f0f0", whiteSpace: "nowrap" };
+const grp: React.CSSProperties = { fontSize: 7, fontWeight: 800, color: "#999", textAlign: "center", padding: "2px 4px", letterSpacing: 0.5, borderBottom: "1px solid #eee" };
+
+export default function ReportView({ m }: { m: ReportModel }) {
+  const g = m.grade ?? 0;
+  return (
+    <div style={{ width: 1120, background: "#fff", color: "#1a1a1a", fontFamily: "Inter, Arial, sans-serif", padding: 16 }}>
+      {/* header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #7a0019", paddingBottom: 6 }}>
+        <div>
+          <div style={{ fontSize: 9, letterSpacing: 2, color: "#7a0019", fontWeight: 700 }}>VIRGINIA EPISCOPAL SCHOOL</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: "#111", lineHeight: 1 }}>BOYS BASKETBALL</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 16, letterSpacing: 3, fontWeight: 800, color: "#7a0019" }}>PRACTICE REPORT</div>
+          <div style={{ fontSize: 10, color: "#444" }}>
+            {m.date} {m.finishTime ? <>| Practice finished <b>{m.finishTime}</b></> : null}
+          </div>
+        </div>
+      </div>
+
+      {/* summary cards */}
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        {m.squads.map((s) => (
+          <SummaryCard key={s.id} name={s.name} color={s.color} block={s.team} wins={s.wins} />
+        ))}
+        <SummaryCard name="Combined" color="#13293d" block={m.combined} wins={m.squads.reduce((a, s) => a + s.wins, 0)} />
+        <div style={{ flex: "0 0 150px", border: "1px solid #ddd", borderRadius: 4, padding: 8 }}>
+          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1, color: "#7a0019" }}>PRACTICE GRADE</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+            <div style={{ fontSize: 30, fontWeight: 900 }}>{g || "–"}</div>
+            <div style={{ fontSize: 9 }}>
+              <div style={{ fontWeight: 700 }}>{g ? GRADE_SCALE[g].label : ""}</div>
+              <div style={{ color: "#777" }}>{g ? GRADE_SCALE[g].blurb : ""}</div>
+            </div>
+          </div>
+        </div>
+        <div style={{ flex: "0 0 120px", border: "1px solid #ddd", borderRadius: 4, padding: 8 }}>
+          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1, color: "#7a0019" }}>ATTENDANCE</div>
+          <div style={{ fontSize: 24, fontWeight: 900, marginTop: 4 }}>{m.attPresent}/{m.attTotal}</div>
+          <div style={{ fontSize: 9, color: "#777" }}>{p(m.attPct)} present</div>
+        </div>
+      </div>
+
+      {/* team stats */}
+      <div style={{ marginTop: 10 }}>
+        <Bar title="TEAM STATS" />
+        <TeamStatsTable m={m} />
+      </div>
+
+      {/* mid tables */}
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <div style={{ flex: 1 }}>
+          <Bar title="LIVE PLAY" />
+          <SegmentTable rows={m.live} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <Bar title="TRANSITION SERIES" />
+          <SegmentTable rows={m.transition} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <Bar title="BAYLOR SHOOTING & FREE THROWS" />
+          <DrillTable rows={m.drills} />
+        </div>
+      </div>
+
+      {/* individual */}
+      <div style={{ marginTop: 10 }}>
+        <Bar title="INDIVIDUAL STATS" />
+        <IndividualTable m={m} />
+      </div>
+
+      {/* footer */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: 8 }}>
+        <div style={{ display: "flex", gap: 10, fontSize: 8, alignItems: "center" }}>
+          {["Below average", "Average", "Above average", "High level", "Elite"].map((l, i) => (
+            <span key={l} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+              <span style={{ width: 10, height: 10, background: TIER[i], display: "inline-block", borderRadius: 2 }} />
+              {l}
+            </span>
+          ))}
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 900, letterSpacing: 1 }}>
+          LUDO<span style={{ color: "#7a0019" }}>LYTICS</span>
+        </div>
+      </div>
+      <div style={{ fontSize: 7, color: "#999", marginTop: 4, lineHeight: 1.3 }}>
+        POSS (est) = FGA + TO + 0.44·FTA. PPP = pts/poss. PPS = pts/FGA (FT incl). eFG% = (FGM+0.5·3PM)/FGA. TS% = PTS/2/(FGA+0.44·FTA).
+        A/TO = Ast/TO. PER = PTS + 4·FGM − 0.7·FGA − 0.4·missed FT + 0.7·OR + 0.3·DR + Ast + 0.7·STL + 0.7·BLK − TO.
+        Casper Points (CP) honor Coach Mitch Casper: OR 1.5, DR 1, Tip 0.5, LB 1, Dive 2, Chg 4, STL 1, BLK 1, Def 1, GS 1, TA 1, Misc 1. #BeLikeMitch
+      </div>
+    </div>
+  );
+}
+
+function SummaryCard({ name, color, block, wins }: { name: string; color: string; block: StatBlock; wins: number }) {
+  return (
+    <div style={{ flex: 1, border: `2px solid ${color}`, borderRadius: 4, overflow: "hidden" }}>
+      <div style={{ background: color, color: "#fff", fontWeight: 800, letterSpacing: 2, fontSize: 11, textAlign: "center", padding: "2px 0" }}>{name.toUpperCase()}</div>
+      <div style={{ display: "flex", justifyContent: "space-around", padding: "6px 4px" }}>
+        {[
+          [f2(block.ppp), "PPP"],
+          [String(round1(block.casper)), "CASPER"],
+          [String(wins), "WINS"],
+          [String(Math.round(block.poss)), "POSS"],
+        ].map(([v, l]) => (
+          <div key={l} style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1 }}>{v}</div>
+            <div style={{ fontSize: 7, color: "#777", letterSpacing: 0.5 }}>{l}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+const round1 = (x: number) => Math.round(x * 10) / 10;
+
+function TeamStatsTable({ m }: { m: ReportModel }) {
+  const rows = [...m.squads.map((s) => ({ name: s.name, color: s.color, b: s.team })), { name: "Combined", color: "#13293d", b: m.combined }];
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr>
+          <th style={{ ...grp }} colSpan={1}></th>
+          <th style={grp} colSpan={5}></th>
+          <th style={grp} colSpan={3}>AT THE RIM</th>
+          <th style={grp} colSpan={3}>NON-ATR 2FG</th>
+          <th style={grp} colSpan={3}>3FG</th>
+          <th style={grp} colSpan={2}>FT</th>
+          <th style={grp} colSpan={1}></th>
+          <th style={grp} colSpan={6}>PLAYMAKING</th>
+          <th style={grp} colSpan={5}>REBOUNDING</th>
+          <th style={grp} colSpan={6}>DEFENSE</th>
+          <th style={grp} colSpan={1}>CASPER</th>
+        </tr>
+        <tr>
+          {["TEAM", "POSS", "PPP", "PPS", "eFG%", "TS%", "FGM-A", "FG%", "Fr%", "FGM-A", "FG%", "Fr%", "FGM-A", "FG%", "Fr%", "FTM-A", "FT%", "FD",
+            "Pot", "2nd", "Ast", "TO", "TO%", "A/TO", "Tip", "OR", "DR", "OR%", "TOT", "STL", "BLK", "Def", "LB", "Dive", "Chg", "PTS"].map((h, i) => (
+            <th key={i} style={{ ...th, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.name}>
+            <td style={{ ...td, textAlign: "left", fontWeight: 700, color: r.color }}>{r.name}</td>
+            <td style={td}>{Math.round(r.b.poss)}</td>
+            <td style={td}>{f2(r.b.ppp)}</td>
+            <td style={td}>{f2(r.b.pps)}</td>
+            <td style={{ ...td, ...bg(pctTier(r.b.efg)) }}>{p(r.b.efg)}</td>
+            <td style={{ ...td, ...bg(pctTier(r.b.ts)) }}>{p(r.b.ts)}</td>
+            <ZoneCells z={r.b.atr} /><ZoneCells z={r.b.nonatr2} /><ZoneCells z={r.b.fg3} />
+            <td style={td}>{ma(r.b.ft.m, r.b.ft.a)}</td>
+            <td style={{ ...td, ...bg(r.b.ft.a ? pctTier(r.b.ft.pct) : null) }}>{dash(p(r.b.ft.pct), r.b.ft.a > 0)}</td>
+            <td style={td}>{r.b.fd}</td>
+            <td style={td}>{r.b.play.pot}</td><td style={td}>{r.b.play.second}</td><td style={td}>{r.b.play.ast}</td>
+            <td style={td}>{r.b.play.to}</td><td style={td}>{p(r.b.play.toPct)}</td><td style={td}>{f2(r.b.play.ato)}</td>
+            <td style={td}>{r.b.reb.tip}</td><td style={td}>{r.b.reb.or}</td><td style={td}>{r.b.reb.dr}</td>
+            <td style={td}>{p(r.b.reb.orPct)}</td><td style={td}>{r.b.reb.tot}</td>
+            <td style={td}>{r.b.def.stl}</td><td style={td}>{r.b.def.blk}</td><td style={td}>{r.b.def.def}</td>
+            <td style={td}>{r.b.def.lb}</td><td style={td}>{r.b.def.dive}</td><td style={td}>{r.b.def.chg}</td>
+            <td style={{ ...td, fontWeight: 700 }}>{round1(r.b.casper)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function ZoneCells({ z }: { z: { m: number; a: number; pct: number; fr: number } }) {
+  return (
+    <>
+      <td style={td}>{ma(z.m, z.a)}</td>
+      <td style={{ ...td, ...bg(z.a ? pctTier(z.pct) : null) }}>{dash(p(z.pct), z.a > 0)}</td>
+      <td style={td}>{dash(p(z.fr), z.a > 0)}</td>
+    </>
+  );
+}
+
+function SegmentTable({ rows }: { rows: SegmentLine[] }) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr>
+          <th style={grp}></th><th style={grp} colSpan={2}></th>
+          <th style={grp} colSpan={2}>ATR</th><th style={grp} colSpan={2}>2FG</th><th style={grp} colSpan={2}>3FG</th>
+          <th style={grp} colSpan={4}>OTHER</th>
+        </tr>
+        <tr>
+          {["", "POS", "PPP", "M-A", "FG%", "M-A", "FG%", "M-A", "FG%", "FD", "Ast", "TO", "OR"].map((h, i) => (
+            <th key={i} style={{ ...th, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.name}>
+            <td style={{ ...td, textAlign: "left", fontWeight: 700, color: r.color }}>{r.name}</td>
+            <td style={td}>{Math.round(r.pos)}</td><td style={td}>{f2(r.ppp)}</td>
+            <td style={td}>{ma(r.atr.m, r.atr.a)}</td><td style={{ ...td, ...bg(r.atr.a ? pctTier(r.atr.pct) : null) }}>{dash(p(r.atr.pct), r.atr.a > 0)}</td>
+            <td style={td}>{ma(r.nonatr2.m, r.nonatr2.a)}</td><td style={{ ...td, ...bg(r.nonatr2.a ? pctTier(r.nonatr2.pct) : null) }}>{dash(p(r.nonatr2.pct), r.nonatr2.a > 0)}</td>
+            <td style={td}>{ma(r.fg3.m, r.fg3.a)}</td><td style={{ ...td, ...bg(r.fg3.a ? pctTier(r.fg3.pct) : null) }}>{dash(p(r.fg3.pct), r.fg3.a > 0)}</td>
+            <td style={td}>{r.fd}</td><td style={td}>{r.ast}</td><td style={td}>{r.to}</td><td style={td}>{r.or}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function DrillTable({ rows }: { rows: DrillLine[] }) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr>
+          <th style={grp}></th><th style={grp} colSpan={2}>BAYLOR /75</th><th style={grp} colSpan={2}>90SEC /20</th>
+          <th style={grp} colSpan={2}>3-ON-0</th><th style={grp} colSpan={2}>FT /20</th>
+        </tr>
+        <tr>
+          {["TEAM", "AVG", "%", "AVG", "%", "M-A", "%", "AVG", "%"].map((h, i) => (
+            <th key={i} style={{ ...th, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.name}>
+            <td style={{ ...td, textAlign: "left", fontWeight: 700, color: r.color }}>{r.name}</td>
+            <td style={td}>{f1(r.baylor.avg)}</td><td style={{ ...td, ...bg(pctTier(r.baylor.pct)) }}>{p(r.baylor.pct)}</td>
+            <td style={td}>{f1(r.ninetys.avg)}</td><td style={{ ...td, ...bg(pctTier(r.ninetys.pct)) }}>{p(r.ninetys.pct)}</td>
+            <td style={td}>{ma(r.transition.m, r.transition.a)}</td><td style={{ ...td, ...bg(r.transition.a ? pctTier(r.transition.pct) : null) }}>{dash(p(r.transition.pct), r.transition.a > 0)}</td>
+            <td style={td}>{f1(r.ft.avg)}</td><td style={{ ...td, ...bg(pctTier(r.ft.pct)) }}>{p(r.ft.pct)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+const IND_HEAD = ["AT", "W-L", "PTS", "PPS", "eFG%", "TS%", "FGM-A", "FG%", "FGM-A", "FG%", "FGM-A", "FG%", "FTM-A", "FT%", "FD",
+  "Pot", "2nd", "Ast", "TO", "A/TO", "Tip", "OR", "DR", "TOT", "STL", "BLK", "Def", "LB", "Dive", "Chg", "CP", "PER", "BAY", "90s", "3on0", "FT"];
+
+function IndividualTable({ m }: { m: ReportModel }) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr>
+          <th style={grp} colSpan={2}>PLAYER</th><th style={grp} colSpan={5}></th>
+          <th style={grp} colSpan={2}>ATR</th><th style={grp} colSpan={2}>NON-ATR 2FG</th><th style={grp} colSpan={2}>3FG</th>
+          <th style={grp} colSpan={2}>FT</th><th style={grp}></th>
+          <th style={grp} colSpan={5}>PLAYMAKING</th><th style={grp} colSpan={4}>REBOUNDING</th>
+          <th style={grp} colSpan={6}>DEFENSE</th><th style={grp} colSpan={2}></th><th style={grp} colSpan={4}>SHOOTING DRILLS</th>
+        </tr>
+        <tr>
+          <th style={{ ...th, textAlign: "left" }}>#</th>
+          <th style={{ ...th, textAlign: "left" }}>Player</th>
+          {IND_HEAD.map((h, i) => <th key={i} style={th}>{h}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {m.squads.map((s) => (
+          <SquadRows key={s.id} name={s.name} color={s.color} players={s.players.filter((pl) => pl.present)} totals={s.totals} />
+        ))}
+        {m.absent.length > 0 && (
+          <tr>
+            <td colSpan={IND_HEAD.length + 2} style={{ ...td, textAlign: "left", color: "#999", fontSize: 8, paddingTop: 4 }}>
+              {m.absent.map((a) => `#${a.jersey} ${a.name}`).join(", ")} — Absent (not counted in team totals)
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
+function SquadRows({ name, color, players, totals }: { name: string; color: string; players: PlayerLine[]; totals: StatBlock }) {
+  return (
+    <>
+      <tr>
+        <td colSpan={38} style={{ background: color, color: "#fff", fontWeight: 800, fontSize: 8, letterSpacing: 1, padding: "2px 4px", textAlign: "left" }}>
+          {name.toUpperCase()}
+        </td>
+      </tr>
+      {players.map((pl) => <PlayerRow key={pl.playerId} pl={pl} />)}
+      <tr style={{ borderTop: "1px solid #bbb" }}>
+        <td style={{ ...td, textAlign: "left", fontWeight: 800 }} colSpan={2}>TEAM TOTALS</td>
+        <BlockCells b={totals} drills={{ baylor: null, ninetys: null, transM: null, transA: null, ft: null }} wl="" bold />
+      </tr>
+    </>
+  );
+}
+
+function PlayerRow({ pl }: { pl: PlayerLine }) {
+  return (
+    <tr>
+      <td style={{ ...td, textAlign: "left", color: "#777" }}>#{pl.jersey}</td>
+      <td style={{ ...td, textAlign: "left", fontWeight: 600 }}>{pl.name}</td>
+      <BlockCells b={pl.block} drills={pl.drills} wl={pl.wl} present={pl.present} />
+    </tr>
+  );
+}
+
+function BlockCells({ b, drills, wl, bold, present = true }: { b: StatBlock; drills: PlayerLine["drills"]; wl: string; bold?: boolean; present?: boolean }) {
+  const w = bold ? 700 : 400;
+  return (
+    <>
+      <td style={td}>{present ? "✓" : "–"}</td>
+      <td style={td}>{wl}</td>
+      <td style={{ ...td, fontWeight: w }}>{b.pts}</td>
+      <td style={td}>{f2(b.pps)}</td>
+      <td style={{ ...td, ...bg(b.efg ? pctTier(b.efg) : null) }}>{dash(p(b.efg), b.pts > 0 || b.atr.a + b.nonatr2.a + b.fg3.a > 0)}</td>
+      <td style={{ ...td, ...bg(b.ts ? pctTier(b.ts) : null) }}>{dash(p(b.ts), b.atr.a + b.nonatr2.a + b.fg3.a > 0)}</td>
+      <td style={td}>{ma(b.atr.m, b.atr.a)}</td><td style={{ ...td, ...bg(b.atr.a ? pctTier(b.atr.pct) : null) }}>{dash(p(b.atr.pct), b.atr.a > 0)}</td>
+      <td style={td}>{ma(b.nonatr2.m, b.nonatr2.a)}</td><td style={{ ...td, ...bg(b.nonatr2.a ? pctTier(b.nonatr2.pct) : null) }}>{dash(p(b.nonatr2.pct), b.nonatr2.a > 0)}</td>
+      <td style={td}>{ma(b.fg3.m, b.fg3.a)}</td><td style={{ ...td, ...bg(b.fg3.a ? pctTier(b.fg3.pct) : null) }}>{dash(p(b.fg3.pct), b.fg3.a > 0)}</td>
+      <td style={td}>{ma(b.ft.m, b.ft.a)}</td><td style={{ ...td, ...bg(b.ft.a ? pctTier(b.ft.pct) : null) }}>{dash(p(b.ft.pct), b.ft.a > 0)}</td>
+      <td style={td}>{b.fd}</td>
+      <td style={td}>{b.play.pot}</td><td style={td}>{b.play.second}</td><td style={td}>{b.play.ast}</td><td style={td}>{b.play.to}</td><td style={td}>{f2(b.play.ato)}</td>
+      <td style={td}>{b.reb.tip}</td><td style={td}>{b.reb.or}</td><td style={td}>{b.reb.dr}</td><td style={td}>{b.reb.tot}</td>
+      <td style={td}>{b.def.stl}</td><td style={td}>{b.def.blk}</td><td style={td}>{b.def.def}</td><td style={td}>{b.def.lb}</td><td style={td}>{b.def.dive}</td><td style={td}>{b.def.chg}</td>
+      <td style={{ ...td, fontWeight: 700, ...bg(cpTier(b.casper)) }}>{round1(b.casper)}</td>
+      <td style={{ ...td, ...bg(perTier(b.per)) }}>{f1(b.per)}</td>
+      <td style={td}>{drills.baylor ?? "–"}</td><td style={td}>{drills.ninetys ?? "–"}</td>
+      <td style={td}>{drills.transM != null ? ma(drills.transM, drills.transA ?? 0) : "–"}</td><td style={td}>{drills.ft ?? "–"}</td>
+    </>
+  );
+}

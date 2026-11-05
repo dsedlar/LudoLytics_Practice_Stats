@@ -12,3 +12,29 @@ body {
   background: #f5f5f6;
   color: #1a1a1a;
 }
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 0.3in;
+  }
+  body {
+    background: #fff;
+  }
+  .no-print {
+    display: none !important;
+  }
+  main {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .report-wrap {
+    overflow: visible !important;
+  }
+  /* keep heat-map colors when printing */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
