@@ -12,12 +12,12 @@ import DashboardDemo from "./screens/DashboardDemo";
 export default function App() {
   return (
     <div className="min-h-screen">
-      <header className="bg-garnet text-white no-print">
+      <header className="bg-deep-garnet text-ivory no-print">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="font-black tracking-wide">
-            VES BASKETBALL · <span className="font-light">LUDOLYTICS</span>
+          <Link to="/" className="sport-lockup text-lg">
+            VES Basketball · <span className="text-white/70">Ludolytics</span>
           </Link>
-          <span className="text-xs opacity-80">Practice Stats</span>
+          <span className="eyebrow text-[10px] text-ivory/70">Practice Stats</span>
         </div>
       </header>
 

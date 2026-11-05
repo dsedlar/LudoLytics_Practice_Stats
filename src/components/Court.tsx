@@ -67,7 +67,7 @@ export default function Court({ color, shots, disabled, onLog }: Props) {
       <svg
         ref={svgRef}
         viewBox={`0 0 ${COURT.width} ${COURT.height}`}
-        className="w-full h-full rounded-lg border bg-[#f7efe2] cursor-crosshair"
+        className="w-full h-full rounded-lg border bg-cream cursor-crosshair"
         onClick={handleClick}
       >
         {/* court outline */}

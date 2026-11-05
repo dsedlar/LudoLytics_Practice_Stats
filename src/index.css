@@ -4,13 +4,42 @@
 
 :root {
   color-scheme: light;
+  /* Licensed Chromatic / Baskerville first, then free web stand-ins, then defaults. */
+  --font-serif: "Baskerville", "Libre Baskerville", "Times New Roman", serif;
+  --font-compressed: "Chromatic Compressed", "Oswald", "Franklin Gothic", Arial, sans-serif;
+  --font-gothic: "Chromatic Gothic", "Syncopate", "Franklin Gothic", Arial, sans-serif;
+  --font-grotesque: "Chromatic Grotesque", "Instrument Sans", Arial, sans-serif;
 }
 
 body {
   margin: 0;
-  font-family: Inter, system-ui, Arial, sans-serif;
-  background: #f5f5f6;
-  color: #1a1a1a;
+  font-family: var(--font-grotesque);
+  background: #fbfaf5; /* ivory */
+  color: #000000;
+}
+
+/* ---- typography roles ---- */
+.eyebrow,
+.subhead {
+  font-family: var(--font-gothic);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+.headline-bold,
+.data-bold,
+.title-bold {
+  font-family: var(--font-compressed);
+  text-transform: uppercase;
+  letter-spacing: 0.075em;
+}
+.sport-lockup {
+  font-family: var(--font-compressed);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.headline-serif,
+.display-serif {
+  font-family: var(--font-serif);
 }
 
 @media print {
@@ -32,7 +61,6 @@ body {
   .report-wrap {
     overflow: visible !important;
   }
-  /* keep heat-map colors when printing */
   * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;

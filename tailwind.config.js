@@ -4,19 +4,24 @@ export default {
   theme: {
     extend: {
       colors: {
-        // VES Ludolytics brand
-        garnet: "#7a0019",
-        "garnet-dark": "#5c0013",
-        navy: "#13293d",
-        // Heat-map tiers (below average -> elite)
-        tier1: "#f4b8b8", // below average
-        tier2: "#f5e6a8", // average
-        tier3: "#cfe8c0", // above average
-        tier4: "#9ed69e", // high level
-        tier5: "#4fae5a", // elite
+        // VES brand palette
+        garnet: "#B20000", // primary: logos, headlines, keylines, graphic elements
+        "deep-garnet": "#3C0019", // secondary: backgrounds & body copy only
+        navy: "#00142D", // tertiary: background alternative to deep garnet
+        ivory: "#FBFAF5", // warm background
+        cream: "#F3EED4", // richer warm background
+        // Heat-map tiers (below average -> elite) — data viz, not brand
+        tier1: "#f4b8b8",
+        tier2: "#f5e6a8",
+        tier3: "#cfe8c0",
+        tier4: "#9ed69e",
+        tier5: "#4fae5a",
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "Arial", "sans-serif"],
+        sans: ["var(--font-grotesque)"],
+        serif: ["var(--font-serif)"],
+        compressed: ["var(--font-compressed)"],
+        gothic: ["var(--font-gothic)"],
       },
     },
   },

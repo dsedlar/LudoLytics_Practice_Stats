@@ -164,13 +164,13 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
     live.push(segmentLine(s.name, s.color, segTotal(liveByPlayer, s.id)));
     trans.push(segmentLine(s.name, s.color, segTotal(transByPlayer, s.id)));
   });
-  live.push(segmentLine("Combined", "#13293d", squadIds.reduce((a, sid) => addTally(a, segTotal(liveByPlayer, sid)), emptyTally())));
-  trans.push(segmentLine("Combined", "#13293d", squadIds.reduce((a, sid) => addTally(a, segTotal(transByPlayer, sid)), emptyTally())));
+  live.push(segmentLine("Combined", "#00142D", squadIds.reduce((a, sid) => addTally(a, segTotal(liveByPlayer, sid)), emptyTally())));
+  trans.push(segmentLine("Combined", "#00142D", squadIds.reduce((a, sid) => addTally(a, segTotal(transByPlayer, sid)), emptyTally())));
 
   const drillLines: DrillLine[] = bundle.squads.map((s) =>
     drillLine(s.name, s.color, drills.filter((d) => d.squad_id === s.id)),
   );
-  drillLines.push(drillLine("Combined", "#13293d", drills));
+  drillLines.push(drillLine("Combined", "#00142D", drills));
 
   const present = bundle.roster.filter((r) => r.present).length;
   const total = bundle.roster.length;

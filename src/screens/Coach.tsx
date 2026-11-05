@@ -46,7 +46,7 @@ export default function Coach() {
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-black text-garnet">Coach view · {bundle.practice.practice_date}</h1>
+        <h1 className="text-2xl headline-bold text-garnet">Coach view · {bundle.practice.practice_date}</h1>
         <span className="text-sm text-gray-500">{present}/{bundle.roster.length} present</span>
       </div>
 
@@ -56,7 +56,7 @@ export default function Coach() {
           const c = compute(squadTally(s.id));
           return <SummaryCard key={s.id} name={s.name} color={s.color} c={c} />;
         })}
-        <SummaryCard name="Combined" color="#13293d" c={compute(combined)} wide={bundle.squads.length < 2} />
+        <SummaryCard name="Combined" color="#00142D" c={compute(combined)} wide={bundle.squads.length < 2} />
       </div>
 
       {/* device links */}

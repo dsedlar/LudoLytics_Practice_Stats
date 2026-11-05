@@ -40,11 +40,11 @@ function PlayerDetail({ p }: { p: PlayerSeason }) {
       <div className="flex flex-wrap gap-8 mb-3">
         <div>
           <div className="text-xs text-gray-500 mb-1">PER by practice</div>
-          <Spark values={p.history.map((h) => h.per)} color="#7a0019" />
+          <Spark values={p.history.map((h) => h.per)} color="#B20000" />
         </div>
         <div>
           <div className="text-xs text-gray-500 mb-1">Casper Points by practice</div>
-          <Spark values={p.history.map((h) => h.cp)} color="#13293d" />
+          <Spark values={p.history.map((h) => h.cp)} color="#00142D" />
         </div>
         <div>
           <div className="text-xs text-gray-500 mb-1">Shooting drills (avg)</div>

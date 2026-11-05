@@ -92,7 +92,7 @@ export default function Setup() {
   if (!draft) {
     return (
       <div>
-        <h1 className="text-2xl font-black text-garnet">Set up practice</h1>
+        <h1 className="text-3xl headline-bold text-garnet">Set up practice</h1>
         <p className="mt-2 text-gray-600">Upload today's practice-plan Word doc to auto-fill the squads, or start from scratch.</p>
         <div className="mt-6 flex flex-wrap gap-3">
           <input ref={fileInput} type="file" accept=".docx" className="hidden" onChange={onFile} />
@@ -118,7 +118,7 @@ export default function Setup() {
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-black text-garnet">Confirm practice</h1>
+        <h1 className="text-3xl headline-bold text-garnet">Confirm practice</h1>
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-600">Date</label>
           <input

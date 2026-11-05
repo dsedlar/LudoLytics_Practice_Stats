@@ -123,6 +123,6 @@ export type StatType = ShotType | CountingType;
 
 // Default squad names/colors (overridden per-practice; teams change often).
 export const DEFAULT_SQUADS = [
-  { name: "Garnet", color: "#7a0019" },
-  { name: "White", color: "#444444" },
+  { name: "Garnet", color: "#B20000" },
+  { name: "Navy", color: "#00142D" },
 ];

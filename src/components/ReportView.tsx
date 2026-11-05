@@ -39,9 +39,13 @@ function perTier(v: number) {
 }
 const bg = (tier: number | null): React.CSSProperties => (tier == null ? {} : { background: TIER[tier] });
 
+const F_COMPRESSED = "var(--font-compressed)";
+const F_GOTHIC = "var(--font-gothic)";
+const F_BODY = "var(--font-grotesque)";
+
 function Bar({ title }: { title: string }) {
   return (
-    <div style={{ background: "#7a0019", color: "#fff", fontWeight: 800, fontSize: 10, letterSpacing: 1, padding: "3px 8px" }}>
+    <div style={{ background: "#B20000", color: "#fff", fontFamily: F_COMPRESSED, textTransform: "uppercase", fontWeight: 600, fontSize: 11, letterSpacing: "0.08em", padding: "3px 8px" }}>
       {title}
     </div>
   );
@@ -54,16 +58,16 @@ const grp: React.CSSProperties = { fontSize: 7, fontWeight: 800, color: "#999", 
 export default function ReportView({ m }: { m: ReportModel }) {
   const g = m.grade ?? 0;
   return (
-    <div style={{ width: 1120, background: "#fff", color: "#1a1a1a", fontFamily: "Inter, Arial, sans-serif", padding: 16 }}>
+    <div style={{ width: 1120, background: "#fff", color: "#000", fontFamily: F_BODY, padding: 16 }}>
       {/* header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #7a0019", paddingBottom: 6 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #B20000", paddingBottom: 6 }}>
         <div>
-          <div style={{ fontSize: 9, letterSpacing: 2, color: "#7a0019", fontWeight: 700 }}>VIRGINIA EPISCOPAL SCHOOL</div>
-          <div style={{ fontSize: 26, fontWeight: 900, color: "#111", lineHeight: 1 }}>BOYS BASKETBALL</div>
+          <div style={{ fontFamily: F_GOTHIC, fontSize: 8, letterSpacing: "0.2em", color: "#B20000" }}>VIRGINIA EPISCOPAL SCHOOL</div>
+          <div style={{ fontFamily: F_COMPRESSED, fontSize: 30, fontWeight: 700, letterSpacing: "0.02em", color: "#000", lineHeight: 1 }}>BOYS BASKETBALL</div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 16, letterSpacing: 3, fontWeight: 800, color: "#7a0019" }}>PRACTICE REPORT</div>
-          <div style={{ fontSize: 10, color: "#444" }}>
+          <div style={{ fontFamily: F_COMPRESSED, fontSize: 18, letterSpacing: "0.12em", fontWeight: 600, color: "#B20000" }}>PRACTICE REPORT</div>
+          <div style={{ fontSize: 10, color: "#3C0019" }}>
             {m.date} {m.finishTime ? <>| Practice finished <b>{m.finishTime}</b></> : null}
           </div>
         </div>
@@ -74,21 +78,21 @@ export default function ReportView({ m }: { m: ReportModel }) {
         {m.squads.map((s) => (
           <SummaryCard key={s.id} name={s.name} color={s.color} block={s.team} wins={s.wins} />
         ))}
-        <SummaryCard name="Combined" color="#13293d" block={m.combined} wins={m.squads.reduce((a, s) => a + s.wins, 0)} />
+        <SummaryCard name="Combined" color="#00142D" block={m.combined} wins={m.squads.reduce((a, s) => a + s.wins, 0)} />
         <div style={{ flex: "0 0 150px", border: "1px solid #ddd", borderRadius: 4, padding: 8 }}>
-          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1, color: "#7a0019" }}>PRACTICE GRADE</div>
+          <div style={{ fontFamily: F_GOTHIC, fontSize: 8, letterSpacing: "0.18em", color: "#B20000" }}>PRACTICE GRADE</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-            <div style={{ fontSize: 30, fontWeight: 900 }}>{g || "–"}</div>
+            <div style={{ fontFamily: F_COMPRESSED, fontSize: 32, fontWeight: 700 }}>{g || "–"}</div>
             <div style={{ fontSize: 9 }}>
               <div style={{ fontWeight: 700 }}>{g ? GRADE_SCALE[g].label : ""}</div>
-              <div style={{ color: "#777" }}>{g ? GRADE_SCALE[g].blurb : ""}</div>
+              <div style={{ color: "#3C0019" }}>{g ? GRADE_SCALE[g].blurb : ""}</div>
             </div>
           </div>
         </div>
         <div style={{ flex: "0 0 120px", border: "1px solid #ddd", borderRadius: 4, padding: 8 }}>
-          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1, color: "#7a0019" }}>ATTENDANCE</div>
-          <div style={{ fontSize: 24, fontWeight: 900, marginTop: 4 }}>{m.attPresent}/{m.attTotal}</div>
-          <div style={{ fontSize: 9, color: "#777" }}>{p(m.attPct)} present</div>
+          <div style={{ fontFamily: F_GOTHIC, fontSize: 8, letterSpacing: "0.18em", color: "#B20000" }}>ATTENDANCE</div>
+          <div style={{ fontFamily: F_COMPRESSED, fontSize: 26, fontWeight: 700, marginTop: 4 }}>{m.attPresent}/{m.attTotal}</div>
+          <div style={{ fontSize: 9, color: "#3C0019" }}>{p(m.attPct)} present</div>
         </div>
       </div>
 
@@ -130,8 +134,8 @@ export default function ReportView({ m }: { m: ReportModel }) {
             </span>
           ))}
         </div>
-        <div style={{ fontSize: 14, fontWeight: 900, letterSpacing: 1 }}>
-          LUDO<span style={{ color: "#7a0019" }}>LYTICS</span>
+        <div style={{ fontFamily: F_COMPRESSED, fontSize: 16, fontWeight: 700, letterSpacing: "0.06em" }}>
+          LUDO<span style={{ color: "#B20000" }}>LYTICS</span>
         </div>
       </div>
       <div style={{ fontSize: 7, color: "#999", marginTop: 4, lineHeight: 1.3 }}>
@@ -146,7 +150,7 @@ export default function ReportView({ m }: { m: ReportModel }) {
 function SummaryCard({ name, color, block, wins }: { name: string; color: string; block: StatBlock; wins: number }) {
   return (
     <div style={{ flex: 1, border: `2px solid ${color}`, borderRadius: 4, overflow: "hidden" }}>
-      <div style={{ background: color, color: "#fff", fontWeight: 800, letterSpacing: 2, fontSize: 11, textAlign: "center", padding: "2px 0" }}>{name.toUpperCase()}</div>
+      <div style={{ background: color, color: "#fff", fontFamily: F_COMPRESSED, fontWeight: 600, letterSpacing: "0.12em", fontSize: 12, textAlign: "center", padding: "2px 0" }}>{name.toUpperCase()}</div>
       <div style={{ display: "flex", justifyContent: "space-around", padding: "6px 4px" }}>
         {[
           [f2(block.ppp), "PPP"],
@@ -155,8 +159,8 @@ function SummaryCard({ name, color, block, wins }: { name: string; color: string
           [String(Math.round(block.poss)), "POSS"],
         ].map(([v, l]) => (
           <div key={l} style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1 }}>{v}</div>
-            <div style={{ fontSize: 7, color: "#777", letterSpacing: 0.5 }}>{l}</div>
+            <div style={{ fontFamily: F_COMPRESSED, fontSize: 20, fontWeight: 700, lineHeight: 1 }}>{v}</div>
+            <div style={{ fontFamily: F_GOTHIC, fontSize: 6.5, color: "#3C0019", letterSpacing: "0.1em" }}>{l}</div>
           </div>
         ))}
       </div>
@@ -166,7 +170,7 @@ function SummaryCard({ name, color, block, wins }: { name: string; color: string
 const round1 = (x: number) => Math.round(x * 10) / 10;
 
 function TeamStatsTable({ m }: { m: ReportModel }) {
-  const rows = [...m.squads.map((s) => ({ name: s.name, color: s.color, b: s.team })), { name: "Combined", color: "#13293d", b: m.combined }];
+  const rows = [...m.squads.map((s) => ({ name: s.name, color: s.color, b: s.team })), { name: "Combined", color: "#00142D", b: m.combined }];
   return (
     <table style={{ width: "100%", borderCollapse: "collapse" }}>
       <thead>

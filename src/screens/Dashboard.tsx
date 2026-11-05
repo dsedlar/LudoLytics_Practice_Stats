@@ -23,7 +23,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <h1 className="text-2xl font-black text-garnet">Season Dashboard</h1>
+      <h1 className="text-3xl headline-bold text-garnet">Season Dashboard</h1>
       <p className="mt-1 text-gray-600 text-sm">
         Every practice, totaled for the season. Click a player to see their growth. Tap a column to sort.
       </p>
