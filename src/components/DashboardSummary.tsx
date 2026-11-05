@@ -1,6 +1,12 @@
-import type { TeamSeason, GradePoint } from "../lib/seasonData";
+import type { TeamSeason, GradePoint, Trend } from "../lib/seasonData";
 
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
+
+function Arrow({ trend }: { trend: Trend }) {
+  if (trend === "better") return <span title="Better than last practice" style={{ color: "#16a34a" }} className="text-xl font-bold leading-none">▲</span>;
+  if (trend === "worse") return <span title="Worse than last practice" style={{ color: "#dc2626" }} className="text-xl font-bold leading-none">▼</span>;
+  return <span title="Same as last practice" className="text-xl font-bold text-gray-400 leading-none">–</span>;
+}
 
 function GradeChart({ grades }: { grades: GradePoint[] }) {
   const W = 520, H = 230;
@@ -29,11 +35,14 @@ function GradeChart({ grades }: { grades: GradePoint[] }) {
   );
 }
 
-function Tile({ label, value }: { label: string; value: string }) {
+function Tile({ label, value, trend }: { label: string; value: string; trend: Trend }) {
   return (
     <div className="text-center px-2 py-4">
       <div className="eyebrow text-[11px] text-gray-500">{label}</div>
-      <div className="mt-1 text-4xl text-black" style={{ fontFamily: "var(--font-compressed)" }}>{value}</div>
+      <div className="mt-1 flex items-center justify-center gap-2">
+        <span className="text-4xl text-black" style={{ fontFamily: "var(--font-compressed)" }}>{value}</span>
+        <Arrow trend={trend} />
+      </div>
     </div>
   );
 }
@@ -46,10 +55,10 @@ export default function DashboardSummary({ team, grades }: { team: TeamSeason; g
         <GradeChart grades={grades} />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <Tile label="Team TO / Practice" value={team.toPerPractice.toFixed(1)} />
-        <Tile label="Team 3FG %" value={pct(team.fg3Pct)} />
-        <Tile label="Team PPS" value={team.pps.toFixed(2)} />
-        <Tile label="Team FT %" value={pct(team.ftPct)} />
+        <Tile label="Team TO / Practice" value={team.toPerPractice.toFixed(1)} trend={team.trends.to} />
+        <Tile label="Team 3FG %" value={pct(team.fg3Pct)} trend={team.trends.fg3} />
+        <Tile label="Team PPS" value={team.pps.toFixed(2)} trend={team.trends.pps} />
+        <Tile label="Team FT %" value={pct(team.ftPct)} trend={team.trends.ft} />
       </div>
     </div>
   );

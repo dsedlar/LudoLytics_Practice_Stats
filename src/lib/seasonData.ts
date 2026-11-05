@@ -4,12 +4,15 @@
 import { compute, emptyTally, type RawTally, type Computed } from "./stats";
 import { applyEvent, type EventRow } from "./aggregate";
 
+export type Trend = "better" | "worse" | "same";
 export interface TeamSeason {
   practices: number;
   toPerPractice: number;
   fg3Pct: number;
   pps: number;
   ftPct: number;
+  // latest practice vs the one before (better/worse/same)
+  trends: { to: Trend; fg3: Trend; pps: Trend; ft: Trend };
 }
 export interface GradePoint {
   date: string;
@@ -119,12 +122,41 @@ export function buildSeason(input: SeasonInput): SeasonResult {
   input.events.forEach((e) => applyEvent(totalTally, e));
   const tc = compute(totalTally);
   const practicesWithData = new Set(input.events.map((e) => e.practice_id)).size || input.practices.length;
+
+  // per-practice team tallies (for trends), ordered by date
+  const byPractice = new Map<string, RawTally>();
+  input.events.forEach((e) => {
+    if (!byPractice.has(e.practice_id)) byPractice.set(e.practice_id, emptyTally());
+    applyEvent(byPractice.get(e.practice_id)!, e);
+  });
+  const orderedPids = [...byPractice.keys()].sort((a, b) => ((dateById.get(a) ?? "") < (dateById.get(b) ?? "") ? -1 : 1));
+  const latest = orderedPids.length ? byPractice.get(orderedPids[orderedPids.length - 1])! : null;
+  const prev = orderedPids.length > 1 ? byPractice.get(orderedPids[orderedPids.length - 2])! : null;
+
+  const trend = (val: (t: RawTally) => number | null, higherBetter: boolean): Trend => {
+    if (!latest || !prev) return "same";
+    const a = val(latest);
+    const b = val(prev);
+    if (a == null || b == null || a === b) return "same";
+    const better = higherBetter ? a > b : a < b;
+    return better ? "better" : "worse";
+  };
+  const fg3 = (t: RawTally) => (t.fg3A ? t.fg3M / t.fg3A : null);
+  const ppsOf = (t: RawTally) => (t.atrA + t.nonatr2A + t.fg3A ? compute(t).pps : null);
+  const ftOf = (t: RawTally) => (t.ftA ? t.ftM / t.ftA : null);
+
   const team: TeamSeason = {
     practices: practicesWithData,
     toPerPractice: practicesWithData ? totalTally.to / practicesWithData : 0,
     fg3Pct: totalTally.fg3A ? totalTally.fg3M / totalTally.fg3A : 0,
     pps: tc.pps,
     ftPct: totalTally.ftA ? totalTally.ftM / totalTally.ftA : 0,
+    trends: {
+      to: trend((t) => t.to, false), // fewer turnovers is better
+      fg3: trend(fg3, true),
+      pps: trend(ppsOf, true),
+      ft: trend(ftOf, true),
+    },
   };
 
   const grades: GradePoint[] = input.practices
