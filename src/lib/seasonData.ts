@@ -4,8 +4,25 @@
 import { compute, emptyTally, type RawTally, type Computed } from "./stats";
 import { applyEvent, type EventRow } from "./aggregate";
 
+export interface TeamSeason {
+  practices: number;
+  toPerPractice: number;
+  fg3Pct: number;
+  pps: number;
+  ftPct: number;
+}
+export interface GradePoint {
+  date: string;
+  grade: number;
+}
+export interface SeasonResult {
+  players: PlayerSeason[];
+  team: TeamSeason;
+  grades: GradePoint[];
+}
+
 export interface SeasonInput {
-  practices: { id: string; practice_date: string; player_of_day?: string | null }[];
+  practices: { id: string; practice_date: string; player_of_day?: string | null; grade?: number | null }[];
   roster: { practice_id: string; player_id: string; present: boolean; name: string; jersey: string }[];
   events: EventRow[];
   drills: { player_id: string; drill: string; makes: number; attempts: number | null }[];
@@ -27,7 +44,7 @@ export interface PlayerSeason {
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
-export function buildSeason(input: SeasonInput): PlayerSeason[] {
+export function buildSeason(input: SeasonInput): SeasonResult {
   const dateById = new Map(input.practices.map((p) => [p.id, p.practice_date]));
   const podCount = new Map<string, number>();
   input.practices.forEach((p) => {
@@ -95,5 +112,25 @@ export function buildSeason(input: SeasonInput): PlayerSeason[] {
     });
   }
 
-  return out.sort((a, b) => Number(a.jersey || 999) - Number(b.jersey || 999));
+  const players = out.sort((a, b) => Number(a.jersey || 999) - Number(b.jersey || 999));
+
+  // team season totals
+  const totalTally = emptyTally();
+  input.events.forEach((e) => applyEvent(totalTally, e));
+  const tc = compute(totalTally);
+  const practicesWithData = new Set(input.events.map((e) => e.practice_id)).size || input.practices.length;
+  const team: TeamSeason = {
+    practices: practicesWithData,
+    toPerPractice: practicesWithData ? totalTally.to / practicesWithData : 0,
+    fg3Pct: totalTally.fg3A ? totalTally.fg3M / totalTally.fg3A : 0,
+    pps: tc.pps,
+    ftPct: totalTally.ftA ? totalTally.ftM / totalTally.ftA : 0,
+  };
+
+  const grades: GradePoint[] = input.practices
+    .filter((p) => p.grade != null)
+    .map((p) => ({ date: p.practice_date, grade: p.grade as number }))
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+
+  return { players, team, grades };
 }

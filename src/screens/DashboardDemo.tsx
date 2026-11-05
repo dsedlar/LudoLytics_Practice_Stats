@@ -3,9 +3,10 @@ import { Link } from "react-router-dom";
 import { makeSeasonDemo } from "../lib/demo";
 import { buildSeason } from "../lib/seasonData";
 import DashboardView from "../components/DashboardView";
+import DashboardSummary from "../components/DashboardSummary";
 
 export default function DashboardDemo() {
-  const players = useMemo(() => buildSeason(makeSeasonDemo()), []);
+  const season = useMemo(() => buildSeason(makeSeasonDemo()), []);
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -14,7 +15,10 @@ export default function DashboardDemo() {
       </div>
       <p className="mt-1 text-gray-600 text-sm">Sample season data. Click a player to see their growth.</p>
       <div className="mt-4">
-        <DashboardView players={players} />
+        <DashboardSummary team={season.team} grades={season.grades} />
+      </div>
+      <div className="mt-4">
+        <DashboardView players={season.players} />
       </div>
     </div>
   );

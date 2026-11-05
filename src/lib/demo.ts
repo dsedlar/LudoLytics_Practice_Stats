@@ -73,7 +73,8 @@ export function makeSeasonDemo(): SeasonInput {
   const jers = [...JERS_A, ...JERS_B];
   const players = names.map((n, i) => ({ id: "p" + i, name: n, jersey: jers[i] }));
   const dates = ["2025-11-04", "2025-11-06", "2025-11-08", "2025-11-11", "2025-11-13", "2025-11-14"];
-  const practices = dates.map((d, i) => ({ id: "pr" + i, practice_date: d, player_of_day: players[(i * 2) % players.length].id }));
+  const gradeSeq = [4, 3, 2, 4, 3, 4];
+  const practices = dates.map((d, i) => ({ id: "pr" + i, practice_date: d, player_of_day: players[(i * 2) % players.length].id, grade: gradeSeq[i] }));
 
   const roster: SeasonInput["roster"] = [];
   const events: EventRow[] = [];

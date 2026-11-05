@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getSeasonData } from "../lib/db";
-import { buildSeason, type PlayerSeason } from "../lib/seasonData";
+import { buildSeason, type SeasonResult } from "../lib/seasonData";
 import { isSupabaseConfigured } from "../lib/supabase";
 import DashboardView from "../components/DashboardView";
+import DashboardSummary from "../components/DashboardSummary";
 
 export default function Dashboard() {
-  const [players, setPlayers] = useState<PlayerSeason[] | null>(null);
+  const [season, setSeason] = useState<SeasonResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -15,12 +16,12 @@ export default function Dashboard() {
       return;
     }
     getSeasonData()
-      .then((d) => setPlayers(buildSeason(d)))
+      .then((d) => setSeason(buildSeason(d)))
       .catch((e) => setError((e as Error).message));
   }, []);
 
   if (error) return <p className="text-red-600">{error}</p>;
-  if (!players) return <p className="text-gray-500">Loading season…</p>;
+  if (!season) return <p className="text-gray-500">Loading season…</p>;
 
   return (
     <div>
@@ -32,7 +33,10 @@ export default function Dashboard() {
         Every practice, totaled for the season. Click a player to see their growth. Tap a column to sort.
       </p>
       <div className="mt-4">
-        <DashboardView players={players} />
+        <DashboardSummary team={season.team} grades={season.grades} />
+      </div>
+      <div className="mt-4">
+        <DashboardView players={season.players} />
       </div>
     </div>
   );
