@@ -18,8 +18,8 @@ export default function Home() {
   return (
     <div>
       {live && (
-        <Link to={`/practice/${live.id}/coach`} className="mb-4 flex items-center gap-3 bg-garnet text-white rounded-lg px-4 py-3 font-semibold">
-          <span className="inline-block w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+        <Link to={`/practice/${live.id}/coach`} className="mb-4 flex items-center gap-3 bg-green-100 text-green-800 border border-green-300 rounded-lg px-4 py-3 font-semibold">
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-600 animate-pulse" />
           Live practice in progress — {live.practice_date} · Resume →
         </Link>
       )}
