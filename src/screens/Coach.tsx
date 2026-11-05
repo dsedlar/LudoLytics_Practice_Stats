@@ -90,10 +90,10 @@ export default function Coach() {
       {/* summary cards */}
       <div className="mt-4 grid sm:grid-cols-3 gap-3">
         {bundle.squads.map((s) => {
-          const t = squadTally(s.id);
-          return <SummaryCard key={s.id} name={s.name} color={s.color} t={t} c={compute(t)} />;
+          const c = compute(squadTally(s.id));
+          return <SummaryCard key={s.id} name={s.name} color={s.color} c={c} />;
         })}
-        <SummaryCard name="Combined" color="#00142D" t={combined} c={compute(combined)} wide={bundle.squads.length < 2} />
+        <SummaryCard name="Combined" color="#00142D" c={compute(combined)} wide={bundle.squads.length < 2} />
       </div>
 
       {/* device links + coach take-stats */}
@@ -204,7 +204,10 @@ export default function Coach() {
             color={s.color}
             rows={bundle.roster
               .filter((r) => r.squad_id === s.id && r.present)
-              .map((r) => ({ name: r.players?.name ?? "—", jersey: r.jersey, c: compute(playerTallies.get(r.player_id) ?? emptyTally()) }))}
+              .map((r) => {
+                const t = playerTallies.get(r.player_id) ?? emptyTally();
+                return { name: r.players?.name ?? "—", jersey: r.jersey, t, c: compute(t) };
+              })}
           />
         ))}
       </div>
@@ -229,16 +232,15 @@ export default function Coach() {
   );
 }
 
-function SummaryCard({ name, color, t, c, wide }: { name: string; color: string; t: RawTally; c: ReturnType<typeof compute>; wide?: boolean }) {
+function SummaryCard({ name, color, c, wide }: { name: string; color: string; c: ReturnType<typeof compute>; wide?: boolean }) {
   return (
     <div className={`rounded-lg p-3 text-white ${wide ? "sm:col-span-3" : ""}`} style={{ background: color }}>
       <div className="font-bold tracking-wide uppercase">{name}</div>
       <div className="mt-1 flex gap-4">
-        <Stat label="3FG%" value={pct(t.fg3A > 0 ? t.fg3M / t.fg3A : 0)} />
-        <Stat label="eFG%" value={pct(c.efg)} />
-        <Stat label="TO" value={String(t.to)} />
-        <Stat label="Reb" value={String(t.or + t.dr)} />
-        <Stat label="CP" value={String(c.casper)} />
+        <Stat label="PPP" value={c.ppp.toFixed(2)} />
+        <Stat label="Casper" value={String(c.casper)} />
+        <Stat label="PTS" value={String(c.pts)} />
+        <Stat label="POSS" value={c.poss.toFixed(0)} />
       </div>
     </div>
   );
@@ -259,7 +261,7 @@ function SquadTable({
 }: {
   name: string;
   color: string;
-  rows: { name: string; jersey: string | null; c: ReturnType<typeof compute> }[];
+  rows: { name: string; jersey: string | null; t: RawTally; c: ReturnType<typeof compute> }[];
 }) {
   return (
     <div className="bg-white border rounded-lg overflow-hidden">
@@ -267,8 +269,8 @@ function SquadTable({
       <table className="min-w-full text-sm">
         <thead>
           <tr className="text-left text-gray-500 border-b">
-            <th className="p-2">#</th><th className="p-2">Player</th><th className="p-2">PTS</th>
-            <th className="p-2">TS%</th><th className="p-2">PER</th><th className="p-2">CP</th>
+            <th className="p-2">#</th><th className="p-2">Player</th><th className="p-2">3FG%</th>
+            <th className="p-2">eFG%</th><th className="p-2">TO</th><th className="p-2">Reb</th><th className="p-2">CP</th>
           </tr>
         </thead>
         <tbody>
@@ -276,13 +278,14 @@ function SquadTable({
             <tr key={i} className="border-b last:border-0">
               <td className="p-2 text-gray-500">{r.jersey}</td>
               <td className="p-2">{r.name}</td>
-              <td className="p-2">{r.c.pts}</td>
-              <td className="p-2">{pct(r.c.ts)}</td>
-              <td className="p-2">{r.c.per.toFixed(1)}</td>
+              <td className="p-2">{pct(r.t.fg3A > 0 ? r.t.fg3M / r.t.fg3A : 0)}</td>
+              <td className="p-2">{pct(r.c.efg)}</td>
+              <td className="p-2">{r.t.to}</td>
+              <td className="p-2">{r.t.or + r.t.dr}</td>
               <td className="p-2 font-semibold">{r.c.casper}</td>
             </tr>
           ))}
-          {rows.length === 0 && <tr><td colSpan={6} className="p-3 text-gray-400">No players.</td></tr>}
+          {rows.length === 0 && <tr><td colSpan={7} className="p-3 text-gray-400">No players.</td></tr>}
         </tbody>
       </table>
     </div>
