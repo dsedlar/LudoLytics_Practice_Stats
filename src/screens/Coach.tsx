@@ -90,7 +90,7 @@ export default function Coach() {
                 className="w-6 h-6 rounded border cursor-pointer"
                 title={`${s.name} color`}
               />
-              <span className="font-semibold text-sm w-20 truncate" style={{ color: s.color }}>{s.name}</span>
+              <span className="font-semibold text-sm w-20 truncate uppercase" style={{ color: s.color }}>{s.name}</span>
               <code className="text-xs bg-gray-100 rounded px-2 py-1 flex-1 truncate">/practice/{id}/squad/{s.id}</code>
               <button onClick={() => copyLink(s.id)} className="text-sm bg-garnet text-white rounded px-3 py-1">
                 {copied === s.id ? "Copied!" : "Copy"}
@@ -106,7 +106,7 @@ export default function Coach() {
         <div className="flex flex-wrap gap-6">
           {bundle.squads.map((s) => (
             <div key={s.id} className="flex items-center gap-3">
-              <span className="font-bold w-20 truncate" style={{ color: s.color }}>{s.name}</span>
+              <span className="font-bold w-20 truncate uppercase" style={{ color: s.color }}>{s.name}</span>
               <div className="flex items-center gap-1">
                 <span className="text-xs text-gray-400 w-3">W</span>
                 <button onClick={() => run(() => setSquadWins(s.id, (s.wins ?? 0) - 1))} className="w-7 h-7 rounded border leading-none">−</button>
@@ -208,7 +208,7 @@ export default function Coach() {
 function SummaryCard({ name, color, c, wide }: { name: string; color: string; c: ReturnType<typeof compute>; wide?: boolean }) {
   return (
     <div className={`rounded-lg p-3 text-white ${wide ? "sm:col-span-3" : ""}`} style={{ background: color }}>
-      <div className="font-bold tracking-wide">{name}</div>
+      <div className="font-bold tracking-wide uppercase">{name}</div>
       <div className="mt-1 flex gap-4">
         <Stat label="PPP" value={c.ppp.toFixed(2)} />
         <Stat label="Casper" value={String(c.casper)} />
@@ -238,7 +238,7 @@ function SquadTable({
 }) {
   return (
     <div className="bg-white border rounded-lg overflow-hidden">
-      <div className="px-3 py-2 font-bold text-white text-sm" style={{ background: color }}>{name}</div>
+      <div className="px-3 py-2 font-bold text-white text-sm uppercase" style={{ background: color }}>{name}</div>
       <table className="min-w-full text-sm">
         <thead>
           <tr className="text-left text-gray-500 border-b">
