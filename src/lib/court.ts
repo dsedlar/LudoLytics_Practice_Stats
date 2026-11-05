@@ -5,26 +5,38 @@
 //   basket hoop center near the top.
 // ---------------------------------------------------------------------------
 
+const BASKET_Y = 5.25;
+const THREE_R = 19.75; // NFHS 3-point distance
+const CORNER_X0 = 6; // straight corner-3 line, 6 ft from the sideline
+const CORNER_INSET = 25 - CORNER_X0; // |x-25| >= this (x<=6 or x>=44) is a corner
+// y where the straight corner meets the arc:
+const CORNER_JOIN_Y = BASKET_Y + Math.sqrt(THREE_R * THREE_R - CORNER_INSET * CORNER_INSET);
+
 export const COURT = {
   width: 50,
-  height: 33, // baseline to just past the top of the 3-point arc (shooting area)
-  basket: { x: 25, y: 5.25 },
+  height: 47, // baseline to mid-court
+  basket: { x: 25, y: BASKET_Y },
   rimR: 0.75,
   backboardY: 4,
+  backboardHalf: 3, // backboard is 6 ft wide
   lane: { x0: 19, x1: 31, ftLineY: 19 }, // 12-ft lane, FT line 15 ft from backboard
   ftCircleR: 6,
-  threeR: 19.75, // NFHS 3-point distance
-  atrR: 4, // "at the rim" radius
+  threeR: THREE_R,
+  cornerX0: CORNER_X0,
+  cornerX1: 50 - CORNER_X0,
+  cornerInset: CORNER_INSET,
+  cornerJoinY: CORNER_JOIN_Y,
+  atrR: 4, // restricted-area radius
+  centerR: 6, // center circle at the half-court line
 };
 
 export type ShotZone = "atr" | "nonatr2" | "fg3";
 
 export function zoneFor(x: number, y: number): ShotZone {
-  const dx = x - COURT.basket.x;
-  const dy = y - COURT.basket.y;
-  const d = Math.hypot(dx, dy);
+  const d = Math.hypot(x - COURT.basket.x, y - COURT.basket.y);
   if (d <= COURT.atrR) return "atr";
-  if (d >= COURT.threeR) return "fg3";
+  const inCorner = y <= COURT.cornerJoinY && Math.abs(x - COURT.basket.x) >= COURT.cornerInset;
+  if (inCorner || d >= COURT.threeR) return "fg3";
   return "nonatr2";
 }
 
