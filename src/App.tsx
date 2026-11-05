@@ -1,5 +1,8 @@
 import { Link, Route, Routes } from "react-router-dom";
 import { isSupabaseConfigured } from "./lib/supabase";
+import { useAuth } from "./lib/auth";
+import RequireAuth from "./components/RequireAuth";
+import Login from "./screens/Login";
 import Home from "./screens/Home";
 import Setup from "./screens/Setup";
 import Coach from "./screens/Coach";
@@ -18,6 +21,7 @@ import History from "./screens/History";
 import HistoryDemo from "./screens/HistoryDemo";
 
 export default function App() {
+  const { user, signOut } = useAuth();
   return (
     <div className="min-h-screen">
       <header className="bg-deep-garnet text-ivory no-print">
@@ -28,7 +32,16 @@ export default function App() {
               VES Basketball · <span className="text-white/70">Ludolytics</span>
             </span>
           </Link>
-          <span className="eyebrow text-[10px] text-ivory/70">Practice Stats</span>
+          <div className="flex items-center gap-3">
+            {user ? (
+              <>
+                <span className="eyebrow text-[10px] text-ivory/70 hidden sm:inline">{user.email}</span>
+                <button onClick={() => signOut()} className="text-xs bg-white/15 hover:bg-white/25 rounded px-3 py-1.5 font-medium">Sign out</button>
+              </>
+            ) : (
+              <Link to="/login" className="text-xs bg-white/15 hover:bg-white/25 rounded px-3 py-1.5 font-medium">Coach sign in</Link>
+            )}
+          </div>
         </div>
       </header>
 
@@ -41,21 +54,22 @@ export default function App() {
 
       <main className="mx-auto max-w-6xl px-4 py-6">
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/setup" element={<Setup />} />
-          <Route path="/practice/:id/coach" element={<Coach />} />
-          <Route path="/practice/:id/entry" element={<CoachEntry />} />
-          <Route path="/practice/:id/squad/:squadId" element={<LiveEntry />} />
-          <Route path="/practice/:id/report" element={<Report />} />
+          <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/setup" element={<RequireAuth><Setup /></RequireAuth>} />
+          <Route path="/practice/:id/coach" element={<RequireAuth><Coach /></RequireAuth>} />
+          <Route path="/practice/:id/entry" element={<RequireAuth><CoachEntry /></RequireAuth>} />
+          <Route path="/practice/:id/squad/:squadId" element={<RequireAuth><LiveEntry /></RequireAuth>} />
+          <Route path="/practice/:id/report" element={<RequireAuth><Report /></RequireAuth>} />
           <Route path="/report-demo" element={<ReportDemo />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
           <Route path="/dashboard-demo" element={<DashboardDemo />} />
-          <Route path="/player/:playerId" element={<PlayerDashboard />} />
+          <Route path="/player/:playerId" element={<RequireAuth><PlayerDashboard /></RequireAuth>} />
           <Route path="/player-demo/:playerId" element={<PlayerDashboardDemo />} />
           <Route path="/court-demo" element={<CourtDemo />} />
           <Route path="/live-demo" element={<LiveEntryDemo />} />
           <Route path="/coach-entry-demo" element={<CoachEntryDemo />} />
-          <Route path="/history" element={<History />} />
+          <Route path="/history" element={<RequireAuth><History /></RequireAuth>} />
           <Route path="/history-demo" element={<HistoryDemo />} />
         </Routes>
       </main>
