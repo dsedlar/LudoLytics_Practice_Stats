@@ -18,16 +18,25 @@ export interface GradePoint {
   date: string;
   grade: number;
 }
+export interface TeamRecord {
+  name: string;
+  color: string;
+  w: number;
+  l: number;
+  streakType: "W" | "L" | null;
+  streakCount: number;
+}
 export interface SeasonResult {
   players: PlayerSeason[];
   team: TeamSeason;
   grades: GradePoint[];
+  teams: TeamRecord[]; // per-squad-name season record + current streak
 }
 
 export interface SeasonInput {
   practices: { id: string; practice_date: string; player_of_day?: string | null; grade?: number | null }[];
   roster: { practice_id: string; player_id: string; squad_id: string | null; present: boolean; name: string; jersey: string }[];
-  squads: { id: string; practice_id: string; wins: number; losses: number }[];
+  squads: { id: string; practice_id: string; name: string; color: string; wins: number; losses: number }[];
   events: EventRow[];
   drills: { practice_id: string; player_id: string; drill: string; makes: number; attempts: number | null }[];
 }
@@ -206,5 +215,29 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     .map((p) => ({ date: p.practice_date, grade: p.grade as number }))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
 
-  return { players, team, grades };
+  // per-team (by squad name) season record + current W/L streak
+  const byName = new Map<string, { color: string; days: { date: string; win: boolean }[] }>();
+  input.squads.forEach((s) => {
+    const date = dateById.get(s.practice_id) ?? "";
+    const win = (s.wins ?? 0) > (s.losses ?? 0);
+    if (!byName.has(s.name)) byName.set(s.name, { color: s.color, days: [] });
+    byName.get(s.name)!.days.push({ date, win });
+  });
+  const teams: TeamRecord[] = [...byName.entries()]
+    .map(([name, { color, days }]) => {
+      days.sort((a, b) => (a.date < b.date ? -1 : 1));
+      const w = days.filter((d) => d.win).length;
+      let streakType: "W" | "L" | null = null;
+      let streakCount = 0;
+      for (let i = days.length - 1; i >= 0; i--) {
+        const t = days[i].win ? "W" : "L";
+        if (streakType === null) { streakType = t; streakCount = 1; }
+        else if (t === streakType) streakCount++;
+        else break;
+      }
+      return { name, color, w, l: days.length - w, streakType, streakCount };
+    })
+    .sort((a, b) => b.w + b.l - (a.w + a.l) || b.w - a.w);
+
+  return { players, team, grades, teams };
 }

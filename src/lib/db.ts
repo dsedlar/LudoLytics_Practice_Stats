@@ -390,7 +390,7 @@ export async function getSeasonData(): Promise<SeasonInput> {
   const [pr, ro, sq, ev, dr] = await Promise.all([
     sb.from("practices").select("id, practice_date, player_of_day, grade").order("practice_date"),
     sb.from("roster_entries").select("practice_id, player_id, squad_id, present, jersey, players(name)"),
-    sb.from("squads").select("id, practice_id, wins, losses"),
+    sb.from("squads").select("id, practice_id, name, color, wins, losses"),
     sb.from("events").select("id, practice_id, squad_id, player_id, segment, type, made"),
     sb.from("drill_results").select("practice_id, player_id, drill, makes, attempts"),
   ]);
@@ -409,7 +409,7 @@ export async function getSeasonData(): Promise<SeasonInput> {
       name: r.players?.name ?? "—",
       jersey: r.jersey ?? "",
     })),
-    squads: sq.data as { id: string; practice_id: string; wins: number; losses: number }[],
+    squads: sq.data as { id: string; practice_id: string; name: string; color: string; wins: number; losses: number }[],
     events: ev.data as EventRow[],
     drills: dr.data as { practice_id: string; player_id: string; drill: string; makes: number; attempts: number | null }[],
   };

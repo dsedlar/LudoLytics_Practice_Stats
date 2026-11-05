@@ -85,8 +85,8 @@ export function makeSeasonDemo(): SeasonInput {
   practices.forEach((pr, pIdx) => {
     // 9 scrimmages per day so there's always a winner (no ties)
     const aWins = 3 + ri(4); // 3..6
-    squads.push({ id: `${pr.id}-A`, practice_id: pr.id, wins: aWins, losses: 9 - aWins });
-    squads.push({ id: `${pr.id}-B`, practice_id: pr.id, wins: 9 - aWins, losses: aWins });
+    squads.push({ id: `${pr.id}-A`, practice_id: pr.id, name: "Garnet", color: "#B20000", wins: aWins, losses: 9 - aWins });
+    squads.push({ id: `${pr.id}-B`, practice_id: pr.id, name: "Grey", color: "#6B7280", wins: 9 - aWins, losses: aWins });
     players.forEach((pl, i) => {
       const squadId = i < 6 ? `${pr.id}-A` : `${pr.id}-B`;
       const present = !(pIdx === 2 && i === 11); // one absence for realism

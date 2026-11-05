@@ -4,6 +4,7 @@ import { makeSeasonDemo } from "../lib/demo";
 import { buildSeason } from "../lib/seasonData";
 import DashboardView from "../components/DashboardView";
 import DashboardSummary from "../components/DashboardSummary";
+import TeamRecords from "../components/TeamRecords";
 
 export default function DashboardDemo() {
   const season = useMemo(() => buildSeason(makeSeasonDemo()), []);
@@ -15,6 +16,9 @@ export default function DashboardDemo() {
       </div>
       <p className="mt-1 text-gray-600 text-sm">Sample season data. Click a player to see their growth.</p>
       <div className="mt-4">
+        <TeamRecords teams={season.teams} />
+      </div>
+      <div className="mt-3">
         <DashboardSummary team={season.team} grades={season.grades} />
       </div>
       <div className="mt-4">

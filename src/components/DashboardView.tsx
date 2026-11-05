@@ -21,8 +21,8 @@ const COLS: { key: SortKey; label: string; get: (p: PlayerSeason) => number; fmt
   { key: "ft", label: "FT%", get: ftPct, fmt: (p) => pct(ftPct(p)) },
   { key: "ts", label: "TS%", get: (p) => p.total.ts, fmt: (p) => pct(p.total.ts) },
   { key: "pps", label: "PPS", get: (p) => p.total.pps, fmt: (p) => f2(p.total.pps) },
-  { key: "topg", label: "TO / Prac", get: toPerG, fmt: (p) => f1(toPerG(p)) },
-  { key: "rpg", label: "Reb / Prac", get: rebPerG, fmt: (p) => f1(rebPerG(p)) },
+  { key: "topg", label: "TO/P", get: toPerG, fmt: (p) => f1(toPerG(p)) },
+  { key: "rpg", label: "Reb/P", get: rebPerG, fmt: (p) => f1(rebPerG(p)) },
   { key: "per", label: "PER", get: (p) => p.perAvg, fmt: (p) => f1(p.perAvg) },
   { key: "cp", label: "CP Total", get: (p) => p.total.casper, fmt: (p) => f1(p.total.casper) },
 ];
