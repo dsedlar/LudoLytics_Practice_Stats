@@ -9,6 +9,7 @@ import ReportDemo from "./screens/ReportDemo";
 import Dashboard from "./screens/Dashboard";
 import DashboardDemo from "./screens/DashboardDemo";
 import CourtDemo from "./screens/CourtDemo";
+import LiveEntryDemo from "./screens/LiveEntryDemo";
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard-demo" element={<DashboardDemo />} />
           <Route path="/court-demo" element={<CourtDemo />} />
+          <Route path="/live-demo" element={<LiveEntryDemo />} />
         </Routes>
       </main>
     </div>
