@@ -19,6 +19,8 @@ import LiveEntryDemo from "./screens/LiveEntryDemo";
 import CoachEntryDemo from "./screens/CoachEntryDemo";
 import History from "./screens/History";
 import HistoryDemo from "./screens/HistoryDemo";
+import Signage from "./screens/Signage";
+import SignageDemo from "./screens/SignageDemo";
 
 export default function App() {
   const { user, signOut } = useAuth();
@@ -71,6 +73,8 @@ export default function App() {
           <Route path="/coach-entry-demo" element={<CoachEntryDemo />} />
           <Route path="/history" element={<RequireAuth><History /></RequireAuth>} />
           <Route path="/history-demo" element={<HistoryDemo />} />
+          <Route path="/display" element={<RequireAuth><Signage /></RequireAuth>} />
+          <Route path="/display-demo" element={<SignageDemo />} />
         </Routes>
       </main>
     </div>
