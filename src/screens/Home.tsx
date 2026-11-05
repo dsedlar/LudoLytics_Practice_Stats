@@ -28,6 +28,9 @@ export default function Home() {
             <Link to="/roster" className="inline-block border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">
               Roster →
             </Link>
+            <Link to="/history" className="inline-block border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">
+              Practice history →
+            </Link>
           </div>
         </div>
         <img src="/ves-bishop.png" alt="VES Bishop" className="hidden md:block w-36 lg:w-48 flex-shrink-0" />

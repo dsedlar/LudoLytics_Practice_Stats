@@ -32,7 +32,6 @@ export default function Dashboard() {
           <Link to="/display" className="text-sm border rounded px-3 py-2 font-medium">Locker-room display</Link>
           <button onClick={() => exportSeasonCSV().catch((e) => alert(e.message))} className="text-sm border rounded px-3 py-2 font-medium">Season CSV</button>
           <button onClick={() => exportBackupJSON().catch((e) => alert(e.message))} className="text-sm border rounded px-3 py-2 font-medium">Backup (JSON)</button>
-          <Link to="/history" className="text-sm bg-garnet text-white rounded px-4 py-2 font-medium">Practice history →</Link>
         </div>
       </div>
       <p className="mt-1 text-gray-600 text-sm">
