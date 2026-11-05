@@ -73,6 +73,7 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
   const prev = h[h.length - 2];
   const fg3Pct = (hp?: HistoryPoint) => (hp && hp.tally.fg3A ? hp.tally.fg3M / hp.tally.fg3A : null);
   const seasonFg3 = p.tally.fg3A ? p.tally.fg3M / p.tally.fg3A : 0;
+  const seasonTrans = h.reduce((acc, hp) => ({ m: acc.m + hp.trans.m, a: acc.a + hp.trans.a }), { m: 0, a: 0 });
 
   return (
     <div>
@@ -84,23 +85,23 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
         <Link to={backHref} className="text-sm text-garnet font-medium">← Season dashboard</Link>
       </div>
 
-      {/* line chart */}
-      <div className="mt-4 bg-white border rounded-lg p-4">
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-          <h2 className="text-lg font-bold">Trend by practice</h2>
-          <select value={metric} onChange={(e) => setMetric(e.target.value)} className="border rounded px-2 py-1 text-sm">
-            {METRICS.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
-          </select>
+      {/* line chart + KPIs side by side */}
+      <div className="mt-4 grid lg:grid-cols-3 gap-4 items-stretch">
+        <div className="lg:col-span-2 bg-white border rounded-lg p-4">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+            <h2 className="text-lg font-bold">Trend by practice</h2>
+            <select value={metric} onChange={(e) => setMetric(e.target.value)} className="border rounded px-2 py-1 text-sm">
+              {METRICS.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
+            </select>
+          </div>
+          <LineChart values={h.map(m.get)} fmt={m.fmt} />
         </div>
-        <LineChart values={h.map(m.get)} fmt={m.fmt} />
-      </div>
-
-      {/* KPIs */}
-      <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
-        <KTile label="Points / Practice" value={f1(p.ptsPerG)} t={trendOf(last?.pts ?? null, prev?.pts ?? null)} />
-        <KTile label="TS %" value={pct(p.total.ts)} t={trendOf(last?.ts ?? null, prev?.ts ?? null)} />
-        <KTile label="3FG %" value={pct(seasonFg3)} t={trendOf(fg3Pct(last), fg3Pct(prev))} />
-        <KTile label="Casper / Practice" value={f1(p.cpPerG)} t={trendOf(last?.cp ?? null, prev?.cp ?? null)} />
+        <div className="grid grid-cols-2 gap-2 content-center">
+          <KTile label="Points / Practice" value={f1(p.ptsPerG)} t={trendOf(last?.pts ?? null, prev?.pts ?? null)} />
+          <KTile label="TS %" value={pct(p.total.ts)} t={trendOf(last?.ts ?? null, prev?.ts ?? null)} />
+          <KTile label="3FG %" value={pct(seasonFg3)} t={trendOf(fg3Pct(last), fg3Pct(prev))} />
+          <KTile label="Casper / Practice" value={f1(p.cpPerG)} t={trendOf(last?.cp ?? null, prev?.cp ?? null)} />
+        </div>
       </div>
 
       {/* detailed table */}
@@ -108,7 +109,7 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
         <table className="min-w-full text-sm">
           <thead>
             <tr className="text-left border-b bg-gray-50 whitespace-nowrap">
-              {["Date", "PTS", "ATR", "2FG", "3FG", "FT", "OR", "DR", "AST", "TO", "STL", "BLK", "CP", "PER", "TS%"].map((x) => (
+              {["Date", "W-L", "PTS", "ATR", "2FG", "3FG", "FT", "OR", "DR", "AST", "TO", "STL", "BLK", "CP", "PER", "TS%", "Trans", "Baylor", "90s", "FT drill"].map((x) => (
                 <th key={x} className="p-2">{x}</th>
               ))}
             </tr>
@@ -119,6 +120,7 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
               return (
                 <tr key={hp.practiceId} className="border-b last:border-0 whitespace-nowrap">
                   <td className="p-2">{hp.date}</td>
+                  <td className="p-2">{hp.wl.w}-{hp.wl.l}</td>
                   <td className="p-2 font-semibold">{hp.pts}</td>
                   <td className="p-2">{ma(t.atrM, t.atrA)}</td>
                   <td className="p-2">{ma(t.nonatr2M, t.nonatr2A)}</td>
@@ -133,6 +135,10 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
                   <td className="p-2 font-semibold">{f1(hp.cp)}</td>
                   <td className="p-2">{f1(hp.per)}</td>
                   <td className="p-2">{pct(hp.ts)}</td>
+                  <td className="p-2">{ma(hp.trans.m, hp.trans.a)}</td>
+                  <td className="p-2">{hp.drills.baylor ?? "–"}</td>
+                  <td className="p-2">{hp.drills.ninety ?? "–"}</td>
+                  <td className="p-2">{hp.drills.ft ?? "–"}</td>
                 </tr>
               );
             })}
@@ -140,6 +146,7 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
           <tfoot>
             <tr className="border-t font-bold whitespace-nowrap">
               <td className="p-2">Season</td>
+              <td className="p-2">{p.record.w}-{p.record.l}</td>
               <td className="p-2">{p.total.pts}</td>
               <td className="p-2">{ma(p.tally.atrM, p.tally.atrA)}</td>
               <td className="p-2">{ma(p.tally.nonatr2M, p.tally.nonatr2A)}</td>
@@ -154,6 +161,10 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
               <td className="p-2">{f1(p.total.casper)}</td>
               <td className="p-2">{f1(p.total.per)}</td>
               <td className="p-2">{pct(p.total.ts)}</td>
+              <td className="p-2">{ma(seasonTrans.m, seasonTrans.a)}</td>
+              <td className="p-2">{f1(p.drills.baylorAvg)}</td>
+              <td className="p-2">{f1(p.drills.ninetyAvg)}</td>
+              <td className="p-2">{f1(p.drills.ftAvg)}</td>
             </tr>
           </tfoot>
         </table>

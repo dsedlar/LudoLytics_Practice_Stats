@@ -387,27 +387,31 @@ import type { EventRow } from "./aggregate";
 /** Fetch everything needed to build the season dashboard. */
 export async function getSeasonData(): Promise<SeasonInput> {
   const sb = client();
-  const [pr, ro, ev, dr] = await Promise.all([
+  const [pr, ro, sq, ev, dr] = await Promise.all([
     sb.from("practices").select("id, practice_date, player_of_day, grade").order("practice_date"),
-    sb.from("roster_entries").select("practice_id, player_id, present, jersey, players(name)"),
+    sb.from("roster_entries").select("practice_id, player_id, squad_id, present, jersey, players(name)"),
+    sb.from("squads").select("id, practice_id, wins, losses"),
     sb.from("events").select("id, practice_id, squad_id, player_id, segment, type, made"),
-    sb.from("drill_results").select("player_id, drill, makes, attempts"),
+    sb.from("drill_results").select("practice_id, player_id, drill, makes, attempts"),
   ]);
   if (pr.error) throw pr.error;
   if (ro.error) throw ro.error;
+  if (sq.error) throw sq.error;
   if (ev.error) throw ev.error;
   if (dr.error) throw dr.error;
   return {
     practices: pr.data as { id: string; practice_date: string; player_of_day: string | null; grade: number | null }[],
-    roster: (ro.data as unknown as { practice_id: string; player_id: string; present: boolean; jersey: string | null; players: { name: string } | null }[]).map((r) => ({
+    roster: (ro.data as unknown as { practice_id: string; player_id: string; squad_id: string | null; present: boolean; jersey: string | null; players: { name: string } | null }[]).map((r) => ({
       practice_id: r.practice_id,
       player_id: r.player_id,
+      squad_id: r.squad_id,
       present: r.present,
       name: r.players?.name ?? "—",
       jersey: r.jersey ?? "",
     })),
+    squads: sq.data as { id: string; practice_id: string; wins: number; losses: number }[],
     events: ev.data as EventRow[],
-    drills: dr.data as { player_id: string; drill: string; makes: number; attempts: number | null }[],
+    drills: dr.data as { practice_id: string; player_id: string; drill: string; makes: number; attempts: number | null }[],
   };
 }
 

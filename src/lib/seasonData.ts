@@ -26,20 +26,25 @@ export interface SeasonResult {
 
 export interface SeasonInput {
   practices: { id: string; practice_date: string; player_of_day?: string | null; grade?: number | null }[];
-  roster: { practice_id: string; player_id: string; present: boolean; name: string; jersey: string }[];
+  roster: { practice_id: string; player_id: string; squad_id: string | null; present: boolean; name: string; jersey: string }[];
+  squads: { id: string; practice_id: string; wins: number; losses: number }[];
   events: EventRow[];
-  drills: { player_id: string; drill: string; makes: number; attempts: number | null }[];
+  drills: { practice_id: string; player_id: string; drill: string; makes: number; attempts: number | null }[];
 }
 
 export interface HistoryPoint {
   practiceId: string; date: string;
   pts: number; ts: number; efg: number; per: number; cp: number;
   tally: RawTally;
+  trans: { m: number; a: number };
+  drills: { baylor: number | null; ninety: number | null; ft: number | null };
+  wl: { w: number; l: number };
 }
 export interface PlayerSeason {
   playerId: string; name: string; jersey: string;
   gp: number;
   pod: number; // Player of the Day count
+  record: { w: number; l: number }; // season scrimmage wins-losses
   total: Computed;
   tally: RawTally; // season raw totals
   ptsPerG: number; cpPerG: number; perAvg: number;
@@ -85,6 +90,28 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     dByPlayer.get(d.player_id)!.push(d);
   }
 
+  // per-practice lookups: squad W-L, which squad a player was on, drill makes, transition 3s
+  const squadWL = new Map<string, { w: number; l: number }>();
+  input.squads.forEach((s) => squadWL.set(s.id, { w: s.wins ?? 0, l: s.losses ?? 0 }));
+  const playerSquadAt = new Map<string, string | null>();
+  input.roster.forEach((r) => playerSquadAt.set(`${r.player_id}|${r.practice_id}`, r.squad_id));
+  const drillAt = new Map<string, number>();
+  input.drills.forEach((d) => drillAt.set(`${d.player_id}|${d.practice_id}|${d.drill}`, Number(d.makes)));
+  const transAt = new Map<string, { m: number; a: number }>();
+  input.events.forEach((e) => {
+    if (e.segment === "transition" && e.type === "fg3") {
+      const k = `${e.player_id}|${e.practice_id}`;
+      const cur = transAt.get(k) ?? { m: 0, a: 0 };
+      cur.a += 1;
+      if (e.made) cur.m += 1;
+      transAt.set(k, cur);
+    }
+  });
+  const drillVal = (player: string, pid: string, drill: string) => {
+    const key = `${player}|${pid}|${drill}`;
+    return drillAt.has(key) ? drillAt.get(key)! : null;
+  };
+
   const out: PlayerSeason[] = [];
   for (const [playerId, practiceSet] of attended) {
     const gp = practiceSet.size;
@@ -96,17 +123,26 @@ export function buildSeason(input: SeasonInput): SeasonResult {
       .map((pid) => {
         const t = perPP.get(`${playerId}|${pid}`) ?? emptyTally();
         const c = compute(t);
-        return { practiceId: pid, date: dateById.get(pid) ?? "", pts: c.pts, ts: c.ts, efg: c.efg, per: c.per, cp: c.casper, tally: t };
+        const sid = playerSquadAt.get(`${playerId}|${pid}`) ?? null;
+        const sw = sid ? squadWL.get(sid) : undefined;
+        return {
+          practiceId: pid, date: dateById.get(pid) ?? "",
+          pts: c.pts, ts: c.ts, efg: c.efg, per: c.per, cp: c.casper, tally: t,
+          trans: transAt.get(`${playerId}|${pid}`) ?? { m: 0, a: 0 },
+          drills: { baylor: drillVal(playerId, pid, "baylor"), ninety: drillVal(playerId, pid, "ninetys"), ft: drillVal(playerId, pid, "ft") },
+          wl: { w: sw?.w ?? 0, l: sw?.l ?? 0 },
+        };
       })
       .sort((a, b) => (a.date < b.date ? -1 : 1));
 
     const dr = dByPlayer.get(playerId) ?? [];
     const pick = (k: string) => dr.filter((d) => d.drill === k);
-    const trM = pick("transition").reduce((s, d) => s + Number(d.makes), 0);
-    const trA = pick("transition").reduce((s, d) => s + Number(d.attempts ?? 0), 0);
+    const trM = history.reduce((s, h) => s + h.trans.m, 0);
+    const trA = history.reduce((s, h) => s + h.trans.a, 0);
+    const record = history.reduce((acc, h) => ({ w: acc.w + h.wl.w, l: acc.l + h.wl.l }), { w: 0, l: 0 });
 
     out.push({
-      playerId, name: meta.name, jersey: meta.jersey, gp, pod: podCount.get(playerId) ?? 0, total,
+      playerId, name: meta.name, jersey: meta.jersey, gp, pod: podCount.get(playerId) ?? 0, record, total,
       tally: totals.get(playerId) ?? emptyTally(),
       ptsPerG: total.pts / gp, cpPerG: total.casper / gp, perAvg: mean(history.map((h) => h.per)),
       drills: {
