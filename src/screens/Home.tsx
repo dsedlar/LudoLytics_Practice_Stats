@@ -17,12 +17,14 @@ export default function Home() {
         real-time sync, the Ludolytics report, and a season-long dashboard.
       </p>
 
-      <Link
-        to="/setup"
-        className="inline-block mt-5 bg-garnet text-white px-5 py-3 rounded-lg font-semibold"
-      >
-        Set up practice →
-      </Link>
+      <div className="mt-5 flex flex-wrap gap-3">
+        <Link to="/setup" className="inline-block bg-garnet text-white px-5 py-3 rounded-lg font-semibold">
+          Set up practice →
+        </Link>
+        <Link to="/dashboard" className="inline-block border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">
+          Season dashboard →
+        </Link>
+      </div>
 
       <ul className="mt-6 space-y-2">
         {PHASES.map((p) => (

@@ -2,6 +2,7 @@
 // a database. Deterministic (seeded) so screenshots are stable.
 import type { PracticeBundle, DrillRow } from "./db";
 import type { EventRow } from "./aggregate";
+import type { SeasonInput } from "./seasonData";
 
 function lcg(seed: number) {
   let s = seed >>> 0;
@@ -61,4 +62,45 @@ export function makeDemoData(): { bundle: PracticeBundle; events: EventRow[]; dr
   }
 
   return { bundle, events, drills };
+}
+
+// ---------------------------------------------------------------------------
+// Synthetic multi-practice season for previewing the dashboard.
+// ---------------------------------------------------------------------------
+export function makeSeasonDemo(): SeasonInput {
+  const rnd = lcg(7);
+  const ri = (n: number) => Math.floor(rnd() * n);
+  const names = [...NAMES_A, ...NAMES_B];
+  const jers = [...JERS_A, ...JERS_B];
+  const players = names.map((n, i) => ({ id: "p" + i, name: n, jersey: jers[i] }));
+  const dates = ["2025-11-04", "2025-11-06", "2025-11-08", "2025-11-11", "2025-11-13", "2025-11-14"];
+  const practices = dates.map((d, i) => ({ id: "pr" + i, practice_date: d }));
+
+  const roster: SeasonInput["roster"] = [];
+  const events: EventRow[] = [];
+  const drills: SeasonInput["drills"] = [];
+  let id = 1;
+
+  practices.forEach((pr, pIdx) => {
+    players.forEach((pl, i) => {
+      const present = !(pIdx === 2 && i === 11); // one absence for realism
+      roster.push({ practice_id: pr.id, player_id: pl.id, present, name: pl.name, jersey: pl.jersey });
+      if (!present) return;
+      const growth = pIdx * 0.015; // slight improvement over the season
+      const seg = "live";
+      const push = (type: string, made: boolean | null) =>
+        events.push({ id: id++, practice_id: pr.id, squad_id: i < 6 ? "sA" : "sB", player_id: pl.id, segment: seg, type, made });
+      for (let k = 0; k < 2 + ri(3); k++) push("atr", rnd() < 0.58 + growth);
+      for (let k = 0; k < 2 + ri(4); k++) push("nonatr2", rnd() < 0.4 + growth);
+      for (let k = 0; k < 2 + ri(5); k++) push("fg3", rnd() < 0.32 + growth);
+      for (let k = 0; k < ri(4); k++) push("ft", rnd() < 0.72);
+      for (const t of ["ast", "to", "or", "dr", "stl", "def", "chg", "dive"]) for (let k = 0; k < ri(3); k++) push(t, null);
+      drills.push({ player_id: pl.id, drill: "baylor", makes: 38 + pIdx + ri(18), attempts: null });
+      drills.push({ player_id: pl.id, drill: "ninetys", makes: 10 + ri(7), attempts: null });
+      drills.push({ player_id: pl.id, drill: "transition", makes: 2 + ri(5), attempts: 5 + ri(4) });
+      drills.push({ player_id: pl.id, drill: "ft", makes: 13 + ri(6), attempts: null });
+    });
+  });
+
+  return { practices, roster, events, drills };
 }

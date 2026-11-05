@@ -267,6 +267,36 @@ export async function listRecentPractices(): Promise<PracticeRow[]> {
   return data as PracticeRow[];
 }
 
+import type { SeasonInput } from "./seasonData";
+import type { EventRow } from "./aggregate";
+
+/** Fetch everything needed to build the season dashboard. */
+export async function getSeasonData(): Promise<SeasonInput> {
+  const sb = client();
+  const [pr, ro, ev, dr] = await Promise.all([
+    sb.from("practices").select("id, practice_date").order("practice_date"),
+    sb.from("roster_entries").select("practice_id, player_id, present, jersey, players(name)"),
+    sb.from("events").select("id, practice_id, squad_id, player_id, segment, type, made"),
+    sb.from("drill_results").select("player_id, drill, makes, attempts"),
+  ]);
+  if (pr.error) throw pr.error;
+  if (ro.error) throw ro.error;
+  if (ev.error) throw ev.error;
+  if (dr.error) throw dr.error;
+  return {
+    practices: pr.data as { id: string; practice_date: string }[],
+    roster: (ro.data as unknown as { practice_id: string; player_id: string; present: boolean; jersey: string | null; players: { name: string } | null }[]).map((r) => ({
+      practice_id: r.practice_id,
+      player_id: r.player_id,
+      present: r.present,
+      name: r.players?.name ?? "—",
+      jersey: r.jersey ?? "",
+    })),
+    events: ev.data as EventRow[],
+    drills: dr.data as { player_id: string; drill: string; makes: number; attempts: number | null }[],
+  };
+}
+
 /** Subscribe to realtime changes for a practice. Returns an unsubscribe fn. */
 export function subscribeToPractice(practiceId: string, onChange: () => void): () => void {
   const sb = client();

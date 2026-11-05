@@ -6,6 +6,8 @@ import Coach from "./screens/Coach";
 import LiveEntry from "./screens/LiveEntry";
 import Report from "./screens/Report";
 import ReportDemo from "./screens/ReportDemo";
+import Dashboard from "./screens/Dashboard";
+import DashboardDemo from "./screens/DashboardDemo";
 
 export default function App() {
   return (
@@ -34,6 +36,8 @@ export default function App() {
           <Route path="/practice/:id/squad/:squadId" element={<LiveEntry />} />
           <Route path="/practice/:id/report" element={<Report />} />
           <Route path="/report-demo" element={<ReportDemo />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard-demo" element={<DashboardDemo />} />
         </Routes>
       </main>
     </div>
