@@ -105,19 +105,17 @@ export default function ReportView({ m }: { m: ReportModel }) {
         <BlockTable rows={[...m.squads.map((s) => ({ name: s.name, color: s.color, block: s.team })), { name: "Combined", color: "#00142D", block: m.combined }]} />
       </div>
 
-      {/* live play (full width, rich) */}
-      <div style={{ marginTop: 10 }}>
-        <Bar title="LIVE PLAY" />
-        <BlockTable rows={m.liveTeam} />
-      </div>
-
-      {/* transition summary + baylor */}
-      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        <div style={{ flex: "0 0 32%" }}>
+      {/* live play + transition summary + baylor — one row */}
+      <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "flex-start" }}>
+        <div style={{ flex: 3 }}>
+          <Bar title="LIVE PLAY" />
+          <LivePlayCompact rows={m.liveTeam} />
+        </div>
+        <div style={{ flex: 1 }}>
           <Bar title="TRANSITION 3-POINT SUMMARY" />
           <TransitionSummary rows={m.drills} />
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 2 }}>
           <Bar title="BAYLOR SHOOTING & FREE THROWS" />
           <DrillTable rows={m.drills} />
         </div>
@@ -235,6 +233,53 @@ function ZoneCells({ z }: { z: { m: number; a: number; pct: number; fr: number }
       <td style={{ ...td, ...bg(z.a ? pctTier(z.pct) : null) }}>{dash(p(z.pct), z.a > 0)}</td>
       <td style={td}>{dash(p(z.fr), z.a > 0)}</td>
     </>
+  );
+}
+
+// Compact but rich Live Play table (fits alongside Transition + Baylor in one row).
+function LivePlayCompact({ rows }: { rows: BlockRow[] }) {
+  const z = (zz: { m: number; a: number; pct: number }) => (
+    <>
+      <td style={td}>{ma(zz.m, zz.a)}</td>
+      <td style={{ ...td, ...bg(zz.a ? pctTier(zz.pct) : null) }}>{dash(p(zz.pct), zz.a > 0)}</td>
+    </>
+  );
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr>
+          <th style={grp}></th><th style={grp} colSpan={5}></th>
+          <th style={grp} colSpan={2}>ATR</th><th style={grp} colSpan={2}>2FG</th><th style={grp} colSpan={2}>3FG</th>
+          <th style={grp} colSpan={4}></th><th style={grp}>CASPER</th>
+        </tr>
+        <tr>
+          {["TEAM", "POSS", "PPP", "PPS", "eFG%", "TS%", "M-A", "%", "M-A", "%", "M-A", "%", "FD", "Ast", "TO", "OR", "CP"].map((h, i) => (
+            <th key={i} style={{ ...th, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => {
+          const b = r.block;
+          return (
+            <tr key={r.name}>
+              <td style={{ ...td, textAlign: "left", fontWeight: 700, color: r.color }}>{r.name}</td>
+              <td style={td}>{Math.round(b.poss)}</td>
+              <td style={td}>{f2(b.ppp)}</td>
+              <td style={td}>{f2(b.pps)}</td>
+              <td style={{ ...td, ...bg(pctTier(b.efg)) }}>{p(b.efg)}</td>
+              <td style={{ ...td, ...bg(pctTier(b.ts)) }}>{p(b.ts)}</td>
+              {z(b.atr)}{z(b.nonatr2)}{z(b.fg3)}
+              <td style={td}>{b.fd}</td>
+              <td style={td}>{b.play.ast}</td>
+              <td style={td}>{b.play.to}</td>
+              <td style={td}>{b.reb.or}</td>
+              <td style={{ ...td, fontWeight: 700 }}>{round1(b.casper)}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
