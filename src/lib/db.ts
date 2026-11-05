@@ -35,6 +35,26 @@ export async function getPlayers(): Promise<PlayerRow[]> {
   return data as PlayerRow[];
 }
 
+export async function createPlayer(name: string, jersey: string): Promise<PlayerRow> {
+  const { data, error } = await client()
+    .from("players")
+    .insert({ name: name.trim(), jersey: jersey.trim() || null, active: true })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as PlayerRow;
+}
+
+export async function updatePlayer(id: string, fields: Partial<{ name: string; jersey: string | null; active: boolean }>) {
+  const { error } = await client().from("players").update(fields).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deletePlayer(id: string) {
+  const { error } = await client().from("players").delete().eq("id", id);
+  if (error) throw error;
+}
+
 const norm = (s: string) => s.trim().toLowerCase();
 
 /**

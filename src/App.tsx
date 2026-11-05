@@ -21,6 +21,8 @@ import History from "./screens/History";
 import HistoryDemo from "./screens/HistoryDemo";
 import Signage from "./screens/Signage";
 import SignageDemo from "./screens/SignageDemo";
+import Roster from "./screens/Roster";
+import RosterDemo from "./screens/RosterDemo";
 
 export default function App() {
   const { user, signOut } = useAuth();
@@ -75,6 +77,8 @@ export default function App() {
           <Route path="/history-demo" element={<HistoryDemo />} />
           <Route path="/display" element={<RequireAuth><Signage /></RequireAuth>} />
           <Route path="/display-demo" element={<SignageDemo />} />
+          <Route path="/roster" element={<RequireAuth><Roster /></RequireAuth>} />
+          <Route path="/roster-demo" element={<RosterDemo />} />
         </Routes>
       </main>
     </div>
