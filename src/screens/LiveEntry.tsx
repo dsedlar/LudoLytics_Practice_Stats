@@ -12,8 +12,8 @@ import {
   type Segment,
 } from "../lib/config";
 import { logEvent, deleteEvent, upsertDrillResult, type DrillRow } from "../lib/db";
+import Court, { type CourtShot } from "../components/Court";
 
-const SHOT_ORDER: ShotType[] = ["atr", "nonatr2", "fg3", "ft"];
 const GROUPS: { title: string; keys: CountingType[] }[] = [
   { title: "Playmaking", keys: ["ast", "pot", "second", "to"] },
   { title: "Rebounding", keys: ["or", "dr", "tip"] },
@@ -43,7 +43,17 @@ export default function LiveEntry() {
     .filter((r) => r.squad_id === squadId && r.present)
     .sort((a, b) => Number(a.jersey ?? 999) - Number(b.jersey ?? 999));
 
-  async function log(type: string, made?: boolean) {
+  const squadShots: CourtShot[] = events
+    .filter(
+      (e) =>
+        e.squad_id === squadId &&
+        e.shot_x != null &&
+        e.shot_y != null &&
+        (e.type === "atr" || e.type === "nonatr2" || e.type === "fg3"),
+    )
+    .map((e) => ({ x: e.shot_x as number, y: e.shot_y as number, made: !!e.made }));
+
+  async function log(type: string, made?: boolean, shotX?: number, shotY?: number) {
     if (!selected) {
       setFlash("Pick a player first");
       setTimeout(() => setFlash(""), 1200);
@@ -57,6 +67,8 @@ export default function LiveEntry() {
         segment,
         type,
         made,
+        shot_x: shotX,
+        shot_y: shotY,
       });
       setUndoStack((s) => [...s, (row as { id: number }).id]);
       const label = type in SHOT_LABELS ? `${SHOT_LABELS[type as ShotType]} ${made ? "✓" : "✗"}` : COUNTING_LABELS[type as CountingType];
@@ -128,33 +140,36 @@ export default function LiveEntry() {
             {selectedName ? <>Logging for <b>{selectedName}</b></> : "Select a player above"}
           </div>
 
-          {/* shots */}
-          <div className="mt-2 grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
-            {SHOT_ORDER.map((z) => (
-              <div key={z} className="bg-white border rounded-lg p-2">
-                <div className="text-sm font-semibold mb-1">{SHOT_LABELS[z]}</div>
-                <div className="flex gap-2">
-                  <button onClick={() => log(z, true)} className="flex-1 bg-green-600 text-white rounded py-2 font-semibold">Make</button>
-                  <button onClick={() => log(z, false)} className="flex-1 bg-gray-200 rounded py-2 font-semibold">Miss</button>
-                </div>
+          <div className="mt-3 grid lg:grid-cols-2 gap-3 items-start">
+            {/* shot chart */}
+            <div className="bg-white border rounded-lg p-2">
+              <div className="text-sm font-semibold mb-1">Shot chart — tap where the shot was taken, then Make/Miss</div>
+              <Court color={squad.color} shots={squadShots} disabled={!selected} onLog={(z, m, x, y) => log(z, m, x, y)} />
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-sm font-semibold">Free Throws:</span>
+                <button onClick={() => log("ft", true)} className="bg-green-600 text-white rounded px-4 py-2 text-sm font-semibold">FT Make</button>
+                <button onClick={() => log("ft", false)} className="bg-gray-200 rounded px-4 py-2 text-sm font-semibold">FT Miss</button>
+                <span className="ml-auto text-xs text-gray-400">
+                  <span className="text-green-600">●</span> make&nbsp;&nbsp;<span className="text-red-600">✕</span> miss
+                </span>
               </div>
-            ))}
-          </div>
+            </div>
 
-          {/* counting */}
-          <div className="mt-3 grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
-            {GROUPS.map((g) => (
-              <div key={g.title} className="bg-white border rounded-lg p-2">
-                <div className="text-sm font-semibold mb-1">{g.title}</div>
-                <div className="flex flex-wrap gap-1">
-                  {g.keys.map((k) => (
-                    <button key={k} onClick={() => log(k)} className="bg-navy/90 text-white rounded px-3 py-2 text-sm font-medium">
-                      {COUNTING_LABELS[k]}
-                    </button>
-                  ))}
+            {/* other stats */}
+            <div className="space-y-2">
+              {GROUPS.map((g) => (
+                <div key={g.title} className="bg-white border rounded-lg p-2">
+                  <div className="text-sm font-semibold mb-1">{g.title}</div>
+                  <div className="flex flex-wrap gap-1">
+                    {g.keys.map((k) => (
+                      <button key={k} onClick={() => log(k)} className="bg-navy/90 text-white rounded px-3 py-2 text-sm font-medium">
+                        {COUNTING_LABELS[k]}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </>
       ) : (

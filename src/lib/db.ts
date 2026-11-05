@@ -182,7 +182,7 @@ export async function getPracticeBundle(practiceId: string): Promise<PracticeBun
 export async function getEvents(practiceId: string) {
   const { data, error } = await client()
     .from("events")
-    .select("id, practice_id, squad_id, player_id, segment, type, made")
+    .select("id, practice_id, squad_id, player_id, segment, type, made, shot_x, shot_y")
     .eq("practice_id", practiceId)
     .order("id");
   if (error) throw error;
@@ -196,10 +196,17 @@ export async function logEvent(ev: {
   segment: string;
   type: string;
   made?: boolean | null;
+  shot_x?: number | null;
+  shot_y?: number | null;
 }) {
   const { data, error } = await client()
     .from("events")
-    .insert({ ...ev, made: ev.made ?? null })
+    .insert({
+      ...ev,
+      made: ev.made ?? null,
+      shot_x: ev.shot_x ?? null,
+      shot_y: ev.shot_y ?? null,
+    })
     .select()
     .single();
   if (error) throw error;

@@ -13,6 +13,8 @@ export interface EventRow {
   segment: string; // 'live' | 'transition'
   type: string; // ShotType | CountingType
   made: boolean | null;
+  shot_x?: number | null;
+  shot_y?: number | null;
 }
 
 const SHOT_FIELDS: Record<ShotType, [keyof RawTally, keyof RawTally]> = {
