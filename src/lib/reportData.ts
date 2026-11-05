@@ -60,7 +60,7 @@ export interface PlayerLine {
   drills: { baylor: number | null; ninetys: number | null; transM: number | null; transA: number | null; ft: number | null };
 }
 export interface SquadReport {
-  id: string; name: string; color: string; team: StatBlock; wins: number;
+  id: string; name: string; color: string; team: StatBlock; wins: number; wl: string;
   players: PlayerLine[];
   totals: StatBlock;
 }
@@ -119,6 +119,9 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
 
   const squads: SquadReport[] = bundle.squads.map((s, i) => {
     const oppDR = squadDR[squadIds[1 - i]] ?? 0;
+    const wins = s.wins ?? 0;
+    const losses = bundle.squads[1 - i]?.wins ?? 0;
+    const wl = `${wins}-${losses}`;
     const t = squadTally(bundle, s.id, perPlayer);
     const players: PlayerLine[] = bundle.roster
       .filter((r) => r.squad_id === s.id)
@@ -129,7 +132,7 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
         const g = (k: string) => dr.find((d) => d.drill === k);
         return {
           playerId: r.player_id, jersey: r.jersey ?? "", name: r.players?.name ?? "—",
-          present: r.present, wl: "",
+          present: r.present, wl,
           block: statBlock(pt, oppDR),
           drills: {
             baylor: g("baylor") ? Number(g("baylor")!.makes) : null,
@@ -140,7 +143,7 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
           },
         };
       });
-    return { id: s.id, name: s.name, color: s.color, team: statBlock(t, oppDR), wins: 0, players, totals: statBlock(t, oppDR) };
+    return { id: s.id, name: s.name, color: s.color, team: statBlock(t, oppDR), wins, wl, players, totals: statBlock(t, oppDR) };
   });
 
   const combinedTally = squadIds.reduce((acc, sid) => addTally(acc, squadTally(bundle, sid, perPlayer)), emptyTally());

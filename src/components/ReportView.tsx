@@ -309,7 +309,7 @@ function IndividualTable({ m }: { m: ReportModel }) {
       </thead>
       <tbody>
         {m.squads.map((s) => (
-          <SquadRows key={s.id} name={s.name} color={s.color} players={s.players.filter((pl) => pl.present)} totals={s.totals} />
+          <SquadRows key={s.id} name={s.name} color={s.color} players={s.players.filter((pl) => pl.present)} totals={s.totals} wl={s.wl} />
         ))}
         {m.absent.length > 0 && (
           <tr>
@@ -323,7 +323,7 @@ function IndividualTable({ m }: { m: ReportModel }) {
   );
 }
 
-function SquadRows({ name, color, players, totals }: { name: string; color: string; players: PlayerLine[]; totals: StatBlock }) {
+function SquadRows({ name, color, players, totals, wl }: { name: string; color: string; players: PlayerLine[]; totals: StatBlock; wl: string }) {
   return (
     <>
       <tr>
@@ -334,7 +334,7 @@ function SquadRows({ name, color, players, totals }: { name: string; color: stri
       {players.map((pl) => <PlayerRow key={pl.playerId} pl={pl} />)}
       <tr style={{ borderTop: "1px solid #bbb" }}>
         <td style={{ ...td, textAlign: "left", fontWeight: 800 }} colSpan={2}>TEAM TOTALS</td>
-        <BlockCells b={totals} drills={{ baylor: null, ninetys: null, transM: null, transA: null, ft: null }} wl="" bold />
+        <BlockCells b={totals} drills={{ baylor: null, ninetys: null, transM: null, transA: null, ft: null }} wl={wl} bold />
       </tr>
     </>
   );

@@ -4,7 +4,7 @@ import { usePracticeData } from "../lib/usePracticeData";
 import { tallyByPlayer } from "../lib/aggregate";
 import { compute, emptyTally, addTally, pct, type RawTally } from "../lib/stats";
 import { GRADE_SCALE } from "../lib/config";
-import { setGrade, finishPractice } from "../lib/db";
+import { setGrade, finishPractice, setSquadWins } from "../lib/db";
 
 export default function Coach() {
   const { id = "" } = useParams();
@@ -72,6 +72,31 @@ export default function Coach() {
               </button>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* scrimmage wins */}
+      <div className="mt-5 bg-white border rounded-lg p-3">
+        <h2 className="font-semibold text-sm text-gray-600 mb-2">Live-play wins (who won each scrimmage)</h2>
+        <div className="flex flex-wrap gap-4">
+          {bundle.squads.map((s) => (
+            <div key={s.id} className="flex items-center gap-2">
+              <span className="font-bold w-20 truncate" style={{ color: s.color }}>{s.name}</span>
+              <button onClick={() => setSquadWins(s.id, (s.wins ?? 0) - 1)} className="w-8 h-8 rounded border text-lg leading-none">−</button>
+              <span className="text-xl font-black w-8 text-center">{s.wins ?? 0}</span>
+              <button onClick={() => setSquadWins(s.id, (s.wins ?? 0) + 1)} className="w-8 h-8 rounded bg-garnet text-white text-lg leading-none">+</button>
+            </div>
+          ))}
+          <span className="text-sm text-gray-500 self-center">
+            Winner of the day:{" "}
+            <b>
+              {(() => {
+                const sorted = [...bundle.squads].sort((a, b) => (b.wins ?? 0) - (a.wins ?? 0));
+                if ((sorted[0]?.wins ?? 0) === (sorted[1]?.wins ?? 0)) return "Tied";
+                return sorted[0].name;
+              })()}
+            </b>
+          </span>
         </div>
       </div>
 

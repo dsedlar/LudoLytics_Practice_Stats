@@ -135,6 +135,7 @@ export interface SquadRow {
   name: string;
   color: string;
   sort_order: number;
+  wins: number;
 }
 export interface RosterRow {
   id: string;
@@ -243,6 +244,11 @@ export async function setGrade(practiceId: string, grade: number | null) {
   if (error) throw error;
 }
 
+export async function setSquadWins(squadId: string, wins: number) {
+  const { error } = await client().from("squads").update({ wins: Math.max(0, wins) }).eq("id", squadId);
+  if (error) throw error;
+}
+
 export async function finishPractice(practiceId: string, finishTime: string) {
   const { error } = await client()
     .from("practices")
@@ -279,6 +285,11 @@ export function subscribeToPractice(practiceId: string, onChange: () => void): (
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "practices", filter: `id=eq.${practiceId}` },
+      onChange,
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "squads", filter: `practice_id=eq.${practiceId}` },
       onChange,
     )
     .subscribe();
