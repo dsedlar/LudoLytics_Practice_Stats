@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { GRADE_SCALE } from "../lib/config";
+import { exportPracticeCSV } from "../lib/exporters";
 import type { PracticeSummary } from "../lib/db";
 
 export interface HistoryViewProps {
@@ -55,6 +56,7 @@ export default function HistoryView({ rows, onChangeDate, onDelete }: HistoryVie
           <div className="flex items-center gap-2">
             <Link to={`/practice/${r.id}/coach`} className="text-sm bg-garnet text-white rounded px-3 py-1.5 font-medium">Open / Edit</Link>
             <Link to={`/practice/${r.id}/report`} className="text-sm border rounded px-3 py-1.5 font-medium">Report</Link>
+            <button onClick={() => exportPracticeCSV(r.id, r.date).catch((e) => alert((e as Error).message))} className="text-sm border rounded px-3 py-1.5 font-medium">CSV</button>
             {confirmId === r.id ? (
               <>
                 <button onClick={() => del(r.id)} disabled={busy} className="text-sm bg-red-600 text-white rounded px-3 py-1.5 font-medium disabled:opacity-50">

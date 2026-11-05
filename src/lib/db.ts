@@ -182,6 +182,42 @@ export async function getPracticeBundle(practiceId: string): Promise<PracticeBun
   };
 }
 
+// Denormalized events for CSV export (optionally one practice).
+export async function getEventsForExport(practiceId?: string) {
+  let q = client()
+    .from("events")
+    .select("created_at, segment, type, made, shot_x, shot_y, game_index, players(name), squads(name), practices(practice_date)");
+  if (practiceId) q = q.eq("practice_id", practiceId);
+  const { data, error } = await q.order("id");
+  if (error) throw error;
+  type Row = { created_at: string; segment: string; type: string; made: boolean | null; shot_x: number | null; shot_y: number | null; game_index: number | null; players: { name: string } | null; squads: { name: string } | null; practices: { practice_date: string } | null };
+  return (data as unknown as Row[]).map((e) => ({
+    date: e.practices?.practice_date ?? "",
+    squad: e.squads?.name ?? "",
+    player: e.players?.name ?? "",
+    segment: e.segment,
+    type: e.type,
+    made: e.made == null ? "" : e.made ? "make" : "miss",
+    shot_x: e.shot_x ?? "",
+    shot_y: e.shot_y ?? "",
+    game: e.game_index ?? "",
+    logged_at: e.created_at,
+  }));
+}
+
+// Full dump of every table — for a restorable backup.
+export async function getBackup(): Promise<Record<string, unknown[]>> {
+  const sb = client();
+  const tables = ["players", "practices", "squads", "roster_entries", "events", "drill_results", "settings"];
+  const out: Record<string, unknown[]> = {};
+  for (const t of tables) {
+    const { data, error } = await sb.from(t).select("*");
+    if (error) throw error;
+    out[t] = data ?? [];
+  }
+  return out;
+}
+
 export async function getSquads(practiceId: string): Promise<SquadRow[]> {
   const { data, error } = await client().from("squads").select("*").eq("practice_id", practiceId).order("sort_order");
   if (error) throw error;

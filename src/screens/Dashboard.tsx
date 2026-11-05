@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { getSeasonData } from "../lib/db";
 import { buildSeason, type SeasonResult } from "../lib/seasonData";
 import { isSupabaseConfigured } from "../lib/supabase";
+import { exportSeasonCSV, exportBackupJSON } from "../lib/exporters";
 import DashboardView from "../components/DashboardView";
 import DashboardSummary from "../components/DashboardSummary";
 
@@ -27,7 +28,11 @@ export default function Dashboard() {
     <div>
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-3xl headline-bold text-garnet">Season Dashboard</h1>
-        <Link to="/history" className="text-sm bg-garnet text-white rounded px-4 py-2 font-medium">Practice history →</Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => exportSeasonCSV().catch((e) => alert(e.message))} className="text-sm border rounded px-3 py-2 font-medium">Season CSV</button>
+          <button onClick={() => exportBackupJSON().catch((e) => alert(e.message))} className="text-sm border rounded px-3 py-2 font-medium">Backup (JSON)</button>
+          <Link to="/history" className="text-sm bg-garnet text-white rounded px-4 py-2 font-medium">Practice history →</Link>
+        </div>
       </div>
       <p className="mt-1 text-gray-600 text-sm">
         Every practice, totaled for the season. Click a player to see their growth. Tap a column to sort.
