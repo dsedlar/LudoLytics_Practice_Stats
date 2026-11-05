@@ -238,10 +238,11 @@ function SummaryCard({ name, color, t, c, record, wide }: { name: string; color:
       <div className="font-bold tracking-wide uppercase">{name}</div>
       <div className="mt-1 flex gap-4">
         <Stat label="PPP" value={c.ppp.toFixed(2)} />
-        <Stat label="Casper" value={String(c.casper)} />
         <Stat label="PTS" value={String(c.pts)} />
         <Stat label="POSS" value={c.poss.toFixed(0)} />
+        <Stat label="eFG%" value={pct(c.efg)} />
         <Stat label="TO" value={String(t.to)} />
+        <Stat label="Casper" value={String(c.casper)} />
         {record && <Stat label="W" value={String(record.w)} />}
         {record && <Stat label="L" value={String(record.l)} />}
       </div>
