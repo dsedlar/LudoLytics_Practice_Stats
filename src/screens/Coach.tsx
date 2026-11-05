@@ -1,15 +1,28 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { usePracticeData } from "../lib/usePracticeData";
 import { tallyByPlayer } from "../lib/aggregate";
 import { compute, emptyTally, addTally, pct, type RawTally } from "../lib/stats";
 import { GRADE_SCALE } from "../lib/config";
-import { setGrade, finishPractice, setSquadWins, setSquadLosses } from "../lib/db";
+import { setGrade, finishPractice, setSquadWins, setSquadLosses, updatePractice } from "../lib/db";
 
 export default function Coach() {
   const { id = "" } = useParams();
-  const { bundle, events, error, loading } = usePracticeData(id);
+  const navigate = useNavigate();
+  const { bundle, events, error, loading, reload } = usePracticeData(id);
   const [copied, setCopied] = useState("");
+  const [actErr, setActErr] = useState("");
+
+  // Run a write then reload so the UI reflects it immediately (don't rely on realtime).
+  async function run(fn: () => Promise<void>) {
+    try {
+      setActErr("");
+      await fn();
+      await reload();
+    } catch (e) {
+      setActErr((e as Error).message);
+    }
+  }
 
   const playerTallies = useMemo(() => tallyByPlayer(events), [events]);
 
@@ -84,15 +97,15 @@ export default function Coach() {
               <span className="font-bold w-20 truncate" style={{ color: s.color }}>{s.name}</span>
               <div className="flex items-center gap-1">
                 <span className="text-xs text-gray-400 w-3">W</span>
-                <button onClick={() => setSquadWins(s.id, (s.wins ?? 0) - 1)} className="w-7 h-7 rounded border leading-none">−</button>
+                <button onClick={() => run(() => setSquadWins(s.id, (s.wins ?? 0) - 1))} className="w-7 h-7 rounded border leading-none">−</button>
                 <span className="text-lg font-black w-6 text-center">{s.wins ?? 0}</span>
-                <button onClick={() => setSquadWins(s.id, (s.wins ?? 0) + 1)} className="w-7 h-7 rounded bg-garnet text-white leading-none">+</button>
+                <button onClick={() => run(() => setSquadWins(s.id, (s.wins ?? 0) + 1))} className="w-7 h-7 rounded bg-garnet text-white leading-none">+</button>
               </div>
               <div className="flex items-center gap-1">
                 <span className="text-xs text-gray-400 w-3">L</span>
-                <button onClick={() => setSquadLosses(s.id, (s.losses ?? 0) - 1)} className="w-7 h-7 rounded border leading-none">−</button>
+                <button onClick={() => run(() => setSquadLosses(s.id, (s.losses ?? 0) - 1))} className="w-7 h-7 rounded border leading-none">−</button>
                 <span className="text-lg font-black w-6 text-center">{s.losses ?? 0}</span>
-                <button onClick={() => setSquadLosses(s.id, (s.losses ?? 0) + 1)} className="w-7 h-7 rounded bg-navy text-white leading-none">+</button>
+                <button onClick={() => run(() => setSquadLosses(s.id, (s.losses ?? 0) + 1))} className="w-7 h-7 rounded bg-navy text-white leading-none">+</button>
               </div>
             </div>
           ))}
@@ -109,21 +122,42 @@ export default function Coach() {
         </div>
       </div>
 
-      {/* grade */}
-      <div className="mt-5 bg-white border rounded-lg p-3">
-        <h2 className="font-semibold text-sm text-gray-600 mb-2">Practice grade</h2>
-        <div className="flex flex-wrap gap-2">
-          {[5, 4, 3, 2, 1].map((g) => (
-            <button
-              key={g}
-              onClick={() => setGrade(id, g)}
-              className={`px-3 py-2 rounded border text-sm ${bundle.practice.grade === g ? "bg-garnet text-white" : "bg-white"}`}
-            >
-              <b>{g}</b> {GRADE_SCALE[g].label}
-            </button>
-          ))}
+      {/* grade + player of the day */}
+      <div className="mt-5 bg-white border rounded-lg p-3 flex flex-wrap items-end gap-6">
+        <div>
+          <h2 className="font-semibold text-sm text-gray-600 mb-2">Practice grade</h2>
+          <div className="flex flex-wrap gap-2">
+            {[5, 4, 3, 2, 1].map((g) => (
+              <button
+                key={g}
+                onClick={() => run(() => setGrade(id, g))}
+                className={`px-3 py-2 rounded border text-sm ${bundle.practice.grade === g ? "bg-garnet text-white" : "bg-white"}`}
+              >
+                <b>{g}</b> {GRADE_SCALE[g].label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <h2 className="font-semibold text-sm text-gray-600 mb-2">Player of the Day</h2>
+          <select
+            value={bundle.practice.player_of_day ?? ""}
+            onChange={(e) => run(() => updatePractice(id, { player_of_day: e.target.value || null }))}
+            className="border rounded px-3 py-2 text-sm min-w-48"
+          >
+            <option value="">— none —</option>
+            {bundle.roster
+              .filter((r) => r.present)
+              .sort((a, b) => Number(a.jersey ?? 999) - Number(b.jersey ?? 999))
+              .map((r) => (
+                <option key={r.player_id} value={r.player_id}>
+                  #{r.jersey} {r.players?.name}
+                </option>
+              ))}
+          </select>
         </div>
       </div>
+      {actErr && <p className="mt-2 text-red-600 text-sm">Could not save: {actErr}</p>}
 
       {/* live per-player tables */}
       <div className="mt-5 grid lg:grid-cols-2 gap-4">
@@ -141,10 +175,15 @@ export default function Coach() {
 
       <div className="mt-6">
         <button
-          onClick={() => finishPractice(id, new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}
+          onClick={() =>
+            run(async () => {
+              await finishPractice(id, new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+              navigate(`/practice/${id}/report`);
+            })
+          }
           className="bg-navy text-white px-5 py-3 rounded-lg font-semibold"
         >
-          Finish practice
+          {bundle.practice.status === "finished" ? "Re-finish (update time)" : "Finish practice"}
         </button>
         <Link to={`/practice/${id}/report`} className="ml-3 bg-garnet text-white px-5 py-3 rounded-lg font-semibold">
           View report →

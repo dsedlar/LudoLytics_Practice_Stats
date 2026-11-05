@@ -5,10 +5,11 @@ import { pct } from "../lib/stats";
 const f1 = (x: number) => x.toFixed(1);
 const f2 = (x: number) => x.toFixed(2);
 
-type SortKey = "jersey" | "gp" | "ptsPerG" | "pps" | "efg" | "ts" | "perAvg" | "cpPerG" | "cpTot";
+type SortKey = "jersey" | "gp" | "pod" | "ptsPerG" | "pps" | "efg" | "ts" | "perAvg" | "cpPerG" | "cpTot";
 
 const COLS: { key: SortKey; label: string; get: (p: PlayerSeason) => number; fmt: (p: PlayerSeason) => string }[] = [
   { key: "gp", label: "GP", get: (p) => p.gp, fmt: (p) => String(p.gp) },
+  { key: "pod", label: "POD", get: (p) => p.pod, fmt: (p) => String(p.pod) },
   { key: "ptsPerG", label: "PTS/G", get: (p) => p.ptsPerG, fmt: (p) => f1(p.ptsPerG) },
   { key: "pps", label: "PPS", get: (p) => p.total.pps, fmt: (p) => f2(p.total.pps) },
   { key: "efg", label: "eFG%", get: (p) => p.total.efg, fmt: (p) => pct(p.total.efg) },

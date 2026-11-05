@@ -128,6 +128,7 @@ export interface PracticeRow {
   finish_time: string | null;
   grade: number | null;
   status: string;
+  player_of_day: string | null;
 }
 export interface SquadRow {
   id: string;
@@ -328,7 +329,7 @@ export async function deletePractice(id: string) {
   if (error) throw error;
 }
 
-export async function updatePractice(id: string, fields: Partial<{ practice_date: string; finish_time: string | null; grade: number | null; status: string }>) {
+export async function updatePractice(id: string, fields: Partial<{ practice_date: string; finish_time: string | null; grade: number | null; status: string; player_of_day: string | null }>) {
   const { error } = await client().from("practices").update(fields).eq("id", id);
   if (error) throw error;
 }
@@ -340,7 +341,7 @@ import type { EventRow } from "./aggregate";
 export async function getSeasonData(): Promise<SeasonInput> {
   const sb = client();
   const [pr, ro, ev, dr] = await Promise.all([
-    sb.from("practices").select("id, practice_date").order("practice_date"),
+    sb.from("practices").select("id, practice_date, player_of_day").order("practice_date"),
     sb.from("roster_entries").select("practice_id, player_id, present, jersey, players(name)"),
     sb.from("events").select("id, practice_id, squad_id, player_id, segment, type, made"),
     sb.from("drill_results").select("player_id, drill, makes, attempts"),
@@ -350,7 +351,7 @@ export async function getSeasonData(): Promise<SeasonInput> {
   if (ev.error) throw ev.error;
   if (dr.error) throw dr.error;
   return {
-    practices: pr.data as { id: string; practice_date: string }[],
+    practices: pr.data as { id: string; practice_date: string; player_of_day: string | null }[],
     roster: (ro.data as unknown as { practice_id: string; player_id: string; present: boolean; jersey: string | null; players: { name: string } | null }[]).map((r) => ({
       practice_id: r.practice_id,
       player_id: r.player_id,

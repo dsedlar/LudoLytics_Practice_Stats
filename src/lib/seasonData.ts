@@ -5,7 +5,7 @@ import { compute, emptyTally, type RawTally, type Computed } from "./stats";
 import { applyEvent, type EventRow } from "./aggregate";
 
 export interface SeasonInput {
-  practices: { id: string; practice_date: string }[];
+  practices: { id: string; practice_date: string; player_of_day?: string | null }[];
   roster: { practice_id: string; player_id: string; present: boolean; name: string; jersey: string }[];
   events: EventRow[];
   drills: { player_id: string; drill: string; makes: number; attempts: number | null }[];
@@ -18,6 +18,7 @@ export interface HistoryPoint {
 export interface PlayerSeason {
   playerId: string; name: string; jersey: string;
   gp: number;
+  pod: number; // Player of the Day count
   total: Computed;
   ptsPerG: number; cpPerG: number; perAvg: number;
   drills: { baylorAvg: number; ninetyAvg: number; transPct: number; ftAvg: number };
@@ -28,6 +29,10 @@ const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.l
 
 export function buildSeason(input: SeasonInput): PlayerSeason[] {
   const dateById = new Map(input.practices.map((p) => [p.id, p.practice_date]));
+  const podCount = new Map<string, number>();
+  input.practices.forEach((p) => {
+    if (p.player_of_day) podCount.set(p.player_of_day, (podCount.get(p.player_of_day) ?? 0) + 1);
+  });
 
   // player -> set of attended practice ids, and display info
   const attended = new Map<string, Set<string>>();
@@ -78,7 +83,7 @@ export function buildSeason(input: SeasonInput): PlayerSeason[] {
     const trA = pick("transition").reduce((s, d) => s + Number(d.attempts ?? 0), 0);
 
     out.push({
-      playerId, name: meta.name, jersey: meta.jersey, gp, total,
+      playerId, name: meta.name, jersey: meta.jersey, gp, pod: podCount.get(playerId) ?? 0, total,
       ptsPerG: total.pts / gp, cpPerG: total.casper / gp, perAvg: mean(history.map((h) => h.per)),
       drills: {
         baylorAvg: mean(pick("baylor").map((d) => Number(d.makes))),
