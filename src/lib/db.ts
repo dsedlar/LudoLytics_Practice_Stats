@@ -275,6 +275,64 @@ export async function listRecentPractices(): Promise<PracticeRow[]> {
   return data as PracticeRow[];
 }
 
+export interface PracticeSummary {
+  id: string;
+  date: string;
+  grade: number | null;
+  status: string;
+  finish: string | null;
+  squads: { name: string; color: string; wins: number; losses: number }[];
+  present: number;
+  total: number;
+}
+
+/** All practices with squad records + attendance, newest first. */
+export async function getHistory(): Promise<PracticeSummary[]> {
+  const sb = client();
+  const [pr, sq, ro] = await Promise.all([
+    sb.from("practices").select("id, practice_date, grade, status, finish_time").order("practice_date", { ascending: false }),
+    sb.from("squads").select("practice_id, name, color, wins, losses, sort_order").order("sort_order"),
+    sb.from("roster_entries").select("practice_id, present"),
+  ]);
+  if (pr.error) throw pr.error;
+  if (sq.error) throw sq.error;
+  if (ro.error) throw ro.error;
+
+  const squadsByPractice = new Map<string, { name: string; color: string; wins: number; losses: number }[]>();
+  (sq.data as { practice_id: string; name: string; color: string; wins: number; losses: number }[]).forEach((s) => {
+    if (!squadsByPractice.has(s.practice_id)) squadsByPractice.set(s.practice_id, []);
+    squadsByPractice.get(s.practice_id)!.push({ name: s.name, color: s.color, wins: s.wins ?? 0, losses: s.losses ?? 0 });
+  });
+  const att = new Map<string, { present: number; total: number }>();
+  (ro.data as { practice_id: string; present: boolean }[]).forEach((r) => {
+    const a = att.get(r.practice_id) ?? { present: 0, total: 0 };
+    a.total += 1;
+    if (r.present) a.present += 1;
+    att.set(r.practice_id, a);
+  });
+
+  return (pr.data as { id: string; practice_date: string; grade: number | null; status: string; finish_time: string | null }[]).map((p) => ({
+    id: p.id,
+    date: p.practice_date,
+    grade: p.grade,
+    status: p.status,
+    finish: p.finish_time,
+    squads: squadsByPractice.get(p.id) ?? [],
+    present: att.get(p.id)?.present ?? 0,
+    total: att.get(p.id)?.total ?? 0,
+  }));
+}
+
+export async function deletePractice(id: string) {
+  const { error } = await client().from("practices").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function updatePractice(id: string, fields: Partial<{ practice_date: string; finish_time: string | null; grade: number | null; status: string }>) {
+  const { error } = await client().from("practices").update(fields).eq("id", id);
+  if (error) throw error;
+}
+
 import type { SeasonInput } from "./seasonData";
 import type { EventRow } from "./aggregate";
 

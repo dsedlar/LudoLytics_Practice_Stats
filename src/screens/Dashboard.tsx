@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getSeasonData } from "../lib/db";
 import { buildSeason, type PlayerSeason } from "../lib/seasonData";
 import { isSupabaseConfigured } from "../lib/supabase";
@@ -23,7 +24,10 @@ export default function Dashboard() {
 
   return (
     <div>
-      <h1 className="text-3xl headline-bold text-garnet">Season Dashboard</h1>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h1 className="text-3xl headline-bold text-garnet">Season Dashboard</h1>
+        <Link to="/history" className="text-sm bg-garnet text-white rounded px-4 py-2 font-medium">Practice history →</Link>
+      </div>
       <p className="mt-1 text-gray-600 text-sm">
         Every practice, totaled for the season. Click a player to see their growth. Tap a column to sort.
       </p>
