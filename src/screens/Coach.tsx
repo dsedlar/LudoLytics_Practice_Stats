@@ -66,10 +66,10 @@ export default function Coach() {
       {/* summary cards */}
       <div className="mt-4 grid sm:grid-cols-3 gap-3">
         {bundle.squads.map((s) => {
-          const c = compute(squadTally(s.id));
-          return <SummaryCard key={s.id} name={s.name} color={s.color} c={c} />;
+          const t = squadTally(s.id);
+          return <SummaryCard key={s.id} name={s.name} color={s.color} t={t} c={compute(t)} />;
         })}
-        <SummaryCard name="Combined" color="#00142D" c={compute(combined)} wide={bundle.squads.length < 2} />
+        <SummaryCard name="Combined" color="#00142D" t={combined} c={compute(combined)} wide={bundle.squads.length < 2} />
       </div>
 
       {/* device links + coach take-stats */}
@@ -205,15 +205,16 @@ export default function Coach() {
   );
 }
 
-function SummaryCard({ name, color, c, wide }: { name: string; color: string; c: ReturnType<typeof compute>; wide?: boolean }) {
+function SummaryCard({ name, color, t, c, wide }: { name: string; color: string; t: RawTally; c: ReturnType<typeof compute>; wide?: boolean }) {
   return (
     <div className={`rounded-lg p-3 text-white ${wide ? "sm:col-span-3" : ""}`} style={{ background: color }}>
       <div className="font-bold tracking-wide uppercase">{name}</div>
       <div className="mt-1 flex gap-4">
-        <Stat label="PPP" value={c.ppp.toFixed(2)} />
-        <Stat label="Casper" value={String(c.casper)} />
-        <Stat label="PTS" value={String(c.pts)} />
-        <Stat label="POSS" value={c.poss.toFixed(0)} />
+        <Stat label="3FG%" value={pct(t.fg3A > 0 ? t.fg3M / t.fg3A : 0)} />
+        <Stat label="eFG%" value={pct(c.efg)} />
+        <Stat label="TO" value={String(t.to)} />
+        <Stat label="Reb" value={String(t.or + t.dr)} />
+        <Stat label="CP" value={String(c.casper)} />
       </div>
     </div>
   );
