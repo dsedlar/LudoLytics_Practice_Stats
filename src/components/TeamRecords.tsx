@@ -3,7 +3,7 @@ import type { TeamRecord } from "../lib/seasonData";
 export default function TeamRecords({ teams }: { teams: TeamRecord[] }) {
   if (!teams.length) return null;
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="flex flex-wrap gap-3 justify-center">
       {teams.map((t) => (
         <div key={t.name} className="bg-white border rounded-lg px-4 py-3 flex items-center gap-3">
           <span className="w-3 h-3 rounded-full" style={{ background: t.color }} />
