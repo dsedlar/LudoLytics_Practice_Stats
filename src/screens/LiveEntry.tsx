@@ -149,8 +149,8 @@ export default function LiveEntry() {
                 <span className="text-sm font-semibold">Free Throws:</span>
                 <button onClick={() => log("ft", true)} className="bg-green-600 text-white rounded px-4 py-2 text-sm font-semibold">FT Make</button>
                 <button onClick={() => log("ft", false)} className="bg-gray-200 rounded px-4 py-2 text-sm font-semibold">FT Miss</button>
-                <span className="ml-auto text-xs text-gray-400">
-                  <span className="text-green-600">●</span> make&nbsp;&nbsp;<span className="text-red-600">✕</span> miss
+                <span className="ml-auto text-xs text-gray-500">
+                  ● filled = make&nbsp;&nbsp;○ ring = miss
                 </span>
               </div>
             </div>

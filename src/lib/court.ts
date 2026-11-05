@@ -45,3 +45,23 @@ export const ZONE_LABEL: Record<ShotZone, string> = {
   nonatr2: "2FG",
   fg3: "3FG",
 };
+
+// Pick the brand color (garnet or navy) that contrasts most with the court color,
+// so shot marks stand out: navy dots on a garnet court, garnet dots on a navy court.
+const GARNET = "#B20000";
+const NAVY = "#00142D";
+function hexToRgb(h: string): [number, number, number] {
+  const s = h.replace("#", "");
+  return [0, 2, 4].map((i) => parseInt(s.slice(i, i + 2), 16)) as [number, number, number];
+}
+function dist(a: [number, number, number], b: [number, number, number]) {
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+}
+export function markColorFor(courtColor: string): string {
+  try {
+    const c = hexToRgb(courtColor);
+    return dist(c, hexToRgb(GARNET)) >= dist(c, hexToRgb(NAVY)) ? GARNET : NAVY;
+  } catch {
+    return NAVY;
+  }
+}

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { COURT, zoneFor, ZONE_LABEL, type ShotZone } from "../lib/court";
+import { COURT, zoneFor, ZONE_LABEL, markColorFor, type ShotZone } from "../lib/court";
 
 export interface CourtShot {
   x: number;
@@ -46,6 +46,7 @@ export default function Court({ color, shots, disabled, onLog }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [pending, setPending] = useState<{ x: number; y: number; zone: ShotZone } | null>(null);
   const [hint, setHint] = useState("");
+  const mark = markColorFor(color);
 
   function handleClick(e: React.MouseEvent) {
     if (disabled) {
@@ -108,15 +109,12 @@ export default function Court({ color, shots, disabled, onLog }: Props) {
         {/* half-court center circle */}
         <path d={CENTER} fill="none" stroke={color} strokeWidth={0.35} />
 
-        {/* existing shots */}
+        {/* existing shots — filled dot = make, open ring = miss, in the contrasting brand color */}
         {shots.map((s, i) =>
           s.made ? (
-            <circle key={i} cx={s.x} cy={s.y} r={0.7} fill="#16a34a" opacity={0.9} />
+            <circle key={i} cx={s.x} cy={s.y} r={0.8} fill={mark} />
           ) : (
-            <g key={i} stroke="#dc2626" strokeWidth={0.3} opacity={0.9}>
-              <line x1={s.x - 0.6} y1={s.y - 0.6} x2={s.x + 0.6} y2={s.y + 0.6} />
-              <line x1={s.x - 0.6} y1={s.y + 0.6} x2={s.x + 0.6} y2={s.y - 0.6} />
-            </g>
+            <circle key={i} cx={s.x} cy={s.y} r={0.75} fill="#F3EED4" stroke={mark} strokeWidth={0.4} />
           ),
         )}
 
