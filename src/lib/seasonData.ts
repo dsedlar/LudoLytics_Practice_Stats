@@ -13,8 +13,12 @@ export interface TeamSeason {
   ftPct: number;
   efg: number;
   ts: number;
+  rebPerPractice: number;
+  astPerPractice: number;
+  ppp: number;
+  casper: number;
   // latest practice vs the one before (better/worse/same)
-  trends: { to: Trend; fg3: Trend; pps: Trend; ft: Trend; efg: Trend; ts: Trend };
+  trends: { to: Trend; fg3: Trend; pps: Trend; ft: Trend; efg: Trend; ts: Trend; reb: Trend; ast: Trend; ppp: Trend; casper: Trend };
 }
 export interface GradePoint {
   date: string;
@@ -200,6 +204,7 @@ export function buildSeason(input: SeasonInput): SeasonResult {
   const ftOf = (t: RawTally) => (t.ftA ? t.ftM / t.ftA : null);
   const efgOf = (t: RawTally) => (hasFga(t) ? compute(t).efg : null);
   const tsOf = (t: RawTally) => (hasFga(t) || t.ftA ? compute(t).ts : null);
+  const pppOf = (t: RawTally) => (hasFga(t) || t.to || t.ftA ? compute(t).ppp : null);
 
   const team: TeamSeason = {
     practices: practicesWithData,
@@ -209,6 +214,10 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     ftPct: totalTally.ftA ? totalTally.ftM / totalTally.ftA : 0,
     efg: tc.efg,
     ts: tc.ts,
+    rebPerPractice: practicesWithData ? (totalTally.or + totalTally.dr) / practicesWithData : 0,
+    astPerPractice: practicesWithData ? totalTally.ast / practicesWithData : 0,
+    ppp: tc.ppp,
+    casper: tc.casper,
     trends: {
       to: trend((t) => t.to, false), // fewer turnovers is better
       fg3: trend(fg3, true),
@@ -216,6 +225,10 @@ export function buildSeason(input: SeasonInput): SeasonResult {
       ft: trend(ftOf, true),
       efg: trend(efgOf, true),
       ts: trend(tsOf, true),
+      reb: trend((t) => t.or + t.dr, true),
+      ast: trend((t) => t.ast, true),
+      ppp: trend(pppOf, true),
+      casper: trend((t) => compute(t).casper, true),
     },
   };
 

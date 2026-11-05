@@ -59,19 +59,16 @@ function TeamSlide({ s }: { s: SeasonResult }) {
   return (
     <div style={{ display: "flex", gap: 56, alignItems: "center", width: "100%", justifyContent: "center", flexWrap: "wrap" }}>
       <div style={{ flex: "0 0 46%", minWidth: 420 }}>
-        <Eyebrow>Varsity Practice Level</Eyebrow>
+        <div style={{ fontFamily: G, letterSpacing: "0.25em", textTransform: "uppercase", fontSize: 17, color: "#fff" }}>Varsity Practice Level</div>
         <GradeChart grades={s.grades} />
       </div>
-      <div style={{ flex: "0 0 42%", minWidth: 360, display: "flex", flexDirection: "column", gap: 30 }}>
-        <div style={{ display: "flex", gap: 20, justifyContent: "center", flexWrap: "wrap" }}>
-          {s.teams.map((t) => <TeamCard key={t.name} {...t} />)}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px 40px" }}>
-          <Kpi label="TO / Practice" value={s.team.toPerPractice.toFixed(1)} t={s.team.trends.to} />
-          <Kpi label="3FG %" value={pct(s.team.fg3Pct)} t={s.team.trends.fg3} />
-          <Kpi label="PPS" value={s.team.pps.toFixed(2)} t={s.team.trends.pps} />
-          <Kpi label="FT %" value={pct(s.team.ftPct)} t={s.team.trends.ft} />
-        </div>
+      <div style={{ flex: "0 0 44%", minWidth: 380, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "32px 48px" }}>
+        <Kpi label="TO / P" value={s.team.toPerPractice.toFixed(1)} t={s.team.trends.to} size={56} />
+        <Kpi label="REB / P" value={s.team.rebPerPractice.toFixed(1)} t={s.team.trends.reb} size={56} />
+        <Kpi label="AST / P" value={s.team.astPerPractice.toFixed(1)} t={s.team.trends.ast} size={56} />
+        <Kpi label="PPP" value={s.team.ppp.toFixed(2)} t={s.team.trends.ppp} size={56} />
+        <Kpi label="PPS" value={s.team.pps.toFixed(2)} t={s.team.trends.pps} size={56} />
+        <Kpi label="Casper Pts" value={Math.round(s.team.casper).toString()} t={s.team.trends.casper} size={56} />
       </div>
     </div>
   );
