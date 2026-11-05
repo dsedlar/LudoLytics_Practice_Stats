@@ -99,10 +99,10 @@ create table if not exists profiles (
 -- ===========================================================================
 -- Row Level Security
 -- ===========================================================================
--- Phase 1 policy (simple, safe enough for a single private team):
---   * anyone (anon) can READ — this powers the player-facing season dashboard.
---   * only signed-in users can WRITE — analysts/coaches entering stats.
--- We will tighten per-squad write rules in a later pass.
+-- Phase 1 policy (simple; no login built yet):
+--   * anyone can READ — this powers the player-facing season dashboard.
+--   * anyone can WRITE — analysts/coaches entering stats (no login yet).
+-- Before real use we add a login and switch writes back to authenticated-only.
 -- ===========================================================================
 alter table players        enable row level security;
 alter table practices      enable row level security;
@@ -123,8 +123,8 @@ begin
     execute format('drop policy if exists read_all on %I;', t);
     execute format('create policy read_all on %I for select using (true);', t);
     execute format('drop policy if exists write_auth on %I;', t);
-    execute format(
-      'create policy write_auth on %I for all to authenticated using (true) with check (true);', t);
+    execute format('drop policy if exists write_all on %I;', t);
+    execute format('create policy write_all on %I for all using (true) with check (true);', t);
   end loop;
 end $$;
 
