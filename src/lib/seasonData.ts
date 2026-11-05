@@ -139,7 +139,11 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     const pick = (k: string) => dr.filter((d) => d.drill === k);
     const trM = history.reduce((s, h) => s + h.trans.m, 0);
     const trA = history.reduce((s, h) => s + h.trans.a, 0);
-    const record = history.reduce((acc, h) => ({ w: acc.w + h.wl.w, l: acc.l + h.wl.l }), { w: 0, l: 0 });
+    // overall practice record: did the player's squad win the day?
+    const record = {
+      w: history.filter((h) => h.wl.w > h.wl.l).length,
+      l: history.filter((h) => h.wl.w < h.wl.l).length,
+    };
 
     out.push({
       playerId, name: meta.name, jersey: meta.jersey, gp, pod: podCount.get(playerId) ?? 0, record, total,

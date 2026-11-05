@@ -74,6 +74,10 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
   const fg3Pct = (hp?: HistoryPoint) => (hp && hp.tally.fg3A ? hp.tally.fg3M / hp.tally.fg3A : null);
   const seasonFg3 = p.tally.fg3A ? p.tally.fg3M / p.tally.fg3A : 0;
   const seasonTrans = h.reduce((acc, hp) => ({ m: acc.m + hp.trans.m, a: acc.a + hp.trans.a }), { m: 0, a: 0 });
+  const rpg = (p.tally.or + p.tally.dr) / Math.max(1, p.gp);
+  const topg = p.tally.to / Math.max(1, p.gp);
+  const rebOf = (hp?: HistoryPoint) => (hp ? hp.tally.or + hp.tally.dr : null);
+  const toOf = (hp?: HistoryPoint) => (hp ? hp.tally.to : null);
 
   return (
     <div>
@@ -97,9 +101,11 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
           <LineChart values={h.map(m.get)} fmt={m.fmt} />
         </div>
         <div className="grid grid-cols-2 gap-2 content-center">
-          <KTile label="Points / Practice" value={f1(p.ptsPerG)} t={trendOf(last?.pts ?? null, prev?.pts ?? null)} />
+          <KTile label="eFG %" value={pct(p.total.efg)} t={trendOf(last?.efg ?? null, prev?.efg ?? null)} />
           <KTile label="TS %" value={pct(p.total.ts)} t={trendOf(last?.ts ?? null, prev?.ts ?? null)} />
           <KTile label="3FG %" value={pct(seasonFg3)} t={trendOf(fg3Pct(last), fg3Pct(prev))} />
+          <KTile label="Reb / Game" value={f1(rpg)} t={trendOf(rebOf(last), rebOf(prev))} />
+          <KTile label="TO / Game" value={f1(topg)} t={trendOf(toOf(last), toOf(prev), false)} />
           <KTile label="Casper / Practice" value={f1(p.cpPerG)} t={trendOf(last?.cp ?? null, prev?.cp ?? null)} />
         </div>
       </div>
@@ -120,7 +126,9 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
               return (
                 <tr key={hp.practiceId} className="border-b last:border-0 whitespace-nowrap">
                   <td className="p-2">{hp.date}</td>
-                  <td className="p-2">{hp.wl.w}-{hp.wl.l}</td>
+                  <td className="p-2 font-bold" style={{ color: hp.wl.w > hp.wl.l ? "#16a34a" : hp.wl.w < hp.wl.l ? "#dc2626" : "#9ca3af" }}>
+                    {hp.wl.w > hp.wl.l ? "W" : hp.wl.w < hp.wl.l ? "L" : "T"}
+                  </td>
                   <td className="p-2 font-semibold">{hp.pts}</td>
                   <td className="p-2">{ma(t.atrM, t.atrA)}</td>
                   <td className="p-2">{ma(t.nonatr2M, t.nonatr2A)}</td>
