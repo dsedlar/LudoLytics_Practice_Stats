@@ -379,7 +379,7 @@ export async function getSeasonData(): Promise<SeasonInput> {
 export function subscribeToPractice(practiceId: string, onChange: () => void): () => void {
   const sb = client();
   const channel = sb
-    .channel(`practice:${practiceId}`)
+    .channel(`practice:${practiceId}:${Math.random().toString(36).slice(2)}`)
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "events", filter: `practice_id=eq.${practiceId}` },

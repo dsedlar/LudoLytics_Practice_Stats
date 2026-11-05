@@ -12,7 +12,7 @@ import type { Tab } from "./LiveEntryView";
  * All the live-entry wiring for ONE squad of a practice. Used by the analyst
  * screen (squad from URL) and the coach "take stats" mode (squad from a toggle).
  */
-export default function SquadEntry({ practiceId, squadId }: { practiceId: string; squadId: string }) {
+export default function SquadEntry({ practiceId, squadId, compact }: { practiceId: string; squadId: string; compact?: boolean }) {
   const { bundle, events, drills, error, loading } = usePracticeData(practiceId);
   const [selected, setSelected] = useState("");
   const [tab, setTab] = useState<Tab>("live");
@@ -104,6 +104,7 @@ export default function SquadEntry({ practiceId, squadId }: { practiceId: string
     <LiveEntryView
       squadName={squad.name}
       squadColor={squad.color}
+      compact={compact}
       tab={tab}
       setTab={setTab}
       players={players}

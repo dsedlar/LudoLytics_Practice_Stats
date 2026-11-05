@@ -7,7 +7,6 @@ import SquadEntry from "../components/SquadEntry";
 export default function CoachEntry() {
   const { id = "" } = useParams();
   const [squads, setSquads] = useState<SquadRow[] | null>(null);
-  const [sel, setSel] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -16,10 +15,7 @@ export default function CoachEntry() {
       return;
     }
     getSquads(id)
-      .then((s) => {
-        setSquads(s);
-        if (s[0]) setSel(s[0].id);
-      })
+      .then(setSquads)
       .catch((e) => setError((e as Error).message));
   }, [id]);
 
@@ -29,29 +25,16 @@ export default function CoachEntry() {
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="eyebrow text-xs text-gray-500">Coach · taking stats</span>
-          {squads.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setSel(s.id)}
-              className="px-4 py-2 rounded-lg font-semibold text-sm border-2"
-              style={
-                sel === s.id
-                  ? { background: s.color, color: "#fff", borderColor: s.color }
-                  : { color: s.color, borderColor: s.color }
-              }
-            >
-              {s.name}
-            </button>
-          ))}
-        </div>
+        <span className="eyebrow text-xs text-gray-500">Coach · taking stats — both squads</span>
         <Link to={`/practice/${id}/coach`} className="text-sm text-garnet font-medium">← Coach view</Link>
       </div>
 
-      <div className="mt-4">
-        {/* key by squad so player selection / undo reset when switching teams */}
-        {sel && <SquadEntry key={sel} practiceId={id} squadId={sel} />}
+      <div className="mt-3 grid xl:grid-cols-2 gap-5">
+        {squads.map((s) => (
+          <div key={s.id} className="rounded-lg border-t-4 pt-3" style={{ borderColor: s.color }}>
+            <SquadEntry practiceId={id} squadId={s.id} compact />
+          </div>
+        ))}
       </div>
     </div>
   );

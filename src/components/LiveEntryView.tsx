@@ -37,6 +37,7 @@ export interface LiveEntryViewProps {
   squadColor: string;
   tab: Tab;
   setTab: (t: Tab) => void;
+  compact?: boolean; // stack court + stats vertically (for side-by-side squads)
   // live
   players: TilePlayer[];
   selected: string;
@@ -69,8 +70,8 @@ export default function LiveEntryView(p: LiveEntryViewProps) {
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-2xl headline-bold" style={{ color: p.squadColor }}>
-          {p.squadName} · Live Entry
+        <h1 className={`${p.compact ? "text-xl" : "text-2xl"} headline-bold`} style={{ color: p.squadColor }}>
+          {p.squadName}
         </h1>
         <div className="flex items-center gap-1 text-sm bg-white border rounded-lg p-1">
           {TABS.map((t) => (
@@ -99,7 +100,7 @@ function LiveTab({ p }: { p: LiveEntryViewProps }) {
   return (
     <>
       {/* player picker */}
-      <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+      <div className={`mt-3 grid gap-2 ${p.compact ? "grid-cols-3" : "grid-cols-3 sm:grid-cols-4 md:grid-cols-6"}`}>
         {p.players.map((pl) => {
           const on = p.selected === pl.playerId;
           return (
@@ -145,7 +146,7 @@ function LiveTab({ p }: { p: LiveEntryViewProps }) {
         <button onClick={p.onUndo} disabled={!p.canUndo} className="px-3 py-1.5 rounded text-sm bg-white border disabled:opacity-40">↶ Undo</button>
       </div>
 
-      <div className="mt-3 grid lg:grid-cols-2 gap-3 items-start">
+      <div className={p.compact ? "mt-3 space-y-3" : "mt-3 grid lg:grid-cols-2 gap-3 items-start"}>
         {/* shot chart */}
         <div className="bg-white border rounded-lg p-2">
           <div className="text-sm font-semibold mb-1">Shot chart — tap where the shot was taken, then Make/Miss</div>
