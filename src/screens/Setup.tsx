@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { parsePlanFile } from "../lib/parsePracticePlan";
 import { DEFAULT_SQUADS } from "../lib/config";
 import { isSupabaseConfigured } from "../lib/supabase";
@@ -20,9 +21,9 @@ export default function Setup() {
   const [draft, setDraft] = useState<PracticeDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [warnings, setWarnings] = useState<string[]>([]);
-  const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -79,7 +80,7 @@ export default function Setup() {
     setError(null);
     try {
       const id = await createPracticeFromDraft(draft);
-      setSaved(id);
+      navigate(`/practice/${id}/coach`);
     } catch (err) {
       setError(`Could not start practice: ${(err as Error).message}`);
     } finally {
@@ -88,17 +89,6 @@ export default function Setup() {
   }
 
   // ---- render -----------------------------------------------------------
-  if (saved) {
-    return (
-      <div className="bg-white border rounded-lg p-6">
-        <h2 className="text-xl font-bold text-green-700">Practice started ✓</h2>
-        <p className="mt-2 text-gray-600">
-          Practice saved (id <code>{saved}</code>). Live entry & coach view land next.
-        </p>
-      </div>
-    );
-  }
-
   if (!draft) {
     return (
       <div>

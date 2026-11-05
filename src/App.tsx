@@ -2,6 +2,8 @@ import { Link, Route, Routes } from "react-router-dom";
 import { isSupabaseConfigured } from "./lib/supabase";
 import Home from "./screens/Home";
 import Setup from "./screens/Setup";
+import Coach from "./screens/Coach";
+import LiveEntry from "./screens/LiveEntry";
 
 export default function App() {
   return (
@@ -26,6 +28,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/setup" element={<Setup />} />
+          <Route path="/practice/:id/coach" element={<Coach />} />
+          <Route path="/practice/:id/squad/:squadId" element={<LiveEntry />} />
         </Routes>
       </main>
     </div>

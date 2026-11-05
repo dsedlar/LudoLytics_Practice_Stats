@@ -117,3 +117,165 @@ export async function createPracticeFromDraft(draft: PracticeDraft): Promise<str
 
   return practiceId;
 }
+
+// ---------------------------------------------------------------------------
+// Live practice reads/writes
+// ---------------------------------------------------------------------------
+export interface PracticeRow {
+  id: string;
+  practice_date: string;
+  start_time: string | null;
+  finish_time: string | null;
+  grade: number | null;
+  status: string;
+}
+export interface SquadRow {
+  id: string;
+  practice_id: string;
+  name: string;
+  color: string;
+  sort_order: number;
+}
+export interface RosterRow {
+  id: string;
+  squad_id: string | null;
+  player_id: string;
+  jersey: string | null;
+  present: boolean;
+  players: { name: string } | null;
+}
+export interface DrillRow {
+  id: string;
+  squad_id: string | null;
+  player_id: string;
+  drill: string;
+  makes: number;
+  attempts: number | null;
+}
+
+export interface PracticeBundle {
+  practice: PracticeRow;
+  squads: SquadRow[];
+  roster: RosterRow[];
+}
+
+export async function getPracticeBundle(practiceId: string): Promise<PracticeBundle> {
+  const sb = client();
+  const [p, s, r] = await Promise.all([
+    sb.from("practices").select("*").eq("id", practiceId).single(),
+    sb.from("squads").select("*").eq("practice_id", practiceId).order("sort_order"),
+    sb
+      .from("roster_entries")
+      .select("id, squad_id, player_id, jersey, present, players(name)")
+      .eq("practice_id", practiceId),
+  ]);
+  if (p.error) throw p.error;
+  if (s.error) throw s.error;
+  if (r.error) throw r.error;
+  return {
+    practice: p.data as PracticeRow,
+    squads: s.data as SquadRow[],
+    roster: r.data as unknown as RosterRow[],
+  };
+}
+
+export async function getEvents(practiceId: string) {
+  const { data, error } = await client()
+    .from("events")
+    .select("id, practice_id, squad_id, player_id, segment, type, made")
+    .eq("practice_id", practiceId)
+    .order("id");
+  if (error) throw error;
+  return data;
+}
+
+export async function logEvent(ev: {
+  practice_id: string;
+  squad_id: string;
+  player_id: string;
+  segment: string;
+  type: string;
+  made?: boolean | null;
+}) {
+  const { data, error } = await client()
+    .from("events")
+    .insert({ ...ev, made: ev.made ?? null })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteEvent(id: number) {
+  const { error } = await client().from("events").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function getDrillResults(practiceId: string) {
+  const { data, error } = await client().from("drill_results").select("*").eq("practice_id", practiceId);
+  if (error) throw error;
+  return data as DrillRow[];
+}
+
+export async function upsertDrillResult(row: {
+  practice_id: string;
+  squad_id: string | null;
+  player_id: string;
+  drill: string;
+  makes: number;
+  attempts?: number | null;
+}) {
+  const { error } = await client()
+    .from("drill_results")
+    .upsert({ ...row, attempts: row.attempts ?? null }, { onConflict: "practice_id,player_id,drill" });
+  if (error) throw error;
+}
+
+export async function setGrade(practiceId: string, grade: number | null) {
+  const { error } = await client().from("practices").update({ grade }).eq("id", practiceId);
+  if (error) throw error;
+}
+
+export async function finishPractice(practiceId: string, finishTime: string) {
+  const { error } = await client()
+    .from("practices")
+    .update({ status: "finished", finish_time: finishTime })
+    .eq("id", practiceId);
+  if (error) throw error;
+}
+
+export async function listRecentPractices(): Promise<PracticeRow[]> {
+  const { data, error } = await client()
+    .from("practices")
+    .select("*")
+    .order("practice_date", { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  return data as PracticeRow[];
+}
+
+/** Subscribe to realtime changes for a practice. Returns an unsubscribe fn. */
+export function subscribeToPractice(practiceId: string, onChange: () => void): () => void {
+  const sb = client();
+  const channel = sb
+    .channel(`practice:${practiceId}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "events", filter: `practice_id=eq.${practiceId}` },
+      onChange,
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "drill_results", filter: `practice_id=eq.${practiceId}` },
+      onChange,
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "practices", filter: `id=eq.${practiceId}` },
+      onChange,
+    )
+    .subscribe();
+  return () => {
+    sb.removeChannel(channel);
+  };
+}
