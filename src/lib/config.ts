@@ -134,8 +134,7 @@ export const DEFAULT_SQUADS = [
 export function colorForSquadName(name: string): string | null {
   const n = name.trim().toLowerCase();
   const map: Record<string, string> = {
-    garnet: "#B20000", red: "#B20000", crimson: "#B20000", scarlet: "#B20000",
-    maroon: "#7B1E3B",
+    garnet: "#B20000", red: "#B20000", crimson: "#B20000", scarlet: "#B20000", maroon: "#B20000",
     grey: "#6B7280", gray: "#6B7280", silver: "#8A8F98",
     navy: "#00142D", blue: "#1D4ED8", royal: "#1D4ED8",
     white: "#111827", black: "#111827",
@@ -145,4 +144,10 @@ export function colorForSquadName(name: string): string | null {
     purple: "#6D28D9", violet: "#6D28D9",
   };
   return map[n] ?? null;
+}
+
+// We use "Garnet", never "Maroon" — normalize the name on import.
+export function normalizeSquadName(name: string): string {
+  const t = name.trim();
+  return /^maroon$/i.test(t) ? "Garnet" : t;
 }

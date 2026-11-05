@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { parsePlanFile } from "../lib/parsePracticePlan";
-import { DEFAULT_SQUADS, colorForSquadName } from "../lib/config";
+import { DEFAULT_SQUADS, colorForSquadName, normalizeSquadName } from "../lib/config";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { createPracticeFromDraft, toISODate } from "../lib/db";
 import type { DraftPlayer, PracticeDraft } from "../lib/types";
@@ -44,8 +44,8 @@ export default function Setup() {
           players.push({ jersey: p.jersey, name: p.name, squad: -1, present: true });
         }
       });
-      const nameA = plan.squads[0]?.name || DEFAULT_SQUADS[0].name;
-      const nameB = plan.squads[1]?.name || DEFAULT_SQUADS[1].name;
+      const nameA = normalizeSquadName(plan.squads[0]?.name || DEFAULT_SQUADS[0].name);
+      const nameB = normalizeSquadName(plan.squads[1]?.name || DEFAULT_SQUADS[1].name);
       setDraft({
         dateISO: toISODate(plan.date),
         startTime: plan.time,
