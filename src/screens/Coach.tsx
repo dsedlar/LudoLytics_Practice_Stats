@@ -43,6 +43,30 @@ export default function Coach() {
 
   const combined = bundle.squads.reduce((acc, s) => addTally(acc, squadTally(s.id)), emptyTally());
 
+  // Two squads scrimmage each other, so a win for one is a loss for the other.
+  // Mirror every W/L change to the opposing squad to keep the record consistent.
+  const other = (squadId: string) => bundle!.squads.find((s) => s.id !== squadId);
+
+  async function adjustWins(squadId: string, delta: number) {
+    const me = bundle!.squads.find((s) => s.id === squadId);
+    if (!me) return;
+    const newWins = Math.max(0, (me.wins ?? 0) + delta);
+    const applied = newWins - (me.wins ?? 0); // 0 if flooring at zero blocked it
+    await setSquadWins(squadId, newWins);
+    const opp = other(squadId);
+    if (opp && applied !== 0) await setSquadLosses(opp.id, Math.max(0, (opp.losses ?? 0) + applied));
+  }
+
+  async function adjustLosses(squadId: string, delta: number) {
+    const me = bundle!.squads.find((s) => s.id === squadId);
+    if (!me) return;
+    const newLosses = Math.max(0, (me.losses ?? 0) + delta);
+    const applied = newLosses - (me.losses ?? 0);
+    await setSquadLosses(squadId, newLosses);
+    const opp = other(squadId);
+    if (opp && applied !== 0) await setSquadWins(opp.id, Math.max(0, (opp.wins ?? 0) + applied));
+  }
+
   async function copyLink(squadId: string) {
     const url = `${window.location.origin}/practice/${id}/squad/${squadId}`;
     try {
@@ -109,15 +133,15 @@ export default function Coach() {
               <span className="font-bold w-20 truncate uppercase" style={{ color: s.color }}>{s.name}</span>
               <div className="flex items-center gap-1">
                 <span className="text-xs text-gray-400 w-3">W</span>
-                <button onClick={() => run(() => setSquadWins(s.id, (s.wins ?? 0) - 1))} className="w-7 h-7 rounded border leading-none">−</button>
+                <button onClick={() => run(() => adjustWins(s.id, -1))} className="w-7 h-7 rounded border leading-none">−</button>
                 <span className="text-lg font-black w-6 text-center">{s.wins ?? 0}</span>
-                <button onClick={() => run(() => setSquadWins(s.id, (s.wins ?? 0) + 1))} className="w-7 h-7 rounded bg-garnet text-white leading-none">+</button>
+                <button onClick={() => run(() => adjustWins(s.id, +1))} className="w-7 h-7 rounded bg-garnet text-white leading-none">+</button>
               </div>
               <div className="flex items-center gap-1">
                 <span className="text-xs text-gray-400 w-3">L</span>
-                <button onClick={() => run(() => setSquadLosses(s.id, (s.losses ?? 0) - 1))} className="w-7 h-7 rounded border leading-none">−</button>
+                <button onClick={() => run(() => adjustLosses(s.id, -1))} className="w-7 h-7 rounded border leading-none">−</button>
                 <span className="text-lg font-black w-6 text-center">{s.losses ?? 0}</span>
-                <button onClick={() => run(() => setSquadLosses(s.id, (s.losses ?? 0) + 1))} className="w-7 h-7 rounded bg-navy text-white leading-none">+</button>
+                <button onClick={() => run(() => adjustLosses(s.id, +1))} className="w-7 h-7 rounded bg-navy text-white leading-none">+</button>
               </div>
             </div>
           ))}
