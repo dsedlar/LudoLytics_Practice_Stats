@@ -333,6 +333,17 @@ export async function finishPractice(practiceId: string, finishTime: string) {
   if (error) throw error;
 }
 
+export async function getLivePractice(): Promise<PracticeRow | null> {
+  const { data, error } = await client()
+    .from("practices")
+    .select("*")
+    .eq("status", "live")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return (data?.[0] as PracticeRow) ?? null;
+}
+
 export async function listRecentPractices(): Promise<PracticeRow[]> {
   const { data, error } = await client()
     .from("practices")

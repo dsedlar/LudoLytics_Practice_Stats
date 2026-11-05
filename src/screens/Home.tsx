@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { getLivePractice, type PracticeRow } from "../lib/db";
+import { isSupabaseConfigured } from "../lib/supabase";
 
 const FEATURES = [
   { n: 1, title: "Collect live — two analysts, one squad each, court shot chart + stat buttons, in real time" },
@@ -7,8 +10,19 @@ const FEATURES = [
 ];
 
 export default function Home() {
+  const [live, setLive] = useState<PracticeRow | null>(null);
+  useEffect(() => {
+    if (isSupabaseConfigured) getLivePractice().then(setLive).catch(() => {});
+  }, []);
+
   return (
     <div>
+      {live && (
+        <Link to={`/practice/${live.id}/coach`} className="mb-4 flex items-center gap-3 bg-garnet text-white rounded-lg px-4 py-3 font-semibold">
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+          Live practice in progress — {live.practice_date} · Resume →
+        </Link>
+      )}
       <div className="flex items-start justify-between gap-6">
         <div className="flex-1">
           <div className="eyebrow text-[11px] text-garnet mb-1">VES Boys Basketball · Ludolytics</div>
