@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 // Temporary landing page. Phase 1 will replace this with the real navigation:
 // Practice Setup, Live Entry (per analyst), Coach View, Report, Season Dashboard.
 const PHASES = [
@@ -14,6 +16,13 @@ export default function Home() {
         Live practice stat collection for VES Boys Basketball. Two analysts, one squad each,
         real-time sync, the Ludolytics report, and a season-long dashboard.
       </p>
+
+      <Link
+        to="/setup"
+        className="inline-block mt-5 bg-garnet text-white px-5 py-3 rounded-lg font-semibold"
+      >
+        Set up practice →
+      </Link>
 
       <ul className="mt-6 space-y-2">
         {PHASES.map((p) => (

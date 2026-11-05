@@ -1,6 +1,7 @@
 import { Link, Route, Routes } from "react-router-dom";
 import { isSupabaseConfigured } from "./lib/supabase";
 import Home from "./screens/Home";
+import Setup from "./screens/Setup";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
       <main className="mx-auto max-w-6xl px-4 py-6">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/setup" element={<Setup />} />
         </Routes>
       </main>
     </div>
