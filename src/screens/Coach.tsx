@@ -72,6 +72,14 @@ export default function Coach() {
         <SummaryCard name="Combined" color="#00142D" c={compute(combined)} wide={bundle.squads.length < 2} />
       </div>
 
+      {/* coach take-stats */}
+      <div className="mt-4 flex items-center gap-3 flex-wrap">
+        <Link to={`/practice/${id}/entry`} className="inline-block bg-navy text-white px-5 py-3 rounded-lg font-semibold">
+          Take stats (both squads) →
+        </Link>
+        <span className="text-sm text-gray-500">Coach-only — log for either team from one screen (switch squads up top).</span>
+      </div>
+
       {/* device links */}
       <div className="mt-5 bg-white border rounded-lg p-3">
         <h2 className="font-semibold text-sm text-gray-600 mb-2">Analyst device links (open one per squad) · tap the swatch to recolor</h2>

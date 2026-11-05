@@ -3,6 +3,7 @@ import { isSupabaseConfigured } from "./lib/supabase";
 import Home from "./screens/Home";
 import Setup from "./screens/Setup";
 import Coach from "./screens/Coach";
+import CoachEntry from "./screens/CoachEntry";
 import LiveEntry from "./screens/LiveEntry";
 import Report from "./screens/Report";
 import ReportDemo from "./screens/ReportDemo";
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/setup" element={<Setup />} />
           <Route path="/practice/:id/coach" element={<Coach />} />
+          <Route path="/practice/:id/entry" element={<CoachEntry />} />
           <Route path="/practice/:id/squad/:squadId" element={<LiveEntry />} />
           <Route path="/practice/:id/report" element={<Report />} />
           <Route path="/report-demo" element={<ReportDemo />} />

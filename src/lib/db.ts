@@ -182,6 +182,12 @@ export async function getPracticeBundle(practiceId: string): Promise<PracticeBun
   };
 }
 
+export async function getSquads(practiceId: string): Promise<SquadRow[]> {
+  const { data, error } = await client().from("squads").select("*").eq("practice_id", practiceId).order("sort_order");
+  if (error) throw error;
+  return data as SquadRow[];
+}
+
 export async function getEvents(practiceId: string) {
   const { data, error } = await client()
     .from("events")
