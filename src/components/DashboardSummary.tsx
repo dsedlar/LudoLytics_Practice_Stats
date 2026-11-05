@@ -1,4 +1,5 @@
-import type { TeamSeason, GradePoint, Trend } from "../lib/seasonData";
+import type { TeamSeason, GradePoint, Trend, TeamRecord } from "../lib/seasonData";
+import TeamRecords from "./TeamRecords";
 
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
@@ -47,18 +48,21 @@ function Tile({ label, value, trend }: { label: string; value: string; trend: Tr
   );
 }
 
-export default function DashboardSummary({ team, grades }: { team: TeamSeason; grades: GradePoint[] }) {
+export default function DashboardSummary({ team, grades, teams }: { team: TeamSeason; grades: GradePoint[]; teams: TeamRecord[] }) {
   return (
     <div className="bg-white border rounded-lg p-4 grid lg:grid-cols-2 gap-6 items-center">
       <div>
         <h2 className="text-lg font-bold mb-1">Varsity Practice Level</h2>
         <GradeChart grades={grades} />
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Tile label="Team TO / Practice" value={team.toPerPractice.toFixed(1)} trend={team.trends.to} />
-        <Tile label="Team 3FG %" value={pct(team.fg3Pct)} trend={team.trends.fg3} />
-        <Tile label="Team PPS" value={team.pps.toFixed(2)} trend={team.trends.pps} />
-        <Tile label="Team FT %" value={pct(team.ftPct)} trend={team.trends.ft} />
+      <div>
+        <TeamRecords teams={teams} />
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          <Tile label="Team TO / Practice" value={team.toPerPractice.toFixed(1)} trend={team.trends.to} />
+          <Tile label="Team 3FG %" value={pct(team.fg3Pct)} trend={team.trends.fg3} />
+          <Tile label="Team PPS" value={team.pps.toFixed(2)} trend={team.trends.pps} />
+          <Tile label="Team FT %" value={pct(team.ftPct)} trend={team.trends.ft} />
+        </div>
       </div>
     </div>
   );

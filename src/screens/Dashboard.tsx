@@ -6,7 +6,6 @@ import { isSupabaseConfigured } from "../lib/supabase";
 import { exportSeasonCSV, exportBackupJSON } from "../lib/exporters";
 import DashboardView from "../components/DashboardView";
 import DashboardSummary from "../components/DashboardSummary";
-import TeamRecords from "../components/TeamRecords";
 
 export default function Dashboard() {
   const [season, setSeason] = useState<SeasonResult | null>(null);
@@ -39,10 +38,7 @@ export default function Dashboard() {
         Every practice, totaled for the season. Click a player to see their growth. Tap a column to sort.
       </p>
       <div className="mt-4">
-        <TeamRecords teams={season.teams} />
-      </div>
-      <div className="mt-3">
-        <DashboardSummary team={season.team} grades={season.grades} />
+        <DashboardSummary team={season.team} grades={season.grades} teams={season.teams} />
       </div>
       <div className="mt-4">
         <DashboardView players={season.players} />
