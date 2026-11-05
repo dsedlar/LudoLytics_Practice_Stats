@@ -2,6 +2,7 @@ import { Link, Route, Routes } from "react-router-dom";
 import { isSupabaseConfigured } from "./lib/supabase";
 import { useAuth } from "./lib/auth";
 import RequireAuth from "./components/RequireAuth";
+import RequireAdmin from "./components/RequireAdmin";
 import Login from "./screens/Login";
 import Home from "./screens/Home";
 import Setup from "./screens/Setup";
@@ -26,7 +27,7 @@ import RosterDemo from "./screens/RosterDemo";
 import Settings from "./screens/Settings";
 
 export default function App() {
-  const { user, signOut } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
   return (
     <div className="min-h-screen">
       <header className="bg-deep-garnet text-ivory no-print">
@@ -41,7 +42,7 @@ export default function App() {
             {user ? (
               <>
                 <span className="eyebrow text-[10px] text-ivory/70 hidden sm:inline">{user.email}</span>
-                <Link
+                {isAdmin && <Link
                   to="/settings"
                   title="Settings"
                   aria-label="Settings"
@@ -51,7 +52,7 @@ export default function App() {
                     <circle cx="12" cy="12" r="3" />
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                   </svg>
-                </Link>
+                </Link>}
                 <button onClick={() => signOut()} className="text-xs bg-white/15 hover:bg-white/25 rounded px-3 py-1.5 font-medium">Sign out</button>
               </>
             ) : (
@@ -91,7 +92,7 @@ export default function App() {
           <Route path="/display-demo" element={<SignageDemo />} />
           <Route path="/roster" element={<RequireAuth><Roster /></RequireAuth>} />
           <Route path="/roster-demo" element={<RosterDemo />} />
-          <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
+          <Route path="/settings" element={<RequireAdmin><Settings /></RequireAdmin>} />
         </Routes>
       </main>
     </div>
