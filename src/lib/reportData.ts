@@ -184,3 +184,62 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
     absent: bundle.roster.filter((r) => !r.present).map((r) => ({ jersey: r.jersey ?? "", name: r.players?.name ?? "—" })),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Box-score export: flatten the report into one spreadsheet row per player,
+// a TEAM TOTAL row per squad, and a COMBINED row — all raw numbers.
+// ---------------------------------------------------------------------------
+const round = (n: number, d = 0) => { const f = 10 ** d; return Math.round(n * f) / f; };
+const pctInt = (n: number) => Math.round(n * 100);
+
+function blockCols(b: StatBlock): Record<string, number> {
+  return {
+    PTS: b.pts, POSS: round(b.poss, 1), PPP: round(b.ppp, 2), PPS: round(b.pps, 2),
+    "eFG%": pctInt(b.efg), "TS%": pctInt(b.ts),
+    "ATR M": b.atr.m, "ATR A": b.atr.a, "ATR%": pctInt(b.atr.pct),
+    "2FG M": b.nonatr2.m, "2FG A": b.nonatr2.a, "2FG%": pctInt(b.nonatr2.pct),
+    "3FG M": b.fg3.m, "3FG A": b.fg3.a, "3FG%": pctInt(b.fg3.pct),
+    "FT M": b.ft.m, "FT A": b.ft.a, "FT%": pctInt(b.ft.pct),
+    AST: b.play.ast, PAST: b.play.pot, "2ndAST": b.play.second,
+    TO: b.play.to, "A/TO": round(b.play.ato, 2),
+    OREB: b.reb.or, DREB: b.reb.dr, REB: b.reb.tot, Tip: b.reb.tip,
+    STL: b.def.stl, BLK: b.def.blk, DEF: b.def.def, LB: b.def.lb, Dive: b.def.dive, Charge: b.def.chg,
+    FD: b.fd, CP: round(b.casper, 1), PER: round(b.per, 1),
+  };
+}
+
+const BLANK_DRILLS = {
+  "Baylor makes": "" as number | string, "Baylor %": "" as number | string,
+  "90s makes": "" as number | string, "90s %": "" as number | string,
+  "FT drill makes": "" as number | string, "FT drill %": "" as number | string,
+  "Trans M": "" as number | string, "Trans A": "" as number | string, "Trans %": "" as number | string,
+};
+
+export function buildBoxScore(model: ReportModel): Record<string, unknown>[] {
+  const denom = (k: string) => SHOOTING_DRILLS.find((d) => d.key === k)?.denominator ?? 1;
+  const rows: Record<string, unknown>[] = [];
+  for (const sq of model.squads) {
+    for (const p of sq.players) {
+      const d = p.drills;
+      rows.push({
+        Date: model.date, Squad: sq.name, "Squad W-L": sq.wl,
+        "#": p.jersey, Player: p.name, Present: p.present ? "yes" : "no",
+        ...blockCols(p.block),
+        "Baylor makes": d.baylor ?? "", "Baylor %": d.baylor == null ? "" : pctInt(d.baylor / denom("baylor")),
+        "90s makes": d.ninetys ?? "", "90s %": d.ninetys == null ? "" : pctInt(d.ninetys / denom("ninetys")),
+        "FT drill makes": d.ft ?? "", "FT drill %": d.ft == null ? "" : pctInt(d.ft / denom("ft")),
+        "Trans M": d.transM ?? "", "Trans A": d.transA ?? "",
+        "Trans %": d.transA ? pctInt((d.transM ?? 0) / d.transA) : "",
+      });
+    }
+    rows.push({
+      Date: model.date, Squad: sq.name, "Squad W-L": sq.wl,
+      "#": "", Player: "TEAM TOTAL", Present: "", ...blockCols(sq.team), ...BLANK_DRILLS,
+    });
+  }
+  rows.push({
+    Date: model.date, Squad: "COMBINED", "Squad W-L": "",
+    "#": "", Player: "ALL PLAYERS", Present: "", ...blockCols(model.combined), ...BLANK_DRILLS,
+  });
+  return rows;
+}

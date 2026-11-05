@@ -1,5 +1,7 @@
 // CSV / JSON export + download helpers (all client-side).
-import { getEventsForExport, getBackup } from "./db";
+import { getEventsForExport, getBackup, getPracticeBundle, getEvents, getDrillResults, type DrillRow } from "./db";
+import { buildReport, buildBoxScore } from "./reportData";
+import type { EventRow } from "./aggregate";
 
 export function downloadText(filename: string, text: string, mime = "text/plain") {
   const blob = new Blob([text], { type: mime });
@@ -26,9 +28,15 @@ export function toCSV(rows: Record<string, unknown>[]): string {
 
 const slug = (s: string) => s.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
 
+// Full box score (one row per player + team totals), the report as raw data.
 export async function exportPracticeCSV(practiceId: string, dateLabel?: string) {
-  const rows = await getEventsForExport(practiceId);
-  downloadText(`practice-${slug(dateLabel || practiceId)}-events.csv`, toCSV(rows), "text/csv");
+  const [bundle, events, drills] = await Promise.all([
+    getPracticeBundle(practiceId),
+    getEvents(practiceId),
+    getDrillResults(practiceId),
+  ]);
+  const model = buildReport(bundle, events as unknown as EventRow[], drills as DrillRow[]);
+  downloadText(`practice-${slug(dateLabel || practiceId)}-boxscore.csv`, toCSV(buildBoxScore(model)), "text/csv");
 }
 
 export async function exportSeasonCSV() {
