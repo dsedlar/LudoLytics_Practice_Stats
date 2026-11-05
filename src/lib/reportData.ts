@@ -43,10 +43,6 @@ export function statBlock(t: RawTally, opponentDR = 0): StatBlock {
   };
 }
 
-export interface SegmentLine {
-  name: string; color: string; pos: number; ppp: number;
-  atr: Zone; nonatr2: Zone; fg3: Zone; fd: number; ast: number; to: number; or: number;
-}
 export interface DrillLine {
   name: string; color: string;
   baylor: { avg: number; pct: number };
@@ -64,11 +60,17 @@ export interface SquadReport {
   players: PlayerLine[];
   totals: StatBlock;
 }
+export interface BlockRow {
+  name: string;
+  color: string;
+  block: StatBlock;
+}
 export interface ReportModel {
   date: string; finishTime: string | null; grade: number | null;
   attPresent: number; attTotal: number; attPct: number;
   squads: SquadReport[]; combined: StatBlock;
-  live: SegmentLine[]; transition: SegmentLine[]; drills: DrillLine[];
+  liveTeam: BlockRow[]; // Live-play rich stat line per squad + combined
+  drills: DrillLine[]; // Baylor / 90s / FT + transition 3s (for Trans summary)
   absent: { jersey: string; name: string }[];
 }
 
@@ -81,15 +83,6 @@ function squadTally(bundle: PracticeBundle, squadId: string, perPlayer: Map<stri
   return t;
 }
 
-function segmentLine(name: string, color: string, t: RawTally): SegmentLine {
-  const c = compute(t);
-  const fga = c.fga;
-  return {
-    name, color, pos: c.poss, ppp: c.ppp,
-    atr: zone(t.atrM, t.atrA, fga), nonatr2: zone(t.nonatr2M, t.nonatr2A, fga), fg3: zone(t.fg3M, t.fg3A, fga),
-    fd: t.fd, ast: t.ast, to: t.to, or: t.or,
-  };
-}
 
 function drillLine(name: string, color: string, rows: DrillRow[], trans: { m: number; a: number }): DrillLine {
   const pick = (d: string) => rows.filter((r) => r.drill === d);
@@ -153,10 +146,8 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
 
   const combinedTally = squadIds.reduce((acc, sid) => addTally(acc, squadTally(bundle, sid, perPlayer)), emptyTally());
 
-  const live: SegmentLine[] = [];
-  const trans: SegmentLine[] = [];
+  // Live-play rich stat line per squad + combined (from live-segment events only)
   const liveByPlayer = perPlayerSeg("live");
-  const transByPlayer = perPlayerSeg("transition");
   const segTotal = (byPlayer: Map<string, RawTally>, squadId: string) => {
     let t = emptyTally();
     bundle.roster.filter((r) => r.squad_id === squadId).forEach((r) => {
@@ -165,12 +156,15 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
     });
     return t;
   };
-  bundle.squads.forEach((s) => {
-    live.push(segmentLine(s.name, s.color, segTotal(liveByPlayer, s.id)));
-    trans.push(segmentLine(s.name, s.color, segTotal(transByPlayer, s.id)));
+  const liveTeam: BlockRow[] = bundle.squads.map((s, i) => {
+    const oppLiveDR = segTotal(liveByPlayer, squadIds[1 - i] ?? "").dr;
+    return { name: s.name, color: s.color, block: statBlock(segTotal(liveByPlayer, s.id), oppLiveDR) };
   });
-  live.push(segmentLine("Combined", "#00142D", squadIds.reduce((a, sid) => addTally(a, segTotal(liveByPlayer, sid)), emptyTally())));
-  trans.push(segmentLine("Combined", "#00142D", squadIds.reduce((a, sid) => addTally(a, segTotal(transByPlayer, sid)), emptyTally())));
+  liveTeam.push({
+    name: "Combined",
+    color: "#00142D",
+    block: statBlock(squadIds.reduce((a, sid) => addTally(a, segTotal(liveByPlayer, sid)), emptyTally())),
+  });
 
   const drillLines: DrillLine[] = bundle.squads.map((s) =>
     drillLine(s.name, s.color, drills.filter((d) => d.squad_id === s.id), transOf(events.filter((e) => e.squad_id === s.id))),
@@ -186,7 +180,7 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
     grade: bundle.practice.grade,
     attPresent: present, attTotal: total, attPct: total ? present / total : 0,
     squads, combined: statBlock(combinedTally),
-    live, transition: trans, drills: drillLines,
+    liveTeam, drills: drillLines,
     absent: bundle.roster.filter((r) => !r.present).map((r) => ({ jersey: r.jersey ?? "", name: r.players?.name ?? "—" })),
   };
 }

@@ -1,7 +1,7 @@
 import {
   type ReportModel,
   type StatBlock,
-  type SegmentLine,
+  type BlockRow,
   type DrillLine,
   type PlayerLine,
 } from "../lib/reportData";
@@ -102,18 +102,20 @@ export default function ReportView({ m }: { m: ReportModel }) {
       {/* team stats */}
       <div style={{ marginTop: 10 }}>
         <Bar title="TEAM STATS" />
-        <TeamStatsTable m={m} />
+        <BlockTable rows={[...m.squads.map((s) => ({ name: s.name, color: s.color, block: s.team })), { name: "Combined", color: "#00142D", block: m.combined }]} />
       </div>
 
-      {/* mid tables */}
+      {/* live play (full width, rich) */}
+      <div style={{ marginTop: 10 }}>
+        <Bar title="LIVE PLAY" />
+        <BlockTable rows={m.liveTeam} />
+      </div>
+
+      {/* transition summary + baylor */}
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        <div style={{ flex: 1 }}>
-          <Bar title="LIVE PLAY" />
-          <SegmentTable rows={m.live} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <Bar title="TRANSITION SERIES" />
-          <SegmentTable rows={m.transition} />
+        <div style={{ flex: "0 0 32%" }}>
+          <Bar title="TRANSITION 3-POINT SUMMARY" />
+          <TransitionSummary rows={m.drills} />
         </div>
         <div style={{ flex: 1 }}>
           <Bar title="BAYLOR SHOOTING & FREE THROWS" />
@@ -172,8 +174,7 @@ function SummaryCard({ name, color, block, wins }: { name: string; color: string
 }
 const round1 = (x: number) => Math.round(x * 10) / 10;
 
-function TeamStatsTable({ m }: { m: ReportModel }) {
-  const rows = [...m.squads.map((s) => ({ name: s.name, color: s.color, b: s.team })), { name: "Combined", color: "#00142D", b: m.combined }];
+function BlockTable({ rows }: { rows: BlockRow[] }) {
   return (
     <table style={{ width: "100%", borderCollapse: "collapse" }}>
       <thead>
@@ -198,27 +199,30 @@ function TeamStatsTable({ m }: { m: ReportModel }) {
         </tr>
       </thead>
       <tbody>
-        {rows.map((r) => (
-          <tr key={r.name}>
-            <td style={{ ...td, textAlign: "left", fontWeight: 700, color: r.color }}>{r.name}</td>
-            <td style={td}>{Math.round(r.b.poss)}</td>
-            <td style={td}>{f2(r.b.ppp)}</td>
-            <td style={td}>{f2(r.b.pps)}</td>
-            <td style={{ ...td, ...bg(pctTier(r.b.efg)) }}>{p(r.b.efg)}</td>
-            <td style={{ ...td, ...bg(pctTier(r.b.ts)) }}>{p(r.b.ts)}</td>
-            <ZoneCells z={r.b.atr} /><ZoneCells z={r.b.nonatr2} /><ZoneCells z={r.b.fg3} />
-            <td style={td}>{ma(r.b.ft.m, r.b.ft.a)}</td>
-            <td style={{ ...td, ...bg(r.b.ft.a ? pctTier(r.b.ft.pct) : null) }}>{dash(p(r.b.ft.pct), r.b.ft.a > 0)}</td>
-            <td style={td}>{r.b.fd}</td>
-            <td style={td}>{r.b.play.pot}</td><td style={td}>{r.b.play.second}</td><td style={td}>{r.b.play.ast}</td>
-            <td style={td}>{r.b.play.to}</td><td style={td}>{p(r.b.play.toPct)}</td><td style={td}>{f2(r.b.play.ato)}</td>
-            <td style={td}>{r.b.reb.tip}</td><td style={td}>{r.b.reb.or}</td><td style={td}>{r.b.reb.dr}</td>
-            <td style={td}>{p(r.b.reb.orPct)}</td><td style={td}>{r.b.reb.tot}</td>
-            <td style={td}>{r.b.def.stl}</td><td style={td}>{r.b.def.blk}</td><td style={td}>{r.b.def.def}</td>
-            <td style={td}>{r.b.def.lb}</td><td style={td}>{r.b.def.dive}</td><td style={td}>{r.b.def.chg}</td>
-            <td style={{ ...td, fontWeight: 700 }}>{round1(r.b.casper)}</td>
-          </tr>
-        ))}
+        {rows.map((r) => {
+          const b = r.block;
+          return (
+            <tr key={r.name}>
+              <td style={{ ...td, textAlign: "left", fontWeight: 700, color: r.color }}>{r.name}</td>
+              <td style={td}>{Math.round(b.poss)}</td>
+              <td style={td}>{f2(b.ppp)}</td>
+              <td style={td}>{f2(b.pps)}</td>
+              <td style={{ ...td, ...bg(pctTier(b.efg)) }}>{p(b.efg)}</td>
+              <td style={{ ...td, ...bg(pctTier(b.ts)) }}>{p(b.ts)}</td>
+              <ZoneCells z={b.atr} /><ZoneCells z={b.nonatr2} /><ZoneCells z={b.fg3} />
+              <td style={td}>{ma(b.ft.m, b.ft.a)}</td>
+              <td style={{ ...td, ...bg(b.ft.a ? pctTier(b.ft.pct) : null) }}>{dash(p(b.ft.pct), b.ft.a > 0)}</td>
+              <td style={td}>{b.fd}</td>
+              <td style={td}>{b.play.pot}</td><td style={td}>{b.play.second}</td><td style={td}>{b.play.ast}</td>
+              <td style={td}>{b.play.to}</td><td style={td}>{p(b.play.toPct)}</td><td style={td}>{f2(b.play.ato)}</td>
+              <td style={td}>{b.reb.tip}</td><td style={td}>{b.reb.or}</td><td style={td}>{b.reb.dr}</td>
+              <td style={td}>{p(b.reb.orPct)}</td><td style={td}>{b.reb.tot}</td>
+              <td style={td}>{b.def.stl}</td><td style={td}>{b.def.blk}</td><td style={td}>{b.def.def}</td>
+              <td style={td}>{b.def.lb}</td><td style={td}>{b.def.dive}</td><td style={td}>{b.def.chg}</td>
+              <td style={{ ...td, fontWeight: 700 }}>{round1(b.casper)}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
@@ -234,17 +238,12 @@ function ZoneCells({ z }: { z: { m: number; a: number; pct: number; fr: number }
   );
 }
 
-function SegmentTable({ rows }: { rows: SegmentLine[] }) {
+function TransitionSummary({ rows }: { rows: DrillLine[] }) {
   return (
     <table style={{ width: "100%", borderCollapse: "collapse" }}>
       <thead>
         <tr>
-          <th style={grp}></th><th style={grp} colSpan={2}></th>
-          <th style={grp} colSpan={2}>ATR</th><th style={grp} colSpan={2}>2FG</th><th style={grp} colSpan={2}>3FG</th>
-          <th style={grp} colSpan={4}>OTHER</th>
-        </tr>
-        <tr>
-          {["", "POS", "PPP", "M-A", "FG%", "M-A", "FG%", "M-A", "FG%", "FD", "Ast", "TO", "OR"].map((h, i) => (
+          {["TEAM", "TRANS 3PT", "%"].map((h, i) => (
             <th key={i} style={{ ...th, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
           ))}
         </tr>
@@ -253,11 +252,8 @@ function SegmentTable({ rows }: { rows: SegmentLine[] }) {
         {rows.map((r) => (
           <tr key={r.name}>
             <td style={{ ...td, textAlign: "left", fontWeight: 700, color: r.color }}>{r.name}</td>
-            <td style={td}>{Math.round(r.pos)}</td><td style={td}>{f2(r.ppp)}</td>
-            <td style={td}>{ma(r.atr.m, r.atr.a)}</td><td style={{ ...td, ...bg(r.atr.a ? pctTier(r.atr.pct) : null) }}>{dash(p(r.atr.pct), r.atr.a > 0)}</td>
-            <td style={td}>{ma(r.nonatr2.m, r.nonatr2.a)}</td><td style={{ ...td, ...bg(r.nonatr2.a ? pctTier(r.nonatr2.pct) : null) }}>{dash(p(r.nonatr2.pct), r.nonatr2.a > 0)}</td>
-            <td style={td}>{ma(r.fg3.m, r.fg3.a)}</td><td style={{ ...td, ...bg(r.fg3.a ? pctTier(r.fg3.pct) : null) }}>{dash(p(r.fg3.pct), r.fg3.a > 0)}</td>
-            <td style={td}>{r.fd}</td><td style={td}>{r.ast}</td><td style={td}>{r.to}</td><td style={td}>{r.or}</td>
+            <td style={td}>{ma(r.transition.m, r.transition.a)}</td>
+            <td style={{ ...td, ...bg(r.transition.a ? pctTier(r.transition.pct) : null) }}>{dash(p(r.transition.pct), r.transition.a > 0)}</td>
           </tr>
         ))}
       </tbody>
@@ -271,10 +267,10 @@ function DrillTable({ rows }: { rows: DrillLine[] }) {
       <thead>
         <tr>
           <th style={grp}></th><th style={grp} colSpan={2}>BAYLOR /75</th><th style={grp} colSpan={2}>90SEC /20</th>
-          <th style={grp} colSpan={2}>3-ON-0</th><th style={grp} colSpan={2}>FT /20</th>
+          <th style={grp} colSpan={2}>FT /20</th>
         </tr>
         <tr>
-          {["TEAM", "AVG", "%", "AVG", "%", "M-A", "%", "AVG", "%"].map((h, i) => (
+          {["TEAM", "AVG", "%", "AVG", "%", "AVG", "%"].map((h, i) => (
             <th key={i} style={{ ...th, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
           ))}
         </tr>
@@ -285,7 +281,6 @@ function DrillTable({ rows }: { rows: DrillLine[] }) {
             <td style={{ ...td, textAlign: "left", fontWeight: 700, color: r.color }}>{r.name}</td>
             <td style={td}>{f1(r.baylor.avg)}</td><td style={{ ...td, ...bg(pctTier(r.baylor.pct)) }}>{p(r.baylor.pct)}</td>
             <td style={td}>{f1(r.ninetys.avg)}</td><td style={{ ...td, ...bg(pctTier(r.ninetys.pct)) }}>{p(r.ninetys.pct)}</td>
-            <td style={td}>{ma(r.transition.m, r.transition.a)}</td><td style={{ ...td, ...bg(r.transition.a ? pctTier(r.transition.pct) : null) }}>{dash(p(r.transition.pct), r.transition.a > 0)}</td>
             <td style={td}>{f1(r.ft.avg)}</td><td style={{ ...td, ...bg(pctTier(r.ft.pct)) }}>{p(r.ft.pct)}</td>
           </tr>
         ))}
@@ -295,7 +290,7 @@ function DrillTable({ rows }: { rows: DrillLine[] }) {
 }
 
 const IND_HEAD = ["AT", "W-L", "PTS", "PPS", "eFG%", "TS%", "FGM-A", "FG%", "FGM-A", "FG%", "FGM-A", "FG%", "FTM-A", "FT%", "FD",
-  "Pot", "2nd", "Ast", "TO", "A/TO", "Tip", "OR", "DR", "TOT", "STL", "BLK", "Def", "LB", "Dive", "Chg", "CP", "PER", "BAY", "90s", "3on0", "FT"];
+  "Pot", "2nd", "Ast", "TO", "A/TO", "Tip", "OR", "DR", "TOT", "STL", "BLK", "Def", "LB", "Dive", "Chg", "CP", "PER", "BAY", "90s", "Trans", "FT"];
 
 function IndividualTable({ m }: { m: ReportModel }) {
   return (
