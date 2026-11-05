@@ -5,5 +5,6 @@ import SignageView from "../components/SignageView";
 
 export default function SignageDemo() {
   const season = useMemo(() => buildSeason(makeSeasonDemo()), []);
-  return <SignageView season={season} />;
+  const start = Number(new URLSearchParams(window.location.search).get("s") || 0);
+  return <SignageView season={season} start={start} />;
 }

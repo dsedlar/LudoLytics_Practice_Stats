@@ -11,8 +11,10 @@ export interface TeamSeason {
   fg3Pct: number;
   pps: number;
   ftPct: number;
+  efg: number;
+  ts: number;
   // latest practice vs the one before (better/worse/same)
-  trends: { to: Trend; fg3: Trend; pps: Trend; ft: Trend };
+  trends: { to: Trend; fg3: Trend; pps: Trend; ft: Trend; efg: Trend; ts: Trend };
 }
 export interface GradePoint {
   date: string;
@@ -192,9 +194,12 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     const better = higherBetter ? a > b : a < b;
     return better ? "better" : "worse";
   };
+  const hasFga = (t: RawTally) => t.atrA + t.nonatr2A + t.fg3A > 0;
   const fg3 = (t: RawTally) => (t.fg3A ? t.fg3M / t.fg3A : null);
-  const ppsOf = (t: RawTally) => (t.atrA + t.nonatr2A + t.fg3A ? compute(t).pps : null);
+  const ppsOf = (t: RawTally) => (hasFga(t) ? compute(t).pps : null);
   const ftOf = (t: RawTally) => (t.ftA ? t.ftM / t.ftA : null);
+  const efgOf = (t: RawTally) => (hasFga(t) ? compute(t).efg : null);
+  const tsOf = (t: RawTally) => (hasFga(t) || t.ftA ? compute(t).ts : null);
 
   const team: TeamSeason = {
     practices: practicesWithData,
@@ -202,11 +207,15 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     fg3Pct: totalTally.fg3A ? totalTally.fg3M / totalTally.fg3A : 0,
     pps: tc.pps,
     ftPct: totalTally.ftA ? totalTally.ftM / totalTally.ftA : 0,
+    efg: tc.efg,
+    ts: tc.ts,
     trends: {
       to: trend((t) => t.to, false), // fewer turnovers is better
       fg3: trend(fg3, true),
       pps: trend(ppsOf, true),
       ft: trend(ftOf, true),
+      efg: trend(efgOf, true),
+      ts: trend(tsOf, true),
     },
   };
 
