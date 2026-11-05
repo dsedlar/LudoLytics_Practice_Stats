@@ -5,6 +5,7 @@ import { compute, emptyTally, addTally, type RawTally } from "./stats";
 import { tallyByPlayer, type EventRow } from "./aggregate";
 import { SHOOTING_DRILLS } from "./config";
 import type { PracticeBundle, DrillRow } from "./db";
+import type { SeasonResult } from "./seasonData";
 
 export interface StatBlock {
   poss: number; ppp: number; pps: number; efg: number; ts: number; pts: number;
@@ -240,6 +241,36 @@ export function buildBoxScore(model: ReportModel): Record<string, unknown>[] {
   rows.push({
     Date: model.date, Squad: "COMBINED", "Squad W-L": "",
     "#": "", Player: "ALL PLAYERS", Present: "", ...blockCols(model.combined), ...BLANK_DRILLS,
+  });
+  return rows;
+}
+
+// Season box score: one row per player with season raw totals + drill averages,
+// plus a TEAM TOTAL row. Mirrors the per-practice box score at the season level.
+export function buildSeasonBoxScore(season: SeasonResult): Record<string, unknown>[] {
+  const denom = (k: string) => SHOOTING_DRILLS.find((d) => d.key === k)?.denominator ?? 1;
+  const seasonDrills = (avg: { baylorAvg: number; ninetyAvg: number; ftAvg: number } | null, trM: number | "", trA: number | "") => ({
+    "Baylor avg": avg ? round(avg.baylorAvg, 1) : "", "Baylor %": avg ? pctInt(avg.baylorAvg / denom("baylor")) : "",
+    "90s avg": avg ? round(avg.ninetyAvg, 1) : "", "90s %": avg ? pctInt(avg.ninetyAvg / denom("ninetys")) : "",
+    "FT drill avg": avg ? round(avg.ftAvg, 1) : "", "FT drill %": avg ? pctInt(avg.ftAvg / denom("ft")) : "",
+    "Trans M": trM, "Trans A": trA, "Trans %": typeof trA === "number" && trA ? pctInt((trM as number) / trA) : "",
+  });
+
+  const rows: Record<string, unknown>[] = [];
+  for (const p of season.players) {
+    const trM = p.history.reduce((s, h) => s + h.trans.m, 0);
+    const trA = p.history.reduce((s, h) => s + h.trans.a, 0);
+    rows.push({
+      "#": p.jersey, Player: p.name, GP: p.gp, Record: `${p.record.w}-${p.record.l}`, POD: p.pod,
+      ...blockCols(statBlock(p.tally)),
+      ...seasonDrills(p.drills, trM, trA),
+    });
+  }
+  const teamTally = season.players.reduce((acc, p) => addTally(acc, p.tally), emptyTally());
+  rows.push({
+    "#": "", Player: "TEAM TOTAL", GP: season.team.practices, Record: "", POD: "",
+    ...blockCols(statBlock(teamTally)),
+    ...seasonDrills(null, "", ""),
   });
   return rows;
 }

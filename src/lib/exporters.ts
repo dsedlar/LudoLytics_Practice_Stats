@@ -1,6 +1,7 @@
 // CSV / JSON export + download helpers (all client-side).
-import { getEventsForExport, getBackup, getPracticeBundle, getEvents, getDrillResults, type DrillRow } from "./db";
-import { buildReport, buildBoxScore } from "./reportData";
+import { getBackup, getPracticeBundle, getEvents, getDrillResults, getSeasonData, type DrillRow } from "./db";
+import { buildReport, buildBoxScore, buildSeasonBoxScore } from "./reportData";
+import { buildSeason } from "./seasonData";
 import type { EventRow } from "./aggregate";
 
 export function downloadText(filename: string, text: string, mime = "text/plain") {
@@ -39,9 +40,10 @@ export async function exportPracticeCSV(practiceId: string, dateLabel?: string) 
   downloadText(`practice-${slug(dateLabel || practiceId)}-boxscore.csv`, toCSV(buildBoxScore(model)), "text/csv");
 }
 
+// Season box score: every player's season totals + team totals.
 export async function exportSeasonCSV() {
-  const rows = await getEventsForExport();
-  downloadText("ludolytics-season-events.csv", toCSV(rows), "text/csv");
+  const season = buildSeason(await getSeasonData());
+  downloadText("ludolytics-season-boxscore.csv", toCSV(buildSeasonBoxScore(season)), "text/csv");
 }
 
 export async function exportBackupJSON() {
