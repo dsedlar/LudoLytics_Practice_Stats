@@ -102,13 +102,13 @@ export const COUNTING_TYPES = [
 export type CountingType = (typeof COUNTING_TYPES)[number];
 
 export const COUNTING_LABELS: Record<CountingType, string> = {
-  pot: "Potential Assist",
-  second: "2nd Assist",
-  ast: "Assist",
-  to: "Turnover",
+  pot: "PAST",
+  second: "2ndAST",
+  ast: "AST",
+  to: "TO",
   tip: "Tip",
-  or: "Off. Rebound",
-  dr: "Def. Rebound",
+  or: "OREB",
+  dr: "DREB",
   stl: "Steal",
   blk: "Block",
   def: "Deflection",
