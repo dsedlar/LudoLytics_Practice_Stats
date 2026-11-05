@@ -9,6 +9,7 @@
 // The plan is built as one big Word table, so we work off the flat list of all
 // table rows rather than trying to group nested tables.
 // ---------------------------------------------------------------------------
+import JSZip from "jszip";
 
 export interface PlanPlayer {
   jersey: string;
@@ -131,7 +132,6 @@ export function parsePlanXml(documentXml: string): ParsedPlan {
 
 /** Browser entry point: read a .docx File and parse it. Uses JSZip. */
 export async function parsePlanFile(file: File): Promise<ParsedPlan> {
-  const JSZip = (await import("jszip")).default;
   const zip = await JSZip.loadAsync(file);
   const docEntry = zip.file("word/document.xml");
   if (!docEntry) {
