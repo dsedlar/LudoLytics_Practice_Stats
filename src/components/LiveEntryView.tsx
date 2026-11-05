@@ -1,4 +1,5 @@
-import { COUNTING_LABELS, SHOOTING_DRILLS, type CountingType, type Segment } from "../lib/config";
+import { useState } from "react";
+import { COUNTING_LABELS, SHOOTING_DRILLS, type CountingType } from "../lib/config";
 import Court, { type CourtShot } from "./Court";
 import type { DrillRow } from "../lib/db";
 
@@ -21,27 +22,48 @@ export interface DrillPlayer {
   jersey: string;
   name: string;
 }
+export interface TransitionRow {
+  player_id: string;
+  jersey: string;
+  name: string;
+  made: number;
+  att: number;
+}
+
+export type Tab = "live" | "transition" | "drills";
 
 export interface LiveEntryViewProps {
   squadName: string;
   squadColor: string;
-  tab: "play" | "drills";
-  setTab: (t: "play" | "drills") => void;
+  tab: Tab;
+  setTab: (t: Tab) => void;
+  // live
   players: TilePlayer[];
   selected: string;
   setSelected: (id: string) => void;
   selectedName?: string;
-  segment: Segment;
-  setSegment: (s: Segment) => void;
   squadShots: CourtShot[];
   onLog: (type: string, made?: boolean, x?: number, y?: number) => void;
   onUndo: () => void;
   canUndo: boolean;
   flash: string;
+  wins: number;
+  losses: number;
+  onEndDrill: (won: boolean) => void;
+  // transition
+  transitionRows: TransitionRow[];
+  onTransition: (playerId: string, made: boolean) => void;
+  // drills
   drillPlayers: DrillPlayer[];
   drills: DrillRow[];
   onDrillSave: (playerId: string, drill: string, makes: number, attempts?: number | null) => void;
 }
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "live", label: "Live" },
+  { key: "transition", label: "Transition" },
+  { key: "drills", label: "Shooting Drills" },
+];
 
 export default function LiveEntryView(p: LiveEntryViewProps) {
   return (
@@ -50,12 +72,32 @@ export default function LiveEntryView(p: LiveEntryViewProps) {
         <h1 className="text-2xl headline-bold" style={{ color: p.squadColor }}>
           {p.squadName} · Live Entry
         </h1>
-        <div className="flex items-center gap-2 text-sm">
-          <button onClick={() => p.setTab("play")} className={`px-3 py-1.5 rounded font-medium ${p.tab === "play" ? "bg-garnet text-white" : "bg-white border"}`}>Live / Transition</button>
-          <button onClick={() => p.setTab("drills")} className={`px-3 py-1.5 rounded font-medium ${p.tab === "drills" ? "bg-garnet text-white" : "bg-white border"}`}>Shooting drills</button>
+        <div className="flex items-center gap-1 text-sm bg-white border rounded-lg p-1">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => p.setTab(t.key)}
+              className={`px-3 py-1.5 rounded font-medium ${p.tab === t.key ? "bg-garnet text-white" : "hover:bg-gray-50"}`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
       </div>
 
+      {p.tab === "live" && <LiveTab p={p} />}
+      {p.tab === "transition" && <TransitionTab rows={p.transitionRows} onTransition={p.onTransition} color={p.squadColor} />}
+      {p.tab === "drills" && <DrillsTab players={p.drillPlayers} drills={p.drills} onSave={p.onDrillSave} />}
+    </div>
+  );
+}
+
+function LiveTab({ p }: { p: LiveEntryViewProps }) {
+  const [ending, setEnding] = useState(false);
+  const drillNo = p.wins + p.losses + 1;
+
+  return (
+    <>
       {/* player picker */}
       <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
         {p.players.map((pl) => {
@@ -75,55 +117,105 @@ export default function LiveEntryView(p: LiveEntryViewProps) {
         {p.players.length === 0 && <p className="text-gray-500 col-span-full">No players assigned to this squad.</p>}
       </div>
 
-      {p.tab === "play" ? (
-        <>
-          <div className="mt-4 flex items-center gap-2">
-            <span className="text-sm text-gray-500">Segment:</span>
-            {(["live", "transition"] as Segment[]).map((s) => (
-              <button key={s} onClick={() => p.setSegment(s)} className={`px-3 py-1.5 rounded text-sm capitalize font-medium ${p.segment === s ? "bg-navy text-white" : "bg-white border"}`}>{s}</button>
-            ))}
-            <div className="flex-1" />
-            <span className="text-sm text-garnet font-medium h-5">{p.flash}</span>
-            <button onClick={p.onUndo} disabled={!p.canUndo} className="px-3 py-1.5 rounded text-sm bg-white border disabled:opacity-40">↶ Undo</button>
+      {/* drill bar */}
+      <div className="mt-3 flex items-center gap-3 flex-wrap bg-white border rounded-lg px-3 py-2">
+        <span className="text-sm font-semibold">Live drill #{drillNo}</span>
+        <span className="text-xs text-gray-500">Season W-L {p.wins}-{p.losses}</span>
+        <div className="flex-1" />
+        {!ending ? (
+          <button onClick={() => setEnding(true)} className="text-sm bg-navy text-white rounded px-3 py-1.5 font-medium">
+            End drill & record result
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">{p.squadName} result:</span>
+            <button onClick={() => { p.onEndDrill(true); setEnding(false); }} className="text-sm bg-green-600 text-white rounded px-3 py-1.5 font-semibold">Won</button>
+            <button onClick={() => { p.onEndDrill(false); setEnding(false); }} className="text-sm bg-garnet text-white rounded px-3 py-1.5 font-semibold">Lost</button>
+            <button onClick={() => setEnding(false)} className="text-sm text-gray-400 px-1">cancel</button>
           </div>
+        )}
+      </div>
 
-          <div className="mt-2 text-sm text-gray-500">
-            {p.selectedName ? <>Logging for <b className="text-black">{p.selectedName}</b></> : "Select a player above"}
+      <div className="mt-2 flex items-center gap-2">
+        <span className="text-sm text-gray-500">
+          {p.selectedName ? <>Logging for <b className="text-black">{p.selectedName}</b></> : "Select a player above"}
+        </span>
+        <div className="flex-1" />
+        <span className="text-sm text-garnet font-medium h-5">{p.flash}</span>
+        <button onClick={p.onUndo} disabled={!p.canUndo} className="px-3 py-1.5 rounded text-sm bg-white border disabled:opacity-40">↶ Undo</button>
+      </div>
+
+      <div className="mt-3 grid lg:grid-cols-2 gap-3 items-start">
+        {/* shot chart */}
+        <div className="bg-white border rounded-lg p-2">
+          <div className="text-sm font-semibold mb-1">Shot chart — tap where the shot was taken, then Make/Miss</div>
+          <Court color={p.squadColor} shots={p.squadShots} disabled={!p.selected} onLog={(z, m, x, y) => p.onLog(z, m, x, y)} />
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-sm font-semibold">Free Throws:</span>
+            <button onClick={() => p.onLog("ft", true)} className="bg-green-600 text-white rounded px-4 py-2 text-sm font-semibold">FT Make</button>
+            <button onClick={() => p.onLog("ft", false)} className="bg-gray-200 rounded px-4 py-2 text-sm font-semibold">FT Miss</button>
+            <span className="ml-auto text-xs text-gray-500">● filled = make&nbsp;&nbsp;○ ring = miss</span>
           </div>
+        </div>
 
-          <div className="mt-3 grid lg:grid-cols-2 gap-3 items-start">
-            {/* shot chart */}
-            <div className="bg-white border rounded-lg p-2">
-              <div className="text-sm font-semibold mb-1">Shot chart — tap where the shot was taken, then Make/Miss</div>
-              <Court color={p.squadColor} shots={p.squadShots} disabled={!p.selected} onLog={(z, m, x, y) => p.onLog(z, m, x, y)} />
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-sm font-semibold">Free Throws:</span>
-                <button onClick={() => p.onLog("ft", true)} className="bg-green-600 text-white rounded px-4 py-2 text-sm font-semibold">FT Make</button>
-                <button onClick={() => p.onLog("ft", false)} className="bg-gray-200 rounded px-4 py-2 text-sm font-semibold">FT Miss</button>
-                <span className="ml-auto text-xs text-gray-500">● filled = make&nbsp;&nbsp;○ ring = miss</span>
+        {/* other stats */}
+        <div className="space-y-2">
+          {GROUPS.map((g) => (
+            <div key={g.title} className="bg-white border rounded-lg p-2">
+              <div className="text-sm font-semibold mb-1">{g.title}</div>
+              <div className="flex flex-wrap gap-1">
+                {g.keys.map((k) => (
+                  <button key={k} onClick={() => p.onLog(k)} className="bg-navy/90 hover:bg-navy text-white rounded px-3 py-2 text-sm font-medium">
+                    {COUNTING_LABELS[k]}
+                  </button>
+                ))}
               </div>
             </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
 
-            {/* other stats */}
-            <div className="space-y-2">
-              {GROUPS.map((g) => (
-                <div key={g.title} className="bg-white border rounded-lg p-2">
-                  <div className="text-sm font-semibold mb-1">{g.title}</div>
-                  <div className="flex flex-wrap gap-1">
-                    {g.keys.map((k) => (
-                      <button key={k} onClick={() => p.onLog(k)} className="bg-navy/90 hover:bg-navy text-white rounded px-3 py-2 text-sm font-medium">
-                        {COUNTING_LABELS[k]}
-                      </button>
-                    ))}
+function TransitionTab({ rows, onTransition, color }: { rows: TransitionRow[]; onTransition: (id: string, made: boolean) => void; color: string }) {
+  const tot = rows.reduce((a, r) => ({ made: a.made + r.made, att: a.att + r.att }), { made: 0, att: 0 });
+  return (
+    <div className="mt-4 max-w-2xl">
+      <p className="text-sm text-gray-500 mb-2">Transition drills — log each 3-point attempt as a make or miss.</p>
+      <div className="bg-white border rounded-lg overflow-hidden">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="text-left border-b bg-gray-50">
+              <th className="p-2">#</th><th className="p-2">Player</th><th className="p-2 text-center">3PT</th><th className="p-2 text-center">%</th><th className="p-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.player_id} className="border-b last:border-0">
+                <td className="p-2 text-gray-500">{r.jersey}</td>
+                <td className="p-2 font-semibold">{r.name}</td>
+                <td className="p-2 text-center">{r.made}-{r.att}</td>
+                <td className="p-2 text-center">{r.att ? Math.round((r.made / r.att) * 100) : 0}%</td>
+                <td className="p-2">
+                  <div className="flex gap-1 justify-end">
+                    <button onClick={() => onTransition(r.player_id, true)} className="bg-green-600 text-white rounded px-3 py-1.5 text-sm font-semibold">Make</button>
+                    <button onClick={() => onTransition(r.player_id, false)} className="bg-gray-200 rounded px-3 py-1.5 text-sm font-semibold">Miss</button>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      ) : (
-        <DrillsTab players={p.drillPlayers} drills={p.drills} onSave={p.onDrillSave} />
-      )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t font-semibold" style={{ color }}>
+              <td className="p-2" colSpan={2}>Squad total</td>
+              <td className="p-2 text-center">{tot.made}-{tot.att}</td>
+              <td className="p-2 text-center">{tot.att ? Math.round((tot.made / tot.att) * 100) : 0}%</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   );
 }
@@ -137,18 +229,19 @@ function DrillsTab({
   drills: DrillRow[];
   onSave: (playerId: string, drill: string, makes: number, attempts?: number | null) => void;
 }) {
-  function val(playerId: string, drill: string, field: "makes" | "attempts") {
+  function val(playerId: string, drill: string) {
     const row = drills.find((d) => d.player_id === playerId && d.drill === drill);
-    return row ? (field === "makes" ? row.makes : row.attempts ?? "") : "";
+    return row ? row.makes : "";
   }
   return (
     <div className="mt-4 overflow-x-auto">
+      <p className="text-sm text-gray-500 mb-2">End of practice — enter each player's drill score.</p>
       <table className="min-w-full text-sm bg-white border rounded-lg">
         <thead>
           <tr className="border-b text-left">
             <th className="p-2">Player</th>
             {SHOOTING_DRILLS.map((d) => (
-              <th key={d.key} className="p-2 text-center">{d.label}{d.mode === "fixed" ? ` /${d.denominator}` : ""}</th>
+              <th key={d.key} className="p-2 text-center">{d.label}{d.denominator ? ` /${d.denominator}` : ""}</th>
             ))}
           </tr>
         </thead>
@@ -160,27 +253,18 @@ function DrillsTab({
                 <td key={d.key} className="p-2 text-center">
                   <input
                     type="number"
-                    defaultValue={val(pl.player_id, d.key, "makes")}
-                    onBlur={(e) => onSave(pl.player_id, d.key, Number(e.target.value) || 0, d.mode === "ratio" ? Number(val(pl.player_id, d.key, "attempts")) || null : null)}
-                    className="w-14 border rounded px-1 text-center"
-                    placeholder="M"
+                    defaultValue={val(pl.player_id, d.key)}
+                    onBlur={(e) => onSave(pl.player_id, d.key, Number(e.target.value) || 0, null)}
+                    className="w-16 border rounded px-1 text-center"
+                    placeholder="makes"
                   />
-                  {d.mode === "ratio" && (
-                    <input
-                      type="number"
-                      defaultValue={val(pl.player_id, d.key, "attempts")}
-                      onBlur={(e) => onSave(pl.player_id, d.key, Number(val(pl.player_id, d.key, "makes")) || 0, Number(e.target.value) || null)}
-                      className="w-14 border rounded px-1 text-center ml-1"
-                      placeholder="A"
-                    />
-                  )}
                 </td>
               ))}
             </tr>
           ))}
         </tbody>
       </table>
-      <p className="text-xs text-gray-500 mt-2">Enter makes (M); Transition also takes attempts (A). Saves when you tab out of a field.</p>
+      <p className="text-xs text-gray-500 mt-2">Saves when you tab out of a field.</p>
     </div>
   );
 }

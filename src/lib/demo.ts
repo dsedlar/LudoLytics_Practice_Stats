@@ -18,8 +18,8 @@ export function makeDemoData(): { bundle: PracticeBundle; events: EventRow[]; dr
   const rnd = lcg(42);
   const ri = (n: number) => Math.floor(rnd() * n);
   const squads = [
-    { id: "sA", practice_id: "demo", name: "Garnet", color: "#B20000", sort_order: 0, wins: 4 },
-    { id: "sB", practice_id: "demo", name: "White", color: "#00142D", sort_order: 1, wins: 6 },
+    { id: "sA", practice_id: "demo", name: "Garnet", color: "#B20000", sort_order: 0, wins: 4, losses: 6 },
+    { id: "sB", practice_id: "demo", name: "White", color: "#00142D", sort_order: 1, wins: 6, losses: 4 },
   ];
   const roster = [
     ...NAMES_A.map((n, i) => ({ id: "rA" + i, squad_id: "sA", player_id: "pA" + i, jersey: JERS_A[i], present: true, players: { name: n } })),
@@ -57,7 +57,6 @@ export function makeDemoData(): { bundle: PracticeBundle; events: EventRow[]; dr
     if (!r.present) continue;
     drills.push({ id: "d" + did++, squad_id: r.squad_id, player_id: r.player_id, drill: "baylor", makes: 35 + ri(25), attempts: null });
     drills.push({ id: "d" + did++, squad_id: r.squad_id, player_id: r.player_id, drill: "ninetys", makes: 9 + ri(8), attempts: null });
-    drills.push({ id: "d" + did++, squad_id: r.squad_id, player_id: r.player_id, drill: "transition", makes: 2 + ri(5), attempts: 4 + ri(4) });
     drills.push({ id: "d" + did++, squad_id: r.squad_id, player_id: r.player_id, drill: "ft", makes: 13 + ri(6), attempts: null });
   }
 

@@ -91,22 +91,26 @@ function segmentLine(name: string, color: string, t: RawTally): SegmentLine {
   };
 }
 
-function drillLine(name: string, color: string, rows: DrillRow[]): DrillLine {
+function drillLine(name: string, color: string, rows: DrillRow[], trans: { m: number; a: number }): DrillLine {
   const pick = (d: string) => rows.filter((r) => r.drill === d);
   const avg = (d: string) => {
     const rs = pick(d);
     return rs.length ? rs.reduce((s, r) => s + Number(r.makes), 0) / rs.length : 0;
   };
   const denom = (k: string) => SHOOTING_DRILLS.find((d) => d.key === k)?.denominator ?? 1;
-  const trM = pick("transition").reduce((s, r) => s + Number(r.makes), 0);
-  const trA = pick("transition").reduce((s, r) => s + Number(r.attempts ?? 0), 0);
   return {
     name, color,
     baylor: { avg: avg("baylor"), pct: avg("baylor") / denom("baylor") },
     ninetys: { avg: avg("ninetys"), pct: avg("ninetys") / denom("ninetys") },
-    transition: { m: trM, a: trA, pct: trA ? trM / trA : 0 },
+    transition: { m: trans.m, a: trans.a, pct: trans.a ? trans.m / trans.a : 0 },
     ft: { avg: avg("ft"), pct: avg("ft") / denom("ft") },
   };
+}
+
+// Transition 3s (made/attempts) from events for a set of rows.
+function transOf(events: EventRow[]): { m: number; a: number } {
+  const e = events.filter((x) => x.segment === "transition" && x.type === "fg3");
+  return { m: e.filter((x) => x.made).length, a: e.length };
 }
 
 export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: DrillRow[]): ReportModel {
@@ -120,7 +124,7 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
   const squads: SquadReport[] = bundle.squads.map((s, i) => {
     const oppDR = squadDR[squadIds[1 - i]] ?? 0;
     const wins = s.wins ?? 0;
-    const losses = bundle.squads[1 - i]?.wins ?? 0;
+    const losses = s.losses ?? 0;
     const wl = `${wins}-${losses}`;
     const t = squadTally(bundle, s.id, perPlayer);
     const players: PlayerLine[] = bundle.roster
@@ -130,6 +134,7 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
         const pt = perPlayer.get(r.player_id) ?? emptyTally();
         const dr = drills.filter((d) => d.player_id === r.player_id);
         const g = (k: string) => dr.find((d) => d.drill === k);
+        const pTrans = transOf(events.filter((e) => e.player_id === r.player_id));
         return {
           playerId: r.player_id, jersey: r.jersey ?? "", name: r.players?.name ?? "—",
           present: r.present, wl,
@@ -137,8 +142,8 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
           drills: {
             baylor: g("baylor") ? Number(g("baylor")!.makes) : null,
             ninetys: g("ninetys") ? Number(g("ninetys")!.makes) : null,
-            transM: g("transition") ? Number(g("transition")!.makes) : null,
-            transA: g("transition") ? Number(g("transition")!.attempts ?? 0) : null,
+            transM: pTrans.a ? pTrans.m : null,
+            transA: pTrans.a ? pTrans.a : null,
             ft: g("ft") ? Number(g("ft")!.makes) : null,
           },
         };
@@ -168,9 +173,9 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
   trans.push(segmentLine("Combined", "#00142D", squadIds.reduce((a, sid) => addTally(a, segTotal(transByPlayer, sid)), emptyTally())));
 
   const drillLines: DrillLine[] = bundle.squads.map((s) =>
-    drillLine(s.name, s.color, drills.filter((d) => d.squad_id === s.id)),
+    drillLine(s.name, s.color, drills.filter((d) => d.squad_id === s.id), transOf(events.filter((e) => e.squad_id === s.id))),
   );
-  drillLines.push(drillLine("Combined", "#00142D", drills));
+  drillLines.push(drillLine("Combined", "#00142D", drills, transOf(events)));
 
   const present = bundle.roster.filter((r) => r.present).length;
   const total = bundle.roster.length;

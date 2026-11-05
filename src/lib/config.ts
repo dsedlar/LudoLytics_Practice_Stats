@@ -37,10 +37,12 @@ export interface DrillDef {
   denominator?: number;
 }
 
+// Shooting-drills tab (end of practice) — players report these scores.
+// Transition is NOT here: it is a live-practice segment (made/miss 3s) and
+// feeds the report's 3-ON-0 column from events.
 export const SHOOTING_DRILLS: DrillDef[] = [
   { key: "baylor", label: "Baylor (3PT)", short: "BAY", mode: "fixed", denominator: 75 },
   { key: "ninetys", label: "90 Seconds", short: "90s", mode: "fixed", denominator: 20 },
-  { key: "transition", label: "Transition", short: "3on0", mode: "ratio" },
   { key: "ft", label: "Free Throws", short: "FT", mode: "fixed", denominator: 20 },
 ];
 

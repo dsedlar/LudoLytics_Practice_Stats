@@ -15,6 +15,7 @@ export interface EventRow {
   made: boolean | null;
   shot_x?: number | null;
   shot_y?: number | null;
+  game_index?: number | null;
 }
 
 const SHOT_FIELDS: Record<ShotType, [keyof RawTally, keyof RawTally]> = {

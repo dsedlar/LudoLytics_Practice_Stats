@@ -4,7 +4,7 @@ import { usePracticeData } from "../lib/usePracticeData";
 import { tallyByPlayer } from "../lib/aggregate";
 import { compute, emptyTally, addTally, pct, type RawTally } from "../lib/stats";
 import { GRADE_SCALE } from "../lib/config";
-import { setGrade, finishPractice, setSquadWins } from "../lib/db";
+import { setGrade, finishPractice, setSquadWins, setSquadLosses } from "../lib/db";
 
 export default function Coach() {
   const { id = "" } = useParams();
@@ -75,16 +75,25 @@ export default function Coach() {
         </div>
       </div>
 
-      {/* scrimmage wins */}
+      {/* scrimmage record */}
       <div className="mt-5 bg-white border rounded-lg p-3">
-        <h2 className="font-semibold text-sm text-gray-600 mb-2">Live-play wins (who won each scrimmage)</h2>
-        <div className="flex flex-wrap gap-4">
+        <h2 className="font-semibold text-sm text-gray-600 mb-2">Live-play record (set by analysts; adjust if needed)</h2>
+        <div className="flex flex-wrap gap-6">
           {bundle.squads.map((s) => (
-            <div key={s.id} className="flex items-center gap-2">
+            <div key={s.id} className="flex items-center gap-3">
               <span className="font-bold w-20 truncate" style={{ color: s.color }}>{s.name}</span>
-              <button onClick={() => setSquadWins(s.id, (s.wins ?? 0) - 1)} className="w-8 h-8 rounded border text-lg leading-none">−</button>
-              <span className="text-xl font-black w-8 text-center">{s.wins ?? 0}</span>
-              <button onClick={() => setSquadWins(s.id, (s.wins ?? 0) + 1)} className="w-8 h-8 rounded bg-garnet text-white text-lg leading-none">+</button>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-400 w-3">W</span>
+                <button onClick={() => setSquadWins(s.id, (s.wins ?? 0) - 1)} className="w-7 h-7 rounded border leading-none">−</button>
+                <span className="text-lg font-black w-6 text-center">{s.wins ?? 0}</span>
+                <button onClick={() => setSquadWins(s.id, (s.wins ?? 0) + 1)} className="w-7 h-7 rounded bg-garnet text-white leading-none">+</button>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-400 w-3">L</span>
+                <button onClick={() => setSquadLosses(s.id, (s.losses ?? 0) - 1)} className="w-7 h-7 rounded border leading-none">−</button>
+                <span className="text-lg font-black w-6 text-center">{s.losses ?? 0}</span>
+                <button onClick={() => setSquadLosses(s.id, (s.losses ?? 0) + 1)} className="w-7 h-7 rounded bg-navy text-white leading-none">+</button>
+              </div>
             </div>
           ))}
           <span className="text-sm text-gray-500 self-center">

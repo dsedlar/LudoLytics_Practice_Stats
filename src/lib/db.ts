@@ -136,6 +136,7 @@ export interface SquadRow {
   color: string;
   sort_order: number;
   wins: number;
+  losses: number;
 }
 export interface RosterRow {
   id: string;
@@ -183,7 +184,7 @@ export async function getPracticeBundle(practiceId: string): Promise<PracticeBun
 export async function getEvents(practiceId: string) {
   const { data, error } = await client()
     .from("events")
-    .select("id, practice_id, squad_id, player_id, segment, type, made, shot_x, shot_y")
+    .select("id, practice_id, squad_id, player_id, segment, type, made, shot_x, shot_y, game_index")
     .eq("practice_id", practiceId)
     .order("id");
   if (error) throw error;
@@ -199,6 +200,7 @@ export async function logEvent(ev: {
   made?: boolean | null;
   shot_x?: number | null;
   shot_y?: number | null;
+  game_index?: number;
 }) {
   const { data, error } = await client()
     .from("events")
@@ -207,6 +209,7 @@ export async function logEvent(ev: {
       made: ev.made ?? null,
       shot_x: ev.shot_x ?? null,
       shot_y: ev.shot_y ?? null,
+      game_index: ev.game_index ?? 1,
     })
     .select()
     .single();
@@ -246,6 +249,11 @@ export async function setGrade(practiceId: string, grade: number | null) {
 
 export async function setSquadWins(squadId: string, wins: number) {
   const { error } = await client().from("squads").update({ wins: Math.max(0, wins) }).eq("id", squadId);
+  if (error) throw error;
+}
+
+export async function setSquadLosses(squadId: string, losses: number) {
+  const { error } = await client().from("squads").update({ losses: Math.max(0, losses) }).eq("id", squadId);
   if (error) throw error;
 }
 
