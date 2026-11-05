@@ -2,6 +2,11 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { PlayerSeason, HistoryPoint } from "../lib/seasonData";
 import { pct } from "../lib/stats";
+import { SHOOTING_DRILLS } from "../lib/config";
+
+const denom = (k: string) => SHOOTING_DRILLS.find((d) => d.key === k)?.denominator ?? 1;
+const BAY_D = denom("baylor"), NINETY_D = denom("ninetys"), FT_D = denom("ft");
+const drillPct = (makes: number | null, d: number) => (makes == null ? "–" : pct(makes / d));
 
 const f1 = (x: number) => x.toFixed(1);
 const ma = (m: number, a: number) => `${m}-${a}`;
@@ -73,7 +78,6 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
   const prev = h[h.length - 2];
   const fg3Pct = (hp?: HistoryPoint) => (hp && hp.tally.fg3A ? hp.tally.fg3M / hp.tally.fg3A : null);
   const seasonFg3 = p.tally.fg3A ? p.tally.fg3M / p.tally.fg3A : 0;
-  const seasonTrans = h.reduce((acc, hp) => ({ m: acc.m + hp.trans.m, a: acc.a + hp.trans.a }), { m: 0, a: 0 });
   const rpg = (p.tally.or + p.tally.dr) / Math.max(1, p.gp);
   const topg = p.tally.to / Math.max(1, p.gp);
   const rebOf = (hp?: HistoryPoint) => (hp ? hp.tally.or + hp.tally.dr : null);
@@ -143,10 +147,10 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
                   <td className="p-2 font-semibold">{f1(hp.cp)}</td>
                   <td className="p-2">{f1(hp.per)}</td>
                   <td className="p-2">{pct(hp.ts)}</td>
-                  <td className="p-2">{ma(hp.trans.m, hp.trans.a)}</td>
-                  <td className="p-2">{hp.drills.baylor ?? "–"}</td>
-                  <td className="p-2">{hp.drills.ninety ?? "–"}</td>
-                  <td className="p-2">{hp.drills.ft ?? "–"}</td>
+                  <td className="p-2">{hp.trans.a ? pct(hp.trans.m / hp.trans.a) : "–"}</td>
+                  <td className="p-2">{drillPct(hp.drills.baylor, BAY_D)}</td>
+                  <td className="p-2">{drillPct(hp.drills.ninety, NINETY_D)}</td>
+                  <td className="p-2">{drillPct(hp.drills.ft, FT_D)}</td>
                 </tr>
               );
             })}
@@ -169,10 +173,10 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
               <td className="p-2">{f1(p.total.casper)}</td>
               <td className="p-2">{f1(p.total.per)}</td>
               <td className="p-2">{pct(p.total.ts)}</td>
-              <td className="p-2">{ma(seasonTrans.m, seasonTrans.a)}</td>
-              <td className="p-2">{f1(p.drills.baylorAvg)}</td>
-              <td className="p-2">{f1(p.drills.ninetyAvg)}</td>
-              <td className="p-2">{f1(p.drills.ftAvg)}</td>
+              <td className="p-2">{pct(p.drills.transPct)}</td>
+              <td className="p-2">{pct(p.drills.baylorAvg / BAY_D)}</td>
+              <td className="p-2">{pct(p.drills.ninetyAvg / NINETY_D)}</td>
+              <td className="p-2">{pct(p.drills.ftAvg / FT_D)}</td>
             </tr>
           </tfoot>
         </table>
