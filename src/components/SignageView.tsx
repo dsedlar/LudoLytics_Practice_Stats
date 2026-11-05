@@ -68,7 +68,7 @@ function TeamSlide({ s }: { s: SeasonResult }) {
         <Kpi label="AST / P" value={s.team.astPerPractice.toFixed(1)} t={s.team.trends.ast} size={56} />
         <Kpi label="PPP" value={s.team.ppp.toFixed(2)} t={s.team.trends.ppp} size={56} />
         <Kpi label="PPS" value={s.team.pps.toFixed(2)} t={s.team.trends.pps} size={56} />
-        <Kpi label="Casper Pts" value={Math.round(s.team.casper).toString()} t={s.team.trends.casper} size={56} />
+        <Kpi label="Casper / P" value={(s.team.casper / Math.max(1, s.team.practices)).toFixed(1)} t={s.team.trends.casper} size={56} />
       </div>
     </div>
   );
