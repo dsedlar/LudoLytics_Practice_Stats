@@ -35,7 +35,7 @@ export default function App() {
           <Link to="/" className="flex items-center gap-2.5">
             <img src="/ves-shield.png" alt="VES" className="h-7 w-auto" />
             <span className="sport-lockup text-lg">
-              VES Basketball · <span className="text-white/70">Ludolytics</span>
+              VES Basketball · <span className="text-white/70">Practice Stats</span>
             </span>
           </Link>
           <div className="flex items-center gap-3">
