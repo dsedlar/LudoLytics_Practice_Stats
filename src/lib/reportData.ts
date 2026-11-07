@@ -107,14 +107,17 @@ function transOf(events: EventRow[]): { m: number; a: number } {
 }
 
 export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: DrillRow[]): ReportModel {
-  const perPlayer = tallyByPlayer(events);
+  // Transition 3s are a separate drill: they do NOT count toward team or player
+  // stats. They appear only in the Transition 3-Point Summary and the per-player
+  // Trans column (both computed from `events` via transOf). Every other tally is
+  // built from play (non-transition) events only.
+  const playEvents = events.filter((e) => e.segment !== "transition");
+  const perPlayer = tallyByPlayer(playEvents);
   // Team totals follow where each stat was earned (the event's squad_id), so a
   // player who switches teams mid-practice splits correctly between both teams.
-  // Individual player lines keep all of that player's own stats.
-  const squadTallies = tallyBySquad(events);
-  const liveSquadTallies = tallyBySquad(events.filter((e) => e.segment === "live"));
+  const squadTallies = tallyBySquad(playEvents);
   const sqT = (sid: string) => squadTallies.get(sid) ?? emptyTally();
-  const liveT = (sid: string) => liveSquadTallies.get(sid) ?? emptyTally();
+  const liveT = sqT; // live play == non-transition play
 
   const squadIds = bundle.squads.map((s) => s.id);
   const squadDR: Record<string, number> = {};

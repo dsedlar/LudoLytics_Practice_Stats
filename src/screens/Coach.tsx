@@ -24,8 +24,11 @@ export default function Coach() {
     }
   }
 
-  const playerTallies = useMemo(() => tallyByPlayer(events), [events]);
-  const squadTallies = useMemo(() => tallyBySquad(events), [events]);
+  // Transition 3s don't count toward team or player stats (they're a separate
+  // drill), so the live tallies use non-transition events only.
+  const playEvents = useMemo(() => events.filter((e) => e.segment !== "transition"), [events]);
+  const playerTallies = useMemo(() => tallyByPlayer(playEvents), [playEvents]);
+  const squadTallies = useMemo(() => tallyBySquad(playEvents), [playEvents]);
 
   if (loading) return <p className="text-gray-500">Loading practice…</p>;
   if (error) return <p className="text-red-600">Error: {error}</p>;

@@ -42,7 +42,12 @@ export default function ShotChartView({
   const shotsFor = (sq?: SquadLite) =>
     sq
       ? events.filter(
-          (e) => e.squad_id === sq.id && SHOT_TYPES.has(e.type) && e.shot_x != null && e.shot_y != null,
+          (e) =>
+            e.squad_id === sq.id &&
+            e.segment !== "transition" && // transition 3s live only in the Transition summary
+            SHOT_TYPES.has(e.type) &&
+            e.shot_x != null &&
+            e.shot_y != null,
         )
       : [];
 

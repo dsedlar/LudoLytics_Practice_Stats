@@ -87,10 +87,14 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     }
   }
 
+  // Transition 3s are a separate drill and do NOT count toward player/team
+  // stats; they are tracked separately below (transAt) for the Trans column.
+  const playEvents = input.events.filter((e) => e.segment !== "transition");
+
   // per (player, practice) tally and per-player total
   const perPP = new Map<string, RawTally>();
   const totals = new Map<string, RawTally>();
-  for (const e of input.events) {
+  for (const e of playEvents) {
     const k = `${e.player_id}|${e.practice_id}`;
     if (!perPP.has(k)) perPP.set(k, emptyTally());
     applyEvent(perPP.get(k)!, e);
@@ -176,15 +180,15 @@ export function buildSeason(input: SeasonInput): SeasonResult {
 
   const players = out.sort((a, b) => Number(a.jersey || 999) - Number(b.jersey || 999));
 
-  // team season totals
+  // team season totals (non-transition events only)
   const totalTally = emptyTally();
-  input.events.forEach((e) => applyEvent(totalTally, e));
+  playEvents.forEach((e) => applyEvent(totalTally, e));
   const tc = compute(totalTally);
-  const practicesWithData = new Set(input.events.map((e) => e.practice_id)).size || input.practices.length;
+  const practicesWithData = new Set(playEvents.map((e) => e.practice_id)).size || input.practices.length;
 
   // per-practice team tallies (for trends), ordered by date
   const byPractice = new Map<string, RawTally>();
-  input.events.forEach((e) => {
+  playEvents.forEach((e) => {
     if (!byPractice.has(e.practice_id)) byPractice.set(e.practice_id, emptyTally());
     applyEvent(byPractice.get(e.practice_id)!, e);
   });
