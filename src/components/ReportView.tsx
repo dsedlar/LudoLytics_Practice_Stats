@@ -1,4 +1,5 @@
 import {
+  formatLongDate,
   type ReportModel,
   type StatBlock,
   type BlockRow,
@@ -71,7 +72,7 @@ export default function ReportView({ m }: { m: ReportModel }) {
         <div style={{ textAlign: "right" }}>
           <div style={{ fontFamily: F_COMPRESSED, fontSize: 18, letterSpacing: "0.12em", fontWeight: 600, color: "#B20000" }}>PRACTICE REPORT</div>
           <div style={{ fontSize: 10, color: "#3C0019" }}>
-            {m.date} {m.finishTime ? <>| Practice finished <b>{m.finishTime}</b></> : null}
+            {formatLongDate(m.date)}{m.startTime ? <> &nbsp;·&nbsp; Time: <b>{m.startTime}</b></> : null}
           </div>
         </div>
       </div>

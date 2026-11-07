@@ -33,7 +33,16 @@ export default function Report() {
         </button>
       </div>
       <div className="report-wrap overflow-x-auto">
-        {view === "box" ? <ReportView m={model} /> : <ShotChartView squads={bundle.squads} events={events} />}
+        {view === "box" ? (
+          <ReportView m={model} />
+        ) : (
+          <ShotChartView
+            squads={bundle.squads}
+            events={events}
+            date={bundle.practice.practice_date}
+            startTime={bundle.practice.start_time}
+          />
+        )}
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 // Grey team shoots at the LEFT hoop, Garnet at the RIGHT hoop, using the
 // half-court shot coordinates (x: 0..50 width, y: 0..47 baseline->mid).
 import type { EventRow } from "../lib/aggregate";
+import { formatLongDate } from "../lib/reportData";
 
 interface SquadLite {
   id: string;
@@ -22,7 +23,17 @@ const LW = 2.4;
 const fx = (ft: number) => 30 + ft * 10;
 const fy = (ft: number) => 30 + ft * 10;
 
-export default function ShotChartView({ squads, events }: { squads: SquadLite[]; events: EventRow[] }) {
+export default function ShotChartView({
+  squads,
+  events,
+  date,
+  startTime,
+}: {
+  squads: SquadLite[];
+  events: EventRow[];
+  date: string;
+  startTime?: string | null;
+}) {
   const grey = squads.find((s) => /gr[ae]y/i.test(s.name)) ?? squads[0];
   const garnet = squads.find((s) => grey && s.id !== grey.id) ?? squads[1];
   const greyColor = grey?.color ?? "#6B7280";
@@ -40,7 +51,19 @@ export default function ShotChartView({ squads, events }: { squads: SquadLite[];
   const rightDots = shotsFor(garnet).map((e) => ({ cx: fx(94 - (e.shot_y as number)), cy: fy(50 - (e.shot_x as number)), made: !!e.made }));
 
   return (
-    <div className="w-full">
+    <div className="w-full" style={{ background: "#fff", padding: 16, color: "#000" }}>
+      {/* header — mirrors the Box Score */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, borderBottom: "2px solid #B20000", paddingBottom: 8, marginBottom: 12 }}>
+        <img src="/ves-shield.png" alt="VES" style={{ height: 48, width: "auto" }} />
+        <div>
+          <div style={{ fontFamily: "var(--font-gothic)", fontSize: 9, letterSpacing: "0.2em", color: "#B20000" }}>VIRGINIA EPISCOPAL SCHOOL</div>
+          <div style={{ fontFamily: "var(--font-compressed)", fontSize: 28, fontWeight: 700, lineHeight: 1.05 }}>BOYS BASKETBALL · PRACTICE SHOT CHART</div>
+          <div style={{ fontSize: 11, color: "#3C0019", marginTop: 2 }}>
+            {formatLongDate(date)}{startTime ? <> &nbsp;·&nbsp; Time: <b>{startTime}</b></> : null}
+          </div>
+        </div>
+      </div>
+
       <svg viewBox="0 0 1000 560" className="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
         {/* apron + floor */}
         <rect x="0" y="0" width="1000" height="560" fill={APRON} />
@@ -99,8 +122,8 @@ export default function ShotChartView({ squads, events }: { squads: SquadLite[];
           ))}
         </g>
 
-        {/* center logo — Fighting Bishop */}
-        <image href="/ves-bishop.png" x="440" y="192" width="120" height="176" preserveAspectRatio="xMidYMid meet" />
+        {/* center logo — Fighting Bishop (slightly transparent) */}
+        <image href="/ves-bishop.png" x="440" y="192" width="120" height="176" preserveAspectRatio="xMidYMid meet" opacity="0.82" />
 
         {/* ---- shots ---- */}
         {leftDots.map((d, i) => (

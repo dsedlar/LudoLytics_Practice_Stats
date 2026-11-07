@@ -67,12 +67,21 @@ export interface BlockRow {
   block: StatBlock;
 }
 export interface ReportModel {
-  date: string; finishTime: string | null; grade: number | null;
+  date: string; startTime: string | null; finishTime: string | null; grade: number | null;
   attPresent: number; attTotal: number; attPct: number;
   squads: SquadReport[]; combined: StatBlock;
   liveTeam: BlockRow[]; // Live-play rich stat line per squad + combined
   drills: DrillLine[]; // Baylor / 90s / FT + transition 3s (for Trans summary)
   absent: { jersey: string; name: string }[];
+}
+
+// Format an ISO date ("2026-11-09") as "Wednesday, November 9, 2026".
+// Passes through anything that isn't a plain ISO date (e.g. already formatted).
+export function formatLongDate(d: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+  if (!m) return d;
+  const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return dt.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 }
 
 function drillLine(name: string, color: string, rows: DrillRow[], trans: { m: number; a: number }): DrillLine {
@@ -167,6 +176,7 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
 
   return {
     date: bundle.practice.practice_date,
+    startTime: bundle.practice.start_time,
     finishTime: bundle.practice.finish_time,
     grade: bundle.practice.grade,
     attPresent: present, attTotal: total, attPct: total ? present / total : 0,
