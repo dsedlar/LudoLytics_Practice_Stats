@@ -53,3 +53,38 @@ Explicitly NOT tracked for JV: shooting, rebounds, Casper, drills, shot chart.
    to the JV Dashboard, with "Enter today's practice" on that page.
 2. Confirm JV = the four fields above only (no box score).
 3. Will the **JV coach have their own login**? (If not, analytics team enters it.)
+
+---
+
+## Full-court shot chart on the practice report — not started
+
+Add a full-court shot chart as **page 2** of each practice report (page 1 stays
+the exact one-pager, untouched). Fills the page in landscape; prints as SVG.
+
+### How it works
+- Reuses existing data: every shot already has `shot_x`, `shot_y`, `made`,
+  `squad_id`. No new capture.
+- Shots are stored on a **half court** (one basket). On the full court, plot
+  **Grey's shots at the left hoop and Garnet's at the right** — the two
+  half-courts back-to-back. No "which end?" guessing.
+- Dots colored by team: **grey = Grey, garnet = Garnet**. Make/miss convention
+  matches live entry: **filled = make, open ring = miss**.
+
+### Court design (brand colors, from the VES "Bishops" court mockup)
+- Deep-garnet frame, garnet inner trim, cream floor, ivory "BISHOPS" side panels,
+  center "V", "Virginia Episcopal School" top, "Robert I. Lee, Jr. '45 Court" bottom.
+- Light paint tints (grey end / garnet end) to reinforce which team is which.
+- A sample mockup was rendered during brainstorming (scratchpad only, not in repo).
+
+### Polish items to finish in the real build
+- Plot **real** shot coordinates (sample used fake scattered dots).
+- Swap the typed "V" for the actual logo art.
+- Move the legend fully inside the frame (sample overlapped the bottom edge).
+- Tighten court lines to true NFHS proportions.
+- If dots get cluttered at a busy practice: shrink them, or offer a
+  zone-shaded alternate view (can reuse `zoneFor`).
+
+### Open questions
+1. Start with one combined full court (both teams, each at their end) — yes?
+2. Ever want it split by **segment** (Live vs Transition) or a **per-player**
+   version? (Proposed: just the combined court for v1.)
