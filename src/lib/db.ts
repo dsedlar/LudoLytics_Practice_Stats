@@ -330,6 +330,18 @@ export async function updateSquad(squadId: string, patch: { name?: string; color
   if (error) throw error;
 }
 
+// Move a player to the other squad mid-practice. Already-logged events keep
+// their original squad_id (so team totals split by where each stat was earned);
+// only the player's current team changes from here on.
+export async function setPlayerSquad(practiceId: string, playerId: string, squadId: string) {
+  const { error } = await client()
+    .from("roster_entries")
+    .update({ squad_id: squadId })
+    .eq("practice_id", practiceId)
+    .eq("player_id", playerId);
+  if (error) throw error;
+}
+
 export async function finishPractice(practiceId: string, finishTime: string) {
   const { error } = await client()
     .from("practices")

@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { usePracticeData } from "../lib/usePracticeData";
-import { tallyByPlayer } from "../lib/aggregate";
+import { tallyByPlayer, tallyBySquad } from "../lib/aggregate";
 import { compute, emptyTally, addTally, pct, type RawTally } from "../lib/stats";
 import { GRADE_SCALE } from "../lib/config";
-import { setGrade, finishPractice, setSquadWins, setSquadLosses, updateSquad, updatePractice } from "../lib/db";
+import { setGrade, finishPractice, setSquadWins, setSquadLosses, updateSquad, setPlayerSquad, updatePractice } from "../lib/db";
 
 export default function Coach() {
   const { id = "" } = useParams();
@@ -25,21 +25,15 @@ export default function Coach() {
   }
 
   const playerTallies = useMemo(() => tallyByPlayer(events), [events]);
+  const squadTallies = useMemo(() => tallyBySquad(events), [events]);
 
   if (loading) return <p className="text-gray-500">Loading practice…</p>;
   if (error) return <p className="text-red-600">Error: {error}</p>;
   if (!bundle) return <p className="text-red-600">Practice not found.</p>;
 
-  const squadTally = (squadId: string): RawTally => {
-    let t = emptyTally();
-    bundle.roster
-      .filter((r) => r.squad_id === squadId)
-      .forEach((r) => {
-        const pt = playerTallies.get(r.player_id);
-        if (pt) t = addTally(t, pt);
-      });
-    return t;
-  };
+  // Team totals follow where each stat was earned (the event's squad), so a
+  // player moved mid-practice splits correctly between both teams.
+  const squadTally = (squadId: string): RawTally => squadTallies.get(squadId) ?? emptyTally();
 
   const combined = bundle.squads.reduce((acc, s) => addTally(acc, squadTally(s.id)), emptyTally());
 
@@ -209,19 +203,24 @@ export default function Coach() {
 
       {/* live per-player tables */}
       <div className="mt-5 grid lg:grid-cols-2 gap-4">
-        {bundle.squads.map((s) => (
-          <SquadTable
-            key={s.id}
-            name={s.name}
-            color={s.color}
-            rows={bundle.roster
-              .filter((r) => r.squad_id === s.id && r.present)
-              .map((r) => {
-                const t = playerTallies.get(r.player_id) ?? emptyTally();
-                return { name: r.players?.name ?? "—", jersey: r.jersey, t, c: compute(t) };
-              })}
-          />
-        ))}
+        {bundle.squads.map((s) => {
+          const target = bundle.squads.find((x) => x.id !== s.id) ?? null;
+          return (
+            <SquadTable
+              key={s.id}
+              name={s.name}
+              color={s.color}
+              moveToName={target?.name}
+              onMove={target ? (playerId) => run(() => setPlayerSquad(id, playerId, target.id)) : undefined}
+              rows={bundle.roster
+                .filter((r) => r.squad_id === s.id && r.present)
+                .map((r) => {
+                  const t = playerTallies.get(r.player_id) ?? emptyTally();
+                  return { playerId: r.player_id, name: r.players?.name ?? "—", jersey: r.jersey, t, c: compute(t) };
+                })}
+            />
+          );
+        })}
       </div>
 
       <div className="mt-6">
@@ -274,10 +273,14 @@ function SquadTable({
   name,
   color,
   rows,
+  moveToName,
+  onMove,
 }: {
   name: string;
   color: string;
-  rows: { name: string; jersey: string | null; t: RawTally; c: ReturnType<typeof compute> }[];
+  rows: { playerId: string; name: string; jersey: string | null; t: RawTally; c: ReturnType<typeof compute> }[];
+  moveToName?: string;
+  onMove?: (playerId: string) => void;
 }) {
   return (
     <div className="bg-white border rounded-lg overflow-hidden">
@@ -287,6 +290,7 @@ function SquadTable({
           <tr className="text-left text-gray-500 border-b">
             <th className="p-2">#</th><th className="p-2">Player</th><th className="p-2">3FG%</th>
             <th className="p-2">eFG%</th><th className="p-2">TO</th><th className="p-2">Reb</th><th className="p-2">CP</th>
+            {onMove && <th className="p-2"></th>}
           </tr>
         </thead>
         <tbody>
@@ -299,9 +303,20 @@ function SquadTable({
               <td className="p-2">{r.t.to}</td>
               <td className="p-2">{r.t.or + r.t.dr}</td>
               <td className="p-2 font-semibold">{r.c.casper}</td>
+              {onMove && (
+                <td className="p-2 text-right">
+                  <button
+                    onClick={() => onMove(r.playerId)}
+                    className="text-xs border rounded px-2 py-0.5 whitespace-nowrap hover:bg-gray-50"
+                    title={`Move ${r.name} to ${moveToName}`}
+                  >
+                    → {moveToName}
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
-          {rows.length === 0 && <tr><td colSpan={7} className="p-3 text-gray-400">No players.</td></tr>}
+          {rows.length === 0 && <tr><td colSpan={onMove ? 8 : 7} className="p-3 text-gray-400">No players.</td></tr>}
         </tbody>
       </table>
     </div>

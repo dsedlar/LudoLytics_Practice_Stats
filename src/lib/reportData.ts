@@ -2,7 +2,7 @@
 // Build every number the one-page practice report needs, from raw data.
 // ---------------------------------------------------------------------------
 import { compute, emptyTally, addTally, type RawTally } from "./stats";
-import { tallyByPlayer, type EventRow } from "./aggregate";
+import { tallyByPlayer, tallyBySquad, type EventRow } from "./aggregate";
 import { SHOOTING_DRILLS } from "./config";
 import type { PracticeBundle, DrillRow } from "./db";
 import type { SeasonResult } from "./seasonData";
@@ -75,16 +75,6 @@ export interface ReportModel {
   absent: { jersey: string; name: string }[];
 }
 
-function squadTally(bundle: PracticeBundle, squadId: string, perPlayer: Map<string, RawTally>): RawTally {
-  let t = emptyTally();
-  bundle.roster.filter((r) => r.squad_id === squadId).forEach((r) => {
-    const pt = perPlayer.get(r.player_id);
-    if (pt) t = addTally(t, pt);
-  });
-  return t;
-}
-
-
 function drillLine(name: string, color: string, rows: DrillRow[], trans: { m: number; a: number }): DrillLine {
   const pick = (d: string) => rows.filter((r) => r.drill === d);
   const avg = (d: string) => {
@@ -109,18 +99,24 @@ function transOf(events: EventRow[]): { m: number; a: number } {
 
 export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: DrillRow[]): ReportModel {
   const perPlayer = tallyByPlayer(events);
-  const perPlayerSeg = (seg: string) => tallyByPlayer(events.filter((e) => e.segment === seg));
+  // Team totals follow where each stat was earned (the event's squad_id), so a
+  // player who switches teams mid-practice splits correctly between both teams.
+  // Individual player lines keep all of that player's own stats.
+  const squadTallies = tallyBySquad(events);
+  const liveSquadTallies = tallyBySquad(events.filter((e) => e.segment === "live"));
+  const sqT = (sid: string) => squadTallies.get(sid) ?? emptyTally();
+  const liveT = (sid: string) => liveSquadTallies.get(sid) ?? emptyTally();
 
   const squadIds = bundle.squads.map((s) => s.id);
   const squadDR: Record<string, number> = {};
-  squadIds.forEach((sid) => (squadDR[sid] = squadTally(bundle, sid, perPlayer).dr));
+  squadIds.forEach((sid) => (squadDR[sid] = sqT(sid).dr));
 
   const squads: SquadReport[] = bundle.squads.map((s, i) => {
     const oppDR = squadDR[squadIds[1 - i]] ?? 0;
     const wins = s.wins ?? 0;
     const losses = s.losses ?? 0;
     const wl = `${wins}-${losses}`;
-    const t = squadTally(bundle, s.id, perPlayer);
+    const t = sqT(s.id);
     const players: PlayerLine[] = bundle.roster
       .filter((r) => r.squad_id === s.id)
       .sort((a, b) => Number(a.jersey ?? 999) - Number(b.jersey ?? 999))
@@ -145,26 +141,17 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
     return { id: s.id, name: s.name, color: s.color, team: statBlock(t, oppDR), wins, wl, players, totals: statBlock(t, oppDR) };
   });
 
-  const combinedTally = squadIds.reduce((acc, sid) => addTally(acc, squadTally(bundle, sid, perPlayer)), emptyTally());
+  const combinedTally = squadIds.reduce((acc, sid) => addTally(acc, sqT(sid)), emptyTally());
 
   // Live-play rich stat line per squad + combined (from live-segment events only)
-  const liveByPlayer = perPlayerSeg("live");
-  const segTotal = (byPlayer: Map<string, RawTally>, squadId: string) => {
-    let t = emptyTally();
-    bundle.roster.filter((r) => r.squad_id === squadId).forEach((r) => {
-      const pt = byPlayer.get(r.player_id);
-      if (pt) t = addTally(t, pt);
-    });
-    return t;
-  };
   const liveTeam: BlockRow[] = bundle.squads.map((s, i) => {
-    const oppLiveDR = segTotal(liveByPlayer, squadIds[1 - i] ?? "").dr;
-    return { name: s.name, color: s.color, block: statBlock(segTotal(liveByPlayer, s.id), oppLiveDR) };
+    const oppLiveDR = liveT(squadIds[1 - i] ?? "").dr;
+    return { name: s.name, color: s.color, block: statBlock(liveT(s.id), oppLiveDR) };
   });
   liveTeam.push({
     name: "Combined",
     color: "#00142D",
-    block: statBlock(squadIds.reduce((a, sid) => addTally(a, segTotal(liveByPlayer, sid)), emptyTally())),
+    block: statBlock(squadIds.reduce((a, sid) => addTally(a, liveT(sid)), emptyTally())),
   });
 
   const drillLines: DrillLine[] = bundle.squads.map((s) =>
