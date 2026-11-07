@@ -361,7 +361,7 @@ function IndividualTable({ m }: { m: ReportModel }) {
         {m.absent.length > 0 && (
           <tr>
             <td colSpan={IND_HEAD.length + 2} style={{ ...td, textAlign: "left", color: "#999", fontSize: 8, paddingTop: 4 }}>
-              {m.absent.map((a) => `#${a.jersey} ${a.name}`).join(", ")} — Absent (not counted in team totals)
+              {m.absent.map((a) => `#${a.jersey} ${a.name}`).join(", ")} — Not practicing (not counted in team totals)
             </td>
           </tr>
         )}

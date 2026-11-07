@@ -159,7 +159,10 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
   );
   drillLines.push(drillLine("Combined", "#00142D", drills, transOf(events)));
 
-  const present = bundle.roster.filter((r) => r.present).length;
+  // "Practicing" = assigned to a squad AND present. Players left in the
+  // "not practicing" bucket (no squad) are not counted toward attendance.
+  const isPracticing = (r: (typeof bundle.roster)[number]) => r.present && r.squad_id != null;
+  const present = bundle.roster.filter(isPracticing).length;
   const total = bundle.roster.length;
 
   return {
@@ -169,7 +172,7 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
     attPresent: present, attTotal: total, attPct: total ? present / total : 0,
     squads, combined: statBlock(combinedTally),
     liveTeam, drills: drillLines,
-    absent: bundle.roster.filter((r) => !r.present).map((r) => ({ jersey: r.jersey ?? "", name: r.players?.name ?? "—" })),
+    absent: bundle.roster.filter((r) => !isPracticing(r)).map((r) => ({ jersey: r.jersey ?? "", name: r.players?.name ?? "—" })),
   };
 }
 

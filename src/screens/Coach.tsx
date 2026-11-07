@@ -81,7 +81,7 @@ export default function Coach() {
     setTimeout(() => setCopied(""), 1500);
   }
 
-  const present = bundle.roster.filter((r) => r.present).length;
+  const present = bundle.roster.filter((r) => r.present && r.squad_id != null).length;
 
   return (
     <div>
