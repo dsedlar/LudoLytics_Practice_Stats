@@ -44,6 +44,14 @@ export function statBlock(t: RawTally, opponentDR = 0): StatBlock {
   };
 }
 
+// Fold transition 3s into a team block's 3FG line only (makes/attempts/%);
+// possessions, efficiency and points stay scrimmage-only.
+function addTransition3s(b: StatBlock, trans: { m: number; a: number }): StatBlock {
+  const m = b.fg3.m + trans.m;
+  const a = b.fg3.a + trans.a;
+  return { ...b, fg3: { ...b.fg3, m, a, pct: a ? m / a : 0 } };
+}
+
 export interface DrillLine {
   name: string; color: string;
   baylor: { avg: number; pct: number };
@@ -150,7 +158,9 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
           },
         };
       });
-    return { id: s.id, name: s.name, color: s.color, team: statBlock(t, oppDR), wins, wl, players, totals: statBlock(t, oppDR) };
+    // TEAM STATS 3FG line includes transition 3s (but not as possessions).
+    const teamBlock = addTransition3s(statBlock(t, oppDR), transOf(events.filter((e) => e.squad_id === s.id)));
+    return { id: s.id, name: s.name, color: s.color, team: teamBlock, wins, wl, players, totals: statBlock(t, oppDR) };
   });
 
   const combinedTally = squadIds.reduce((acc, sid) => addTally(acc, sqT(sid)), emptyTally());
@@ -183,7 +193,7 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
     finishTime: bundle.practice.finish_time,
     grade: bundle.practice.grade,
     attPresent: present, attTotal: total, attPct: total ? present / total : 0,
-    squads, combined: statBlock(combinedTally),
+    squads, combined: addTransition3s(statBlock(combinedTally), transOf(events)),
     liveTeam, drills: drillLines,
     absent: bundle.roster.filter((r) => !isPracticing(r)).map((r) => ({ jersey: r.jersey ?? "", name: r.players?.name ?? "—" })),
   };
