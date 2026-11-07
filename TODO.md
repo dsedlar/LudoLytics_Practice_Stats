@@ -56,7 +56,15 @@ Explicitly NOT tracked for JV: shooting, rebounds, Casper, drills, shot chart.
 
 ---
 
-## Full-court shot chart on the practice report — not started
+## Full-court shot chart on the practice report — DONE (2026-11)
+
+Implemented: Report page has Box Score / Shot Chart toggle (top-left) + Save
+as PDF (top-right). Shot Chart is a full-court ESPN-style SVG (tan hardwood,
+Fighting Bishop center logo), Grey shots at the left hoop / Garnet at the right,
+made = filled, missed = hollow ring. See src/components/ShotChartView.tsx.
+Remaining nice-to-haves below if ever wanted.
+
+### Original notes (kept for reference)
 
 Add a full-court shot chart as **page 2** of each practice report (page 1 stays
 the exact one-pager, untouched). Fills the page in landscape; prints as SVG.
