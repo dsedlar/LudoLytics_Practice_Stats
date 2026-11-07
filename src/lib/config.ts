@@ -123,11 +123,17 @@ export const COUNTING_LABELS: Record<CountingType, string> = {
 
 export type StatType = ShotType | CountingType;
 
-// Default squad names/colors (overridden per-practice; teams change often).
-export const DEFAULT_SQUADS = [
-  { name: "Garnet", color: "#B20000" },
-  { name: "Navy", color: "#00142D" },
-];
+// There are only ever TWO teams: Grey and Garnet. Never any other team or
+// color. Colors are locked to these two; the only change allowed is swapping
+// which team is Grey vs Garnet.
+export const GREY_SQUAD = { name: "Grey", color: "#6B7280" };
+export const GARNET_SQUAD = { name: "Garnet", color: "#B20000" };
+export const DEFAULT_SQUADS = [GREY_SQUAD, GARNET_SQUAD];
+
+// Force any squad label onto one of the only two allowed teams.
+export function canonicalSquad(name: string): { name: string; color: string } {
+  return /gr[ae]y|silver/i.test(name) ? { ...GREY_SQUAD } : { ...GARNET_SQUAD };
+}
 
 // Map common team-color names to a hex so a squad's color matches its name
 // (e.g. "Grey" is grey, "Garnet" is garnet). Returns null if unrecognized.
@@ -146,8 +152,7 @@ export function colorForSquadName(name: string): string | null {
   return map[n] ?? null;
 }
 
-// We use "Garnet", never "Maroon" — normalize the name on import.
+// Only ever Grey or Garnet — map any imported label (e.g. "Maroon") onto one.
 export function normalizeSquadName(name: string): string {
-  const t = name.trim();
-  return /^maroon$/i.test(t) ? "Garnet" : t;
+  return canonicalSquad(name).name;
 }

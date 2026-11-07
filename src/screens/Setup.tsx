@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { parsePlanFile } from "../lib/parsePracticePlan";
-import { DEFAULT_SQUADS, colorForSquadName, normalizeSquadName } from "../lib/config";
+import { DEFAULT_SQUADS, canonicalSquad } from "../lib/config";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { createPracticeFromDraft, toISODate } from "../lib/db";
-import type { DraftPlayer, PracticeDraft } from "../lib/types";
+import type { DraftPlayer, PracticeDraft, SquadMeta } from "../lib/types";
 
 function blankDraft(): PracticeDraft {
   return {
@@ -44,15 +44,16 @@ export default function Setup() {
           players.push({ jersey: p.jersey, name: p.name, squad: -1, present: true });
         }
       });
-      const nameA = normalizeSquadName(plan.squads[0]?.name || DEFAULT_SQUADS[0].name);
-      const nameB = normalizeSquadName(plan.squads[1]?.name || DEFAULT_SQUADS[1].name);
+      // Only ever Grey and Garnet. Map the plan's two team labels onto them;
+      // if both somehow resolve to the same team, fall back to Grey + Garnet.
+      const a = canonicalSquad(plan.squads[0]?.name || "Grey");
+      const b = canonicalSquad(plan.squads[1]?.name || "Garnet");
+      const squads: [SquadMeta, SquadMeta] =
+        a.name === b.name ? [{ ...DEFAULT_SQUADS[0] }, { ...DEFAULT_SQUADS[1] }] : [a, b];
       setDraft({
         dateISO: toISODate(plan.date),
         startTime: plan.time,
-        squads: [
-          { name: nameA, color: colorForSquadName(nameA) ?? DEFAULT_SQUADS[0].color },
-          { name: nameB, color: colorForSquadName(nameB) ?? DEFAULT_SQUADS[1].color },
-        ],
+        squads,
         players,
       });
       setWarnings(plan.warnings);
@@ -121,14 +122,23 @@ export default function Setup() {
     <div>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-3xl headline-bold text-garnet">Confirm practice</h1>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Date</label>
-          <input
-            type="date"
-            value={draft.dateISO}
-            onChange={(e) => update((d) => (d.dateISO = e.target.value))}
-            className="border rounded px-2 py-1"
-          />
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => update((d) => { const t = d.squads[0]; d.squads[0] = d.squads[1]; d.squads[1] = t; })}
+            className="text-sm border rounded px-3 py-1.5 font-medium"
+            title="Swap which column is Grey vs Garnet"
+          >
+            Swap Grey ↔ Garnet
+          </button>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Date</label>
+            <input
+              type="date"
+              value={draft.dateISO}
+              onChange={(e) => update((d) => (d.dateISO = e.target.value))}
+              className="border rounded px-2 py-1"
+            />
+          </div>
         </div>
       </div>
 
@@ -145,23 +155,13 @@ export default function Setup() {
           <div key={bucket} className="bg-white border rounded-lg p-3">
             {bucket < 2 ? (
               <div className="flex items-center gap-2 mb-2">
-                <input
-                  type="color"
-                  value={draft.squads[bucket].color}
-                  onChange={(e) => update((d) => (d.squads[bucket].color = e.target.value))}
-                  className="w-7 h-7 rounded border"
+                <span
+                  className="w-7 h-7 rounded border flex-shrink-0"
+                  style={{ background: draft.squads[bucket].color }}
                 />
-                <input
-                  value={draft.squads[bucket].name}
-                  onChange={(e) =>
-                    update((d) => {
-                      d.squads[bucket].name = e.target.value;
-                      const c = colorForSquadName(e.target.value);
-                      if (c) d.squads[bucket].color = c;
-                    })
-                  }
-                  className="font-bold text-lg border-b flex-1 outline-none"
-                />
+                <span className="font-bold text-lg uppercase" style={{ color: draft.squads[bucket].color }}>
+                  {draft.squads[bucket].name}
+                </span>
               </div>
             ) : (
               <h3 className="font-bold text-gray-500 mb-2">Not practicing</h3>

@@ -4,7 +4,7 @@ import { usePracticeData } from "../lib/usePracticeData";
 import { tallyByPlayer } from "../lib/aggregate";
 import { compute, emptyTally, addTally, pct, type RawTally } from "../lib/stats";
 import { GRADE_SCALE } from "../lib/config";
-import { setGrade, finishPractice, setSquadWins, setSquadLosses, setSquadColor, updatePractice } from "../lib/db";
+import { setGrade, finishPractice, setSquadWins, setSquadLosses, updateSquad, updatePractice } from "../lib/db";
 
 export default function Coach() {
   const { id = "" } = useParams();
@@ -67,6 +67,15 @@ export default function Coach() {
     if (opp && applied !== 0) await setSquadWins(opp.id, Math.max(0, (opp.wins ?? 0) + applied));
   }
 
+  // Only two teams (Grey/Garnet) — swap relabels each squad to the other
+  // (name + color). Players/stats stay with their squad, just the label flips.
+  async function swapTeams() {
+    const [a, b] = bundle!.squads;
+    if (!a || !b) return;
+    await updateSquad(a.id, { name: b.name, color: b.color });
+    await updateSquad(b.id, { name: a.name, color: a.color });
+  }
+
   async function copyLink(squadId: string) {
     const url = `${window.location.origin}/practice/${id}/squad/${squadId}`;
     try {
@@ -99,19 +108,22 @@ export default function Coach() {
       {/* device links + coach take-stats */}
       <div className="mt-5 bg-white border rounded-lg p-3">
         <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
-          <h2 className="font-semibold text-sm text-gray-600">Analyst device links (open one per squad) · tap the swatch to recolor</h2>
-          <Link to={`/practice/${id}/entry`} className="bg-navy text-white px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap">
-            Take stats (both squads) →
-          </Link>
+          <h2 className="font-semibold text-sm text-gray-600">Analyst device links (open one per squad)</h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={() => run(swapTeams)} className="border rounded px-3 py-2 font-semibold text-sm whitespace-nowrap">
+              Swap Grey ↔ Garnet
+            </button>
+            <Link to={`/practice/${id}/entry`} className="bg-navy text-white px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap">
+              Take stats (both squads) →
+            </Link>
+          </div>
         </div>
         <div className="grid sm:grid-cols-2 gap-2">
           {bundle.squads.map((s) => (
             <div key={s.id} className="flex items-center gap-2">
-              <input
-                type="color"
-                value={s.color}
-                onChange={(e) => run(() => setSquadColor(s.id, e.target.value))}
-                className="w-6 h-6 rounded border cursor-pointer"
+              <span
+                className="w-6 h-6 rounded border flex-shrink-0"
+                style={{ background: s.color }}
                 title={`${s.name} color`}
               />
               <span className="font-semibold text-sm w-20 truncate uppercase" style={{ color: s.color }}>{s.name}</span>
