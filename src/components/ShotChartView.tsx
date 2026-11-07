@@ -53,15 +53,18 @@ export default function ShotChartView({
   return (
     <div className="w-full" style={{ background: "#fff", padding: 16, color: "#000" }}>
       {/* header — mirrors the Box Score */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, borderBottom: "2px solid #B20000", paddingBottom: 8, marginBottom: 12 }}>
-        <img src="/ves-shield.png" alt="VES" style={{ height: 48, width: "auto" }} />
-        <div>
-          <div style={{ fontFamily: "var(--font-gothic)", fontSize: 9, letterSpacing: "0.2em", color: "#B20000" }}>VIRGINIA EPISCOPAL SCHOOL</div>
-          <div style={{ fontFamily: "var(--font-compressed)", fontSize: 28, fontWeight: 700, lineHeight: 1.05 }}>BOYS BASKETBALL · PRACTICE SHOT CHART</div>
-          <div style={{ fontSize: 11, color: "#3C0019", marginTop: 2 }}>
-            {formatLongDate(date)}{startTime ? <> &nbsp;·&nbsp; Time: <b>{startTime}</b></> : null}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderBottom: "2px solid #B20000", paddingBottom: 8, marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <img src="/ves-shield.png" alt="VES" style={{ height: 48, width: "auto" }} />
+          <div>
+            <div style={{ fontFamily: "var(--font-gothic)", fontSize: 9, letterSpacing: "0.2em", color: "#B20000" }}>VIRGINIA EPISCOPAL SCHOOL</div>
+            <div style={{ fontFamily: "var(--font-compressed)", fontSize: 28, fontWeight: 700, lineHeight: 1.05 }}>BOYS BASKETBALL · PRACTICE SHOT CHART</div>
+            <div style={{ fontSize: 11, color: "#3C0019", marginTop: 2 }}>
+              {formatLongDate(date)}{startTime ? <> &nbsp;·&nbsp; Time: <b>{startTime}</b></> : null}
+            </div>
           </div>
         </div>
+        <img src="/ludolytics-logo.svg" alt="Ludolytics" style={{ height: 26, width: "auto" }} />
       </div>
 
       <svg viewBox="0 0 1000 560" className="w-full h-auto" xmlns="http://www.w3.org/2000/svg">

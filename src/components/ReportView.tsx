@@ -138,9 +138,7 @@ export default function ReportView({ m }: { m: ReportModel }) {
             </span>
           ))}
         </div>
-        <div style={{ fontFamily: F_COMPRESSED, fontSize: 16, fontWeight: 700, letterSpacing: "0.06em" }}>
-          LUDO<span style={{ color: "#B20000" }}>LYTICS</span>
-        </div>
+        <img src="/ludolytics-logo.svg" alt="Ludolytics" style={{ height: 26, width: "auto" }} />
       </div>
       <div style={{ fontSize: 7, color: "#999", marginTop: 4, lineHeight: 1.3 }}>
         POSS (est) = FGA + TO + 0.44·FTA. PPP = pts/poss. PPS = pts/FGA (FT incl). eFG% = (FGM+0.5·3PM)/FGA. TS% = PTS/2/(FGA+0.44·FTA).
