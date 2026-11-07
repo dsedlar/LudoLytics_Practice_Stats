@@ -154,9 +154,11 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     const pick = (k: string) => dr.filter((d) => d.drill === k);
     const trM = history.reduce((s, h) => s + h.trans.m, 0);
     const trA = history.reduce((s, h) => s + h.trans.a, 0);
-    // overall practice record: did the player's squad win the day? (no ties)
+    // overall practice record: count only decided days (squad won or lost);
+    // a 0-0 / undecided practice counts as neither a win nor a loss.
     const wonDays = history.filter((h) => h.wl.w > h.wl.l).length;
-    const record = { w: wonDays, l: history.length - wonDays };
+    const lostDays = history.filter((h) => h.wl.l > h.wl.w).length;
+    const record = { w: wonDays, l: lostDays };
 
     out.push({
       playerId, name: meta.name, jersey: meta.jersey, gp, pod: podCount.get(playerId) ?? 0, record, total,
@@ -237,27 +239,32 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     .map((p) => ({ date: p.practice_date, grade: p.grade as number }))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
 
-  // per-team (by squad name) season record + current W/L streak
-  const byName = new Map<string, { color: string; days: { date: string; win: boolean }[] }>();
+  // per-team (by squad name) season record + current W/L streak.
+  // A practice counts only when it has a decided winner: wins>losses = W,
+  // losses>wins = L, equal (e.g. 0-0, undecided/live) = neither.
+  const byName = new Map<string, { color: string; days: { date: string; result: "W" | "L" | null }[] }>();
   input.squads.forEach((s) => {
     const date = dateById.get(s.practice_id) ?? "";
-    const win = (s.wins ?? 0) > (s.losses ?? 0);
+    const w = s.wins ?? 0;
+    const l = s.losses ?? 0;
+    const result: "W" | "L" | null = w > l ? "W" : l > w ? "L" : null;
     if (!byName.has(s.name)) byName.set(s.name, { color: s.color, days: [] });
-    byName.get(s.name)!.days.push({ date, win });
+    byName.get(s.name)!.days.push({ date, result });
   });
   const teams: TeamRecord[] = [...byName.entries()]
     .map(([name, { color, days }]) => {
-      days.sort((a, b) => (a.date < b.date ? -1 : 1));
-      const w = days.filter((d) => d.win).length;
+      const decided = days.filter((d) => d.result).sort((a, b) => (a.date < b.date ? -1 : 1));
+      const w = decided.filter((d) => d.result === "W").length;
+      const l = decided.filter((d) => d.result === "L").length;
       let streakType: "W" | "L" | null = null;
       let streakCount = 0;
-      for (let i = days.length - 1; i >= 0; i--) {
-        const t = days[i].win ? "W" : "L";
+      for (let i = decided.length - 1; i >= 0; i--) {
+        const t = decided[i].result as "W" | "L";
         if (streakType === null) { streakType = t; streakCount = 1; }
         else if (t === streakType) streakCount++;
         else break;
       }
-      return { name, color, w, l: days.length - w, streakType, streakCount };
+      return { name, color, w, l, streakType, streakCount };
     })
     .sort((a, b) => b.w + b.l - (a.w + a.l) || b.w - a.w);
 
