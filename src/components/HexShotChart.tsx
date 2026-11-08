@@ -71,7 +71,7 @@ export default function HexShotChart({ shots }: { shots: Shot[] }) {
 
   return (
     <div className="w-full relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full rounded-lg" style={{ background: FLOOR, maxHeight: 360 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full rounded-lg" style={{ background: FLOOR }}>
         <defs><clipPath id="hexcourt"><rect x={0} y={0} width={W} height={H} /></clipPath></defs>
         <CourtBackdrop color="#6B7280" />
         <g clipPath="url(#hexcourt)">
