@@ -5,7 +5,7 @@ import type { PlayerZones } from "../lib/seasonData";
 import { COURT, ZONE_BENCHMARK, type PlayerZone } from "../lib/court";
 import CourtBackdrop from "./CourtBackdrop";
 
-const FLOOR = "#F3EED4";
+const FLOOR = "#ffffff";
 const FILL_OP = 0.6;
 const B = COURT.basket;        // (25, 5.25) feet
 const rimR = COURT.atrR;       // 4

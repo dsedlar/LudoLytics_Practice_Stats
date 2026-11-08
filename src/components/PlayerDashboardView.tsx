@@ -119,9 +119,9 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
         <Link to={backHref} className="text-sm text-garnet font-medium">← Season dashboard</Link>
       </div>
 
-      {/* trend chart + shot zones side by side */}
-      <div className="mt-4 grid lg:grid-cols-2 gap-4 items-stretch">
-        <div className="bg-white border rounded-lg p-4">
+      {/* trend chart (wider) + shot chart (narrower) side by side */}
+      <div className="mt-4 grid lg:grid-cols-5 gap-4 items-stretch">
+        <div className="lg:col-span-3 bg-white border rounded-lg p-4">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
             <h2 className="text-lg font-bold">Trend by practice</h2>
             <select value={metric} onChange={(e) => setMetric(e.target.value)} className="border rounded px-2 py-1 text-sm">
@@ -130,7 +130,9 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
           </div>
           <LineChart values={h.map(m.get)} fmt={m.fmt} />
         </div>
-        <PlayerShotPanel zones={p.zones} shots={p.shots} />
+        <div className="lg:col-span-2">
+          <PlayerShotPanel zones={p.zones} shots={p.shots} />
+        </div>
       </div>
 
       {/* KPIs row */}

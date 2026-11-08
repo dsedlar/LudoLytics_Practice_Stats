@@ -7,7 +7,7 @@ import { COURT, playerZoneFor, ZONE_BENCHMARK } from "../lib/court";
 import CourtBackdrop from "./CourtBackdrop";
 
 const W = COURT.width, H = COURT.height; // feet
-const FLOOR = "#F3EED4";
+const FLOOR = "#ffffff";
 
 // garnet (poor) -> green (great)
 const GG: [number, number, number][] = [
