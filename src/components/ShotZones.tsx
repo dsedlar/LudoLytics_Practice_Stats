@@ -41,15 +41,25 @@ const ZONES: ZoneDef[] = [
   { key: "cornerRight", path: wedge(rArc, OUTER, 68, 110), la: 83, lr: rArc + 20 },
 ];
 
+// Zone-relative grading: each zone is judged against a realistic benchmark FG%
+// for that spot (rim shots expected high, threes lower), then colored by how far
+// above/below the player shoots there.
+const ZONE_AVG: Record<PlayerZone, number> = {
+  rim: 0.58, paint: 0.42,
+  midLeft: 0.38, midRight: 0.38,
+  cornerLeft: 0.36, cornerRight: 0.36,
+  wingLeft: 0.33, top: 0.33, wingRight: 0.33,
+};
+
 // red (poor) -> green (excellent); null bg = no shots (show bare grey court)
 const RAMP = ["#D64545", "#E8894A", "#EFC84C", "#86C06A", "#3E9F54"];
-function color(m: number, a: number): string | null {
+function color(key: PlayerZone, m: number, a: number): string | null {
   if (a === 0) return null;
-  const p = m / a;
-  if (p < 0.3) return RAMP[0];
-  if (p < 0.4) return RAMP[1];
-  if (p < 0.48) return RAMP[2];
-  if (p < 0.58) return RAMP[3];
+  const delta = m / a - ZONE_AVG[key]; // vs. what's good for this zone
+  if (delta < -0.12) return RAMP[0];
+  if (delta < -0.04) return RAMP[1];
+  if (delta < 0.04) return RAMP[2];
+  if (delta < 0.12) return RAMP[3];
   return RAMP[4];
 }
 
@@ -97,7 +107,7 @@ function CourtLines() {
 export default function ShotZones({ zones }: { zones: PlayerZones }) {
   const total = Object.values(zones).reduce((s, z) => ({ m: s.m + z.m, a: s.a + z.a }), { m: 0, a: 0 });
   const rim = zones.rim;
-  const rimC = color(rim.m, rim.a);
+  const rimC = color("rim", rim.m, rim.a);
   return (
     <div className="bg-white border rounded-lg p-4 h-full flex flex-col">
       <div className="flex items-center justify-between mb-1">
@@ -113,7 +123,7 @@ export default function ShotZones({ zones }: { zones: PlayerZones }) {
         <rect x={COURT.x} y={COURT.y} width={COURT.w} height={COURT.h} rx="2" fill={FLOOR} />
         <g clipPath="url(#court)">
           {ZONES.map((z) => {
-            const c = color(zones[z.key].m, zones[z.key].a);
+            const c = color(z.key, zones[z.key].m, zones[z.key].a);
             return c ? <path key={z.key} d={z.path} fill={c} fillOpacity={FILL_OP} /> : null;
           })}
           {rimC && <circle cx={hx} cy={hy} r={rimR} fill={rimC} fillOpacity={FILL_OP} />}
