@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { COURT, zoneFor, ZONE_LABEL, markColorFor, type ShotZone } from "../lib/court";
+import { COURT, zoneFor, ZONE_LABEL, type ShotZone } from "../lib/court";
 import CourtBackdrop from "./CourtBackdrop";
 
 export interface CourtShot {
@@ -19,7 +19,7 @@ export default function Court({ color, shots, disabled, onLog }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [pending, setPending] = useState<{ x: number; y: number; zone: ShotZone } | null>(null);
   const [hint, setHint] = useState("");
-  const mark = markColorFor(color);
+  const mark = color; // dots use the team's own color (grey for Grey, garnet for Garnet)
 
   function handleClick(e: React.MouseEvent) {
     if (disabled) {

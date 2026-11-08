@@ -18,12 +18,12 @@ export default function CourtDemo() {
       <h1 className="text-3xl headline-bold text-garnet">Court preview</h1>
       <div className="mt-4 grid md:grid-cols-2 gap-6 max-w-4xl">
         <div>
-          <div className="eyebrow text-xs text-garnet mb-1">Garnet squad</div>
-          <Court color="#B20000" shots={shots} onLog={() => {}} />
+          <div className="eyebrow text-xs mb-1" style={{ color: "#6B7280" }}>Grey squad</div>
+          <Court color="#6B7280" shots={shots} onLog={() => {}} />
         </div>
         <div>
-          <div className="eyebrow text-xs mb-1" style={{ color: "#00142D" }}>Navy squad</div>
-          <Court color="#00142D" shots={shots} onLog={() => {}} />
+          <div className="eyebrow text-xs text-garnet mb-1">Garnet squad</div>
+          <Court color="#B20000" shots={shots} onLog={() => {}} />
         </div>
       </div>
     </div>
