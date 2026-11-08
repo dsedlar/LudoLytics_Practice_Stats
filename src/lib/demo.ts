@@ -93,11 +93,19 @@ export function makeSeasonDemo(): SeasonInput {
       roster.push({ practice_id: pr.id, player_id: pl.id, squad_id: squadId, present, name: pl.name, jersey: pl.jersey });
       if (!present) return;
       const growth = pIdx * 0.015; // slight improvement over the season
-      const push = (type: string, made: boolean | null, segment = "live") =>
-        events.push({ id: id++, practice_id: pr.id, squad_id: squadId, player_id: pl.id, segment, type, made });
-      for (let k = 0; k < 2 + ri(3); k++) push("atr", rnd() < 0.58 + growth);
-      for (let k = 0; k < 2 + ri(4); k++) push("nonatr2", rnd() < 0.4 + growth);
-      for (let k = 0; k < 2 + ri(5); k++) push("fg3", rnd() < 0.32 + growth);
+      const push = (type: string, made: boolean | null, segment = "live", shot_x: number | null = null, shot_y: number | null = null) =>
+        events.push({ id: id++, practice_id: pr.id, squad_id: squadId, player_id: pl.id, segment, type, made, shot_x, shot_y });
+      const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+      const atrXY = (): [number, number] => [25 + (rnd() - 0.5) * 8, 3 + rnd() * 5];
+      const midXY = (): [number, number] => [clamp(25 + (rnd() - 0.5) * 26, 2, 48), 8 + rnd() * 10];
+      const threeXY = (): [number, number] => {
+        const ang = (rnd() - 0.5) * 2 * (80 * Math.PI / 180);
+        const R = 20 + rnd() * 3;
+        return [clamp(25 + R * Math.sin(ang), 1, 49), clamp(5.25 + R * Math.cos(ang), 1, 44)];
+      };
+      for (let k = 0; k < 2 + ri(3); k++) { const [x, y] = atrXY(); push("atr", rnd() < 0.58 + growth, "live", x, y); }
+      for (let k = 0; k < 2 + ri(4); k++) { const [x, y] = midXY(); push("nonatr2", rnd() < 0.4 + growth, "live", x, y); }
+      for (let k = 0; k < 2 + ri(5); k++) { const [x, y] = threeXY(); push("fg3", rnd() < 0.32 + growth, "live", x, y); }
       for (let k = 0; k < ri(4); k++) push("ft", rnd() < 0.72);
       for (const t of ["ast", "to", "or", "dr", "stl", "def", "chg", "dive"]) for (let k = 0; k < ri(3); k++) push(t, null);
       // transition 3s (events, not a drill)

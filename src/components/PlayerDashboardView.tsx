@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { PlayerSeason, HistoryPoint } from "../lib/seasonData";
 import { pct } from "../lib/stats";
 import { SHOOTING_DRILLS } from "../lib/config";
+import ShotZones from "./ShotZones";
 
 const denom = (k: string) => SHOOTING_DRILLS.find((d) => d.key === k)?.denominator ?? 1;
 const BAY_D = denom("baylor"), NINETY_D = denom("ninetys"), FT_D = denom("ft");
@@ -93,9 +94,9 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
         <Link to={backHref} className="text-sm text-garnet font-medium">← Season dashboard</Link>
       </div>
 
-      {/* line chart + KPIs side by side */}
-      <div className="mt-4 grid lg:grid-cols-3 gap-4 items-stretch">
-        <div className="lg:col-span-2 bg-white border rounded-lg p-4">
+      {/* trend chart + shot zones side by side */}
+      <div className="mt-4 grid lg:grid-cols-2 gap-4 items-stretch">
+        <div className="bg-white border rounded-lg p-4">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
             <h2 className="text-lg font-bold">Trend by practice</h2>
             <select value={metric} onChange={(e) => setMetric(e.target.value)} className="border rounded px-2 py-1 text-sm">
@@ -104,14 +105,17 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
           </div>
           <LineChart values={h.map(m.get)} fmt={m.fmt} />
         </div>
-        <div className="grid grid-cols-2 gap-2 content-center">
-          <KTile label="eFG %" value={pct(p.total.efg)} t={trendOf(last?.efg ?? null, prev?.efg ?? null)} />
-          <KTile label="TS %" value={pct(p.total.ts)} t={trendOf(last?.ts ?? null, prev?.ts ?? null)} />
-          <KTile label="3FG %" value={pct(seasonFg3)} t={trendOf(fg3Pct(last), fg3Pct(prev))} />
-          <KTile label="Reb / Game" value={f1(rpg)} t={trendOf(rebOf(last), rebOf(prev))} />
-          <KTile label="TO / Game" value={f1(topg)} t={trendOf(toOf(last), toOf(prev), false)} />
-          <KTile label="Casper / Practice" value={f1(p.cpPerG)} t={trendOf(last?.cp ?? null, prev?.cp ?? null)} />
-        </div>
+        <ShotZones zones={p.zones} />
+      </div>
+
+      {/* KPIs row */}
+      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        <KTile label="eFG %" value={pct(p.total.efg)} t={trendOf(last?.efg ?? null, prev?.efg ?? null)} />
+        <KTile label="TS %" value={pct(p.total.ts)} t={trendOf(last?.ts ?? null, prev?.ts ?? null)} />
+        <KTile label="3FG %" value={pct(seasonFg3)} t={trendOf(fg3Pct(last), fg3Pct(prev))} />
+        <KTile label="Reb / Game" value={f1(rpg)} t={trendOf(rebOf(last), rebOf(prev))} />
+        <KTile label="TO / Game" value={f1(topg)} t={trendOf(toOf(last), toOf(prev), false)} />
+        <KTile label="Casper / Practice" value={f1(p.cpPerG)} t={trendOf(last?.cp ?? null, prev?.cp ?? null)} />
       </div>
 
       {/* detailed table */}

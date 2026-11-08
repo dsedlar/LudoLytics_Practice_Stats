@@ -46,6 +46,41 @@ export const ZONE_LABEL: Record<ShotZone, string> = {
   fg3: "3FG",
 };
 
+// ---- detailed shot zones (for per-player shot-zone chart) ------------------
+export type PlayerZone =
+  | "rim" | "paint" | "midLeft" | "midRight"
+  | "cornerLeft" | "wingLeft" | "top" | "wingRight" | "cornerRight";
+
+export const PLAYER_ZONES: PlayerZone[] = [
+  "rim", "paint", "midLeft", "midRight",
+  "cornerLeft", "wingLeft", "top", "wingRight", "cornerRight",
+];
+
+// Angle from the basket, in degrees: 0 = straight up the court (top of key),
+// negative = left, positive = right, ±90 = toward a sideline at the baseline.
+function angleFromBasket(x: number, y: number): number {
+  const dx = x - COURT.basket.x;
+  const dy = y - COURT.basket.y;
+  return (Math.atan2(dx, dy) * 180) / Math.PI;
+}
+
+export function playerZoneFor(x: number, y: number): PlayerZone {
+  const ring = zoneFor(x, y);
+  const a = angleFromBasket(x, y);
+  if (ring === "atr") return "rim";
+  if (ring === "nonatr2") {
+    if (a < -30) return "midLeft";
+    if (a > 30) return "midRight";
+    return "paint";
+  }
+  // 3-point ring
+  if (a < -68) return "cornerLeft";
+  if (a < -24) return "wingLeft";
+  if (a <= 24) return "top";
+  if (a <= 68) return "wingRight";
+  return "cornerRight";
+}
+
 // Pick the brand color (garnet or navy) that contrasts most with the court color,
 // so shot marks stand out: navy dots on a garnet court, garnet dots on a navy court.
 const GARNET = "#B20000";

@@ -439,7 +439,7 @@ export async function getSeasonData(): Promise<SeasonInput> {
     sb.from("practices").select("id, practice_date, player_of_day, grade").order("practice_date"),
     sb.from("roster_entries").select("practice_id, player_id, squad_id, present, jersey, players(name)"),
     sb.from("squads").select("id, practice_id, name, color, wins, losses"),
-    sb.from("events").select("id, practice_id, squad_id, player_id, segment, type, made"),
+    sb.from("events").select("id, practice_id, squad_id, player_id, segment, type, made, shot_x, shot_y"),
     sb.from("drill_results").select("practice_id, player_id, drill, makes, attempts"),
   ]);
   if (pr.error) throw pr.error;
