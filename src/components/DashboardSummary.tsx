@@ -54,16 +54,18 @@ function Tile({ label, value, trend }: { label: string; value: string; trend: Tr
 export function PracticeLevel({ grades, teams }: { grades: GradePoint[]; teams: TeamRecord[] }) {
   const last = grades.length ? grades[grades.length - 1].grade : null;
   return (
-    <div className="bg-white border rounded-lg p-4 h-full flex flex-col">
+    <div className="bg-white border rounded-lg p-4">
       <h2 className="text-lg font-bold mb-1">Varsity Practice Level</h2>
-      <GradeChart grades={grades} />
-      {last != null && (
-        <div className="text-center text-gray-700 mt-2">
-          Last Practice: <b>{GRADE_SCALE[last].blurb}</b>
+      <div className="max-w-md mx-auto w-full">
+        <GradeChart grades={grades} />
+        {last != null && (
+          <div className="text-center text-gray-700 mt-2">
+            Last Practice: <b>{GRADE_SCALE[last].blurb}</b>
+          </div>
+        )}
+        <div className="mt-3">
+          <TeamRecords teams={teams} />
         </div>
-      )}
-      <div className="mt-3">
-        <TeamRecords teams={teams} />
       </div>
     </div>
   );

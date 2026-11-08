@@ -15,14 +15,16 @@ export default function DashboardDemo() {
         <Link to="/history-demo" className="text-sm bg-garnet text-white rounded px-4 py-2 font-medium">Practice history →</Link>
       </div>
       <p className="mt-1 text-gray-600 text-sm">Sample season data. Click a player to see their growth.</p>
-      <div className="mt-4 grid lg:grid-cols-2 gap-4 items-stretch">
+      <div className="mt-4 grid lg:grid-cols-2 gap-4 items-start">
         <PracticeLevel grades={season.grades} teams={season.teams} />
         <div className="bg-white border rounded-lg p-4">
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="text-lg font-bold">Team shot chart</h2>
-            <span className="text-sm text-gray-500">{season.shots.length} FG</span>
+          <div className="max-w-md mx-auto">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-lg font-bold">Team shot chart</h2>
+              <span className="text-sm text-gray-500">{season.shots.length} FG</span>
+            </div>
+            <HexShotChart shots={season.shots} />
           </div>
-          <HexShotChart shots={season.shots} />
         </div>
       </div>
       <div className="mt-4">

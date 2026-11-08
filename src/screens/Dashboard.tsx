@@ -38,18 +38,20 @@ export default function Dashboard() {
       <p className="mt-1 text-gray-600 text-sm">
         Every practice, totaled for the season. Click a player to see their growth. Tap a column to sort.
       </p>
-      <div className="mt-4 grid lg:grid-cols-2 gap-4 items-stretch">
+      <div className="mt-4 grid lg:grid-cols-2 gap-4 items-start">
         <PracticeLevel grades={season.grades} teams={season.teams} />
         <div className="bg-white border rounded-lg p-4">
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="text-lg font-bold">Team shot chart</h2>
-            <span className="text-sm text-gray-500">
-              {season.shots.length
-                ? `${Math.round((season.shots.filter((s) => s.made).length / season.shots.length) * 100)}% · ${season.shots.length} FG`
-                : "No located shots"}
-            </span>
+          <div className="max-w-md mx-auto">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-lg font-bold">Team shot chart</h2>
+              <span className="text-sm text-gray-500">
+                {season.shots.length
+                  ? `${Math.round((season.shots.filter((s) => s.made).length / season.shots.length) * 100)}% · ${season.shots.length} FG`
+                  : "No located shots"}
+              </span>
+            </div>
+            <HexShotChart shots={season.shots} />
           </div>
-          <HexShotChart shots={season.shots} />
         </div>
       </div>
       <div className="mt-4">
