@@ -50,8 +50,8 @@ function Tile({ label, value, trend }: { label: string; value: string; trend: Tr
 }
 
 // Practice-level chart card (left of the top row): grade trend, the last
-// practice's level, then the team records.
-export function PracticeLevel({ grades, teams }: { grades: GradePoint[]; teams: TeamRecord[] }) {
+// practice's level, the team records, then three team KPIs.
+export function PracticeLevel({ grades, teams, team }: { grades: GradePoint[]; teams: TeamRecord[]; team: TeamSeason }) {
   const last = grades.length ? grades[grades.length - 1].grade : null;
   return (
     <div className="bg-white border rounded-lg p-4">
@@ -66,22 +66,11 @@ export function PracticeLevel({ grades, teams }: { grades: GradePoint[]; teams: 
         <div className="mt-3">
           <TeamRecords teams={teams} />
         </div>
-      </div>
-    </div>
-  );
-}
-
-// KPI tiles (row below the practice level + shot chart).
-export default function DashboardSummary({ team }: { team: TeamSeason }) {
-  return (
-    <div className="bg-white border rounded-lg p-4">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        <Tile label="Team eFG%" value={pct(team.efg)} trend={team.trends.efg} />
-        <Tile label="Team 3FG%" value={pct(team.fg3Pct)} trend={team.trends.fg3} />
-        <Tile label="Team FT%" value={pct(team.ftPct)} trend={team.trends.ft} />
-        <Tile label="TO / Practice" value={team.toPerPractice.toFixed(1)} trend={team.trends.to} />
-        <Tile label="Deflections / Practice" value={team.defPerPractice.toFixed(1)} trend={team.trends.def} />
-        <Tile label="Steals / Practice" value={team.stlPerPractice.toFixed(1)} trend={team.trends.stl} />
+        <div className="mt-3 grid grid-cols-3 gap-2 border-t pt-2">
+          <Tile label="eFG%" value={pct(team.efg)} trend={team.trends.efg} />
+          <Tile label="3FG%" value={pct(team.fg3Pct)} trend={team.trends.fg3} />
+          <Tile label="TO / Prac" value={team.toPerPractice.toFixed(1)} trend={team.trends.to} />
+        </div>
       </div>
     </div>
   );

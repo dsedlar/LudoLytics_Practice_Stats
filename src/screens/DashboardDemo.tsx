@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { makeSeasonDemo } from "../lib/demo";
 import { buildSeason } from "../lib/seasonData";
 import DashboardView from "../components/DashboardView";
-import DashboardSummary, { PracticeLevel } from "../components/DashboardSummary";
+import { PracticeLevel } from "../components/DashboardSummary";
 import HexShotChart from "../components/HexShotChart";
 
 export default function DashboardDemo() {
@@ -16,7 +16,7 @@ export default function DashboardDemo() {
       </div>
       <p className="mt-1 text-gray-600 text-sm">Sample season data. Click a player to see their growth.</p>
       <div className="mt-4 grid lg:grid-cols-2 gap-4 items-start">
-        <PracticeLevel grades={season.grades} teams={season.teams} />
+        <PracticeLevel grades={season.grades} teams={season.teams} team={season.team} />
         <div className="bg-white border rounded-lg p-4">
           <div className="max-w-md mx-auto">
             <div className="flex items-center justify-between mb-1">
@@ -26,9 +26,6 @@ export default function DashboardDemo() {
             <HexShotChart shots={season.shots} />
           </div>
         </div>
-      </div>
-      <div className="mt-4">
-        <DashboardSummary team={season.team} />
       </div>
       <div className="mt-4">
         <DashboardView players={season.players} playerHref={(id) => `/player-demo/${id}`} />
