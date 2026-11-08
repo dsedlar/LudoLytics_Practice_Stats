@@ -41,7 +41,7 @@ export default function Dashboard() {
       <div className="mt-4 grid lg:grid-cols-2 gap-4 items-start">
         <PracticeLevel grades={season.grades} teams={season.teams} team={season.team} />
         <div className="bg-white border rounded-lg p-4">
-          <div className="max-w-md mx-auto">
+          <div className="max-w-sm mx-auto">
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-lg font-bold">Team shot chart</h2>
               <span className="text-sm text-gray-500">
