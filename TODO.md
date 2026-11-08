@@ -96,3 +96,37 @@ the exact one-pager, untouched). Fills the page in landscape; prints as SVG.
 1. Start with one combined full court (both teams, each at their end) — yes?
 2. Ever want it split by **segment** (Live vs Transition) or a **per-player**
    version? (Proposed: just the combined court for v1.)
+
+---
+
+## Completed changes (log)
+
+- **Shot chart** on the report — Box Score / Shot Chart toggle (top-left) +
+  Save as PDF (top-right); full-court ESPN-style chart, Grey left / Garnet
+  right, Fighting Bishop center logo (slightly transparent). Header mirrors
+  the Box Score (shield, title, full date + start time).
+- **LudoLytics logo** — in the Box Score footer (bottom-right) and the Shot
+  Chart header (top-right), same size. (`public/ludolytics-logo.svg`)
+- **Report header dates** — Box Score and Shot Chart show the full weekday
+  date + "Time: <practice start time>".
+- **Teams locked to Grey & Garnet only** — no other teams/colors ever; color
+  picker removed; the only change is a "Swap Grey ↔ Garnet" toggle (Setup +
+  Coach view).
+- **Move players between teams mid-practice** — "→ Grey/Garnet" button per
+  player in the Coach view. Team totals split by where each stat was earned
+  (event `squad_id`); a player's individual stats stay whole with the player.
+- **Attendance** on the report counts only players assigned to a squad AND
+  present (not-practicing players no longer inflate it, e.g. 9/12).
+- **Season records fix** — a practice counts toward team/player records only
+  when it has a decided winner (0-0 / undecided counts as neither); fixes both
+  teams showing the same record (e.g. 0-1).
+- **Transition 3s handling** — excluded from possessions, Live Play, the
+  individual box score, the season totals, and the shot chart. They appear in
+  the Transition 3-Point Summary and the per-player Trans column, and are
+  folded into the **Team Stats 3FG line only** (not as possessions).
+- **Settings hub** (gear icon, admin-only) — roster, practice history, setup,
+  dashboard, display, exports/backup, account.
+- **Box score CSV** (Practice History) and **Season CSV** (dashboard) are now
+  full box scores (per-player + team totals), not raw event dumps.
+- **Header wordmark** → "VES Basketball · Practice Stats"; **favicon** → white
+  basketball on garnet.
