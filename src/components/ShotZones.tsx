@@ -2,7 +2,7 @@
 // areas (red = poor shooting → green = excellent) with FG% + makes/attempts;
 // the court lines are drawn on top so it reads as a basketball half court.
 import type { PlayerZones } from "../lib/seasonData";
-import type { PlayerZone } from "../lib/court";
+import { ZONE_BENCHMARK, type PlayerZone } from "../lib/court";
 
 const FLOOR = "#D6D8DC"; // grey court
 const LINE = "#8A8F98"; // grey court lines
@@ -44,18 +44,11 @@ const ZONES: ZoneDef[] = [
 // Zone-relative grading: each zone is judged against a realistic benchmark FG%
 // for that spot (rim shots expected high, threes lower), then colored by how far
 // above/below the player shoots there.
-const ZONE_AVG: Record<PlayerZone, number> = {
-  rim: 0.58, paint: 0.42,
-  midLeft: 0.38, midRight: 0.38,
-  cornerLeft: 0.36, cornerRight: 0.36,
-  wingLeft: 0.33, top: 0.33, wingRight: 0.33,
-};
-
 // red (poor) -> green (excellent); null bg = no shots (show bare grey court)
 const RAMP = ["#D64545", "#E8894A", "#EFC84C", "#86C06A", "#3E9F54"];
 function color(key: PlayerZone, m: number, a: number): string | null {
   if (a === 0) return null;
-  const delta = m / a - ZONE_AVG[key]; // vs. what's good for this zone
+  const delta = m / a - ZONE_BENCHMARK[key]; // vs. what's good for this zone
   if (delta < -0.12) return RAMP[0];
   if (delta < -0.04) return RAMP[1];
   if (delta < 0.04) return RAMP[2];
@@ -105,17 +98,10 @@ function CourtLines() {
 }
 
 export default function ShotZones({ zones }: { zones: PlayerZones }) {
-  const total = Object.values(zones).reduce((s, z) => ({ m: s.m + z.m, a: s.a + z.a }), { m: 0, a: 0 });
   const rim = zones.rim;
   const rimC = color("rim", rim.m, rim.a);
   return (
-    <div className="bg-white border rounded-lg p-4 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-lg font-bold">Shot zones</h2>
-        <span className="text-sm text-gray-500">
-          {total.a ? `${Math.round((total.m / total.a) * 100)}% · ${total.m}/${total.a} FG` : "No located shots"}
-        </span>
-      </div>
+    <div className="w-full">
       <svg viewBox="0 0 300 206" className="w-full" style={{ maxHeight: 340 }}>
         <defs>
           <clipPath id="court"><rect x={COURT.x} y={COURT.y} width={COURT.w} height={COURT.h} rx="2" /></clipPath>

@@ -6,6 +6,7 @@ import { isSupabaseConfigured } from "../lib/supabase";
 import { exportSeasonCSV, exportBackupJSON } from "../lib/exporters";
 import DashboardView from "../components/DashboardView";
 import DashboardSummary from "../components/DashboardSummary";
+import HexShotChart from "../components/HexShotChart";
 
 export default function Dashboard() {
   const [season, setSeason] = useState<SeasonResult | null>(null);
@@ -39,6 +40,19 @@ export default function Dashboard() {
       </p>
       <div className="mt-4">
         <DashboardSummary team={season.team} grades={season.grades} teams={season.teams} />
+      </div>
+      <div className="mt-4 grid lg:grid-cols-2 gap-4 items-start">
+        <div className="bg-white border rounded-lg p-4">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-lg font-bold">Team shot chart</h2>
+            <span className="text-sm text-gray-500">
+              {season.shots.length
+                ? `${Math.round((season.shots.filter((s) => s.made).length / season.shots.length) * 100)}% · ${season.shots.length} FG`
+                : "No located shots"}
+            </span>
+          </div>
+          <HexShotChart shots={season.shots} />
+        </div>
       </div>
       <div className="mt-4">
         <DashboardView players={season.players} />

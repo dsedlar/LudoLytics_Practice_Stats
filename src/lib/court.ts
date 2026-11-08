@@ -64,6 +64,14 @@ function angleFromBasket(x: number, y: number): number {
   return (Math.atan2(dx, dy) * 180) / Math.PI;
 }
 
+// Benchmark FG% for each zone — what counts as "good" there (rim high, 3s low).
+export const ZONE_BENCHMARK: Record<PlayerZone, number> = {
+  rim: 0.58, paint: 0.42,
+  midLeft: 0.38, midRight: 0.38,
+  cornerLeft: 0.36, cornerRight: 0.36,
+  wingLeft: 0.33, top: 0.33, wingRight: 0.33,
+};
+
 export function playerZoneFor(x: number, y: number): PlayerZone {
   const ring = zoneFor(x, y);
   const a = angleFromBasket(x, y);

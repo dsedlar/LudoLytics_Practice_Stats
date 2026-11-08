@@ -7,6 +7,7 @@ import { playerZoneFor, PLAYER_ZONES, type PlayerZone } from "./court";
 
 export type ZoneSplit = { m: number; a: number };
 export type PlayerZones = Record<PlayerZone, ZoneSplit>;
+export interface Shot { x: number; y: number; made: boolean } // located FG attempt (feet)
 const emptyZones = (): PlayerZones => {
   const z = {} as PlayerZones;
   for (const k of PLAYER_ZONES) z[k] = { m: 0, a: 0 };
@@ -47,6 +48,7 @@ export interface SeasonResult {
   team: TeamSeason;
   grades: GradePoint[];
   teams: TeamRecord[]; // per-squad-name season record + current streak
+  shots: Shot[]; // all players' located FG attempts (team hexbin chart)
 }
 
 export interface SeasonInput {
@@ -75,6 +77,7 @@ export interface PlayerSeason {
   ptsPerG: number; cpPerG: number; perAvg: number;
   drills: { baylorAvg: number; ninetyAvg: number; transPct: number; ftAvg: number };
   zones: PlayerZones; // season FG makes/attempts per court zone (located shots)
+  shots: Shot[]; // the player's located FG attempts (for the hexbin chart)
   history: HistoryPoint[];
 }
 
@@ -113,14 +116,20 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     applyEvent(totals.get(e.player_id)!, e);
   }
 
-  // per-player shot zones (located field-goal attempts, non-transition only)
+  // per-player shot zones + raw located shots (field goals, non-transition only)
   const zonesByPlayer = new Map<string, PlayerZones>();
+  const shotsByPlayer = new Map<string, Shot[]>();
+  const allShots: Shot[] = [];
   for (const e of playEvents) {
     if (!SHOT_EVENT_TYPES.has(e.type) || e.shot_x == null || e.shot_y == null) continue;
     if (!zonesByPlayer.has(e.player_id)) zonesByPlayer.set(e.player_id, emptyZones());
     const z = zonesByPlayer.get(e.player_id)![playerZoneFor(e.shot_x, e.shot_y)];
     z.a += 1;
     if (e.made) z.m += 1;
+    const shot: Shot = { x: e.shot_x, y: e.shot_y, made: !!e.made };
+    allShots.push(shot);
+    if (!shotsByPlayer.has(e.player_id)) shotsByPlayer.set(e.player_id, []);
+    shotsByPlayer.get(e.player_id)!.push(shot);
   }
 
   // drills per player
@@ -189,6 +198,7 @@ export function buildSeason(input: SeasonInput): SeasonResult {
       playerId, name: meta.name, jersey: meta.jersey, gp, pod: podCount.get(playerId) ?? 0, record, total,
       tally: totals.get(playerId) ?? emptyTally(),
       zones: zonesByPlayer.get(playerId) ?? emptyZones(),
+      shots: shotsByPlayer.get(playerId) ?? [],
       ptsPerG: total.pts / gp, cpPerG: total.casper / gp, perAvg: mean(history.map((h) => h.per)),
       drills: {
         baylorAvg: mean(pick("baylor").map((d) => Number(d.makes))),
@@ -294,5 +304,5 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     })
     .sort((a, b) => b.w + b.l - (a.w + a.l) || b.w - a.w);
 
-  return { players, team, grades, teams };
+  return { players, team, grades, teams, shots: allShots };
 }

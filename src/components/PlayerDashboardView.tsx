@@ -4,6 +4,31 @@ import type { PlayerSeason, HistoryPoint } from "../lib/seasonData";
 import { pct } from "../lib/stats";
 import { SHOOTING_DRILLS } from "../lib/config";
 import ShotZones from "./ShotZones";
+import HexShotChart from "./HexShotChart";
+import type { Shot } from "../lib/seasonData";
+
+function PlayerShotPanel({ zones, shots }: { zones: PlayerSeason["zones"]; shots: Shot[] }) {
+  const [view, setView] = useState<"zones" | "hex">("zones");
+  const made = shots.filter((s) => s.made).length;
+  const seg = (on: boolean) => `px-2.5 py-1 text-xs font-semibold ${on ? "bg-garnet text-white" : "bg-white text-gray-600"}`;
+  return (
+    <div className="bg-white border rounded-lg p-4 h-full flex flex-col">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-bold">Shot chart</h2>
+          <div className="flex rounded border overflow-hidden">
+            <button onClick={() => setView("zones")} className={seg(view === "zones")}>Zones</button>
+            <button onClick={() => setView("hex")} className={seg(view === "hex")}>Hexbin</button>
+          </div>
+        </div>
+        <span className="text-sm text-gray-500">
+          {shots.length ? `${Math.round((made / shots.length) * 100)}% · ${made}/${shots.length} FG` : "No located shots"}
+        </span>
+      </div>
+      {view === "zones" ? <ShotZones zones={zones} /> : <HexShotChart shots={shots} />}
+    </div>
+  );
+}
 
 const denom = (k: string) => SHOOTING_DRILLS.find((d) => d.key === k)?.denominator ?? 1;
 const BAY_D = denom("baylor"), NINETY_D = denom("ninetys"), FT_D = denom("ft");
@@ -105,7 +130,7 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
           </div>
           <LineChart values={h.map(m.get)} fmt={m.fmt} />
         </div>
-        <ShotZones zones={p.zones} />
+        <PlayerShotPanel zones={p.zones} shots={p.shots} />
       </div>
 
       {/* KPIs row */}
