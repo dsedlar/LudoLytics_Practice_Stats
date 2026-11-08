@@ -4,9 +4,9 @@
 import type { PlayerZones } from "../lib/seasonData";
 import type { PlayerZone } from "../lib/court";
 
-const CREAM = "#F3EED4";
-const EMPTY = "#E8E2CB";
-const LINE = "#9A1414";
+const FLOOR = "#D6D8DC"; // grey court
+const LINE = "#8A8F98"; // grey court lines
+const FILL_OP = 0.6; // zone colors are semi-transparent so the court shows through
 
 const sc = 5.52; // px per foot
 const OX = 12, OY = 12; // top-left of court; baseline is the top edge
@@ -41,26 +41,26 @@ const ZONES: ZoneDef[] = [
   { key: "cornerRight", path: wedge(rArc, OUTER, 68, 110), la: 83, lr: rArc + 20 },
 ];
 
-// red (poor) -> green (excellent)
+// red (poor) -> green (excellent); null bg = no shots (show bare grey court)
 const RAMP = ["#D64545", "#E8894A", "#EFC84C", "#86C06A", "#3E9F54"];
-function color(m: number, a: number): { bg: string; fg: string } {
-  if (a === 0) return { bg: EMPTY, fg: "#b3ab8e" };
+function color(m: number, a: number): string | null {
+  if (a === 0) return null;
   const p = m / a;
-  if (p < 0.3) return { bg: RAMP[0], fg: "#fff" };
-  if (p < 0.4) return { bg: RAMP[1], fg: "#fff" };
-  if (p < 0.48) return { bg: RAMP[2], fg: "#5a4a00" };
-  if (p < 0.58) return { bg: RAMP[3], fg: "#14361c" };
-  return { bg: RAMP[4], fg: "#fff" };
+  if (p < 0.3) return RAMP[0];
+  if (p < 0.4) return RAMP[1];
+  if (p < 0.48) return RAMP[2];
+  if (p < 0.58) return RAMP[3];
+  return RAMP[4];
 }
 
-function Label({ x, y, m, a, fg }: { x: number; y: number; m: number; a: number; fg: string }) {
+function Label({ x, y, m, a }: { x: number; y: number; m: number; a: number }) {
   if (a === 0) return null;
   return (
     <g>
-      <text x={x} y={y - 1} textAnchor="middle" fontSize="14" fontWeight={800} fill={fg}>
+      <text x={x} y={y - 1} textAnchor="middle" fontSize="14" fontWeight={800} fill="#1f2937">
         {`${Math.round((m / a) * 100)}%`}
       </text>
-      <text x={x} y={y + 12} textAnchor="middle" fontSize="10.5" fill={fg} opacity={0.9}>
+      <text x={x} y={y + 12} textAnchor="middle" fontSize="10.5" fill="#374151">
         {m}/{a}
       </text>
     </g>
@@ -110,26 +110,25 @@ export default function ShotZones({ zones }: { zones: PlayerZones }) {
         <defs>
           <clipPath id="court"><rect x={COURT.x} y={COURT.y} width={COURT.w} height={COURT.h} rx="2" /></clipPath>
         </defs>
-        <rect x={COURT.x} y={COURT.y} width={COURT.w} height={COURT.h} rx="2" fill={CREAM} />
+        <rect x={COURT.x} y={COURT.y} width={COURT.w} height={COURT.h} rx="2" fill={FLOOR} />
         <g clipPath="url(#court)">
           {ZONES.map((z) => {
             const c = color(zones[z.key].m, zones[z.key].a);
-            return <path key={z.key} d={z.path} fill={c.bg} stroke={CREAM} strokeWidth={1.5} />;
+            return c ? <path key={z.key} d={z.path} fill={c} fillOpacity={FILL_OP} /> : null;
           })}
-          <circle cx={hx} cy={hy} r={rimR} fill={rimC.bg} stroke={CREAM} strokeWidth={1.5} />
+          {rimC && <circle cx={hx} cy={hy} r={rimR} fill={rimC} fillOpacity={FILL_OP} />}
         </g>
         <CourtLines />
         {ZONES.map((z) => {
           const [lx, ly] = P(z.lr, z.la);
-          const c = color(zones[z.key].m, zones[z.key].a);
-          return <Label key={z.key} x={lx} y={ly} m={zones[z.key].m} a={zones[z.key].a} fg={c.fg} />;
+          return <Label key={z.key} x={lx} y={ly} m={zones[z.key].m} a={zones[z.key].a} />;
         })}
-        <Label x={hx} y={hy + 26} m={rim.m} a={rim.a} fg={rimC.fg} />
+        <Label x={hx} y={hy + 26} m={rim.m} a={rim.a} />
       </svg>
       <div className="mt-1 flex items-center justify-center gap-2 text-[10px] text-gray-400">
         <span>Poor</span>
         {RAMP.map((c) => (
-          <span key={c} style={{ background: c, width: 16, height: 10, borderRadius: 2, display: "inline-block" }} />
+          <span key={c} style={{ background: c, width: 16, height: 10, borderRadius: 2, display: "inline-block", opacity: FILL_OP }} />
         ))}
         <span>Excellent</span>
       </div>
