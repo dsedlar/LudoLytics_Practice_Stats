@@ -5,7 +5,7 @@ import { buildSeason, type SeasonResult } from "../lib/seasonData";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { exportSeasonCSV, exportBackupJSON } from "../lib/exporters";
 import DashboardView from "../components/DashboardView";
-import DashboardSummary from "../components/DashboardSummary";
+import DashboardSummary, { PracticeLevel } from "../components/DashboardSummary";
 import HexShotChart from "../components/HexShotChart";
 
 export default function Dashboard() {
@@ -38,10 +38,8 @@ export default function Dashboard() {
       <p className="mt-1 text-gray-600 text-sm">
         Every practice, totaled for the season. Click a player to see their growth. Tap a column to sort.
       </p>
-      <div className="mt-4">
-        <DashboardSummary team={season.team} grades={season.grades} teams={season.teams} />
-      </div>
-      <div className="mt-4 grid lg:grid-cols-2 gap-4 items-start">
+      <div className="mt-4 grid lg:grid-cols-2 gap-4 items-stretch">
+        <PracticeLevel grades={season.grades} />
         <div className="bg-white border rounded-lg p-4">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-lg font-bold">Team shot chart</h2>
@@ -53,6 +51,9 @@ export default function Dashboard() {
           </div>
           <HexShotChart shots={season.shots} />
         </div>
+      </div>
+      <div className="mt-4">
+        <DashboardSummary team={season.team} teams={season.teams} />
       </div>
       <div className="mt-4">
         <DashboardView players={season.players} />

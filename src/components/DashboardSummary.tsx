@@ -48,21 +48,28 @@ function Tile({ label, value, trend }: { label: string; value: string; trend: Tr
   );
 }
 
-export default function DashboardSummary({ team, grades, teams }: { team: TeamSeason; grades: GradePoint[]; teams: TeamRecord[] }) {
+// Practice-level chart card (left of the top row).
+export function PracticeLevel({ grades }: { grades: GradePoint[] }) {
   return (
-    <div className="bg-white border rounded-lg p-4 grid lg:grid-cols-2 gap-6 items-center">
-      <div>
-        <h2 className="text-lg font-bold mb-1">Varsity Practice Level</h2>
-        <GradeChart grades={grades} />
-      </div>
-      <div>
-        <TeamRecords teams={teams} />
-        <div className="grid grid-cols-2 gap-2 mt-3">
-          <Tile label="Team TO / Practice" value={team.toPerPractice.toFixed(1)} trend={team.trends.to} />
-          <Tile label="Team 3FG %" value={pct(team.fg3Pct)} trend={team.trends.fg3} />
-          <Tile label="Team PPS" value={team.pps.toFixed(2)} trend={team.trends.pps} />
-          <Tile label="Team FT %" value={pct(team.ftPct)} trend={team.trends.ft} />
-        </div>
+    <div className="bg-white border rounded-lg p-4 h-full">
+      <h2 className="text-lg font-bold mb-1">Varsity Practice Level</h2>
+      <GradeChart grades={grades} />
+    </div>
+  );
+}
+
+// Team records + KPI tiles (row below the practice level + shot chart).
+export default function DashboardSummary({ team, teams }: { team: TeamSeason; teams: TeamRecord[] }) {
+  return (
+    <div className="bg-white border rounded-lg p-4">
+      <TeamRecords teams={teams} />
+      <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        <Tile label="Team eFG%" value={pct(team.efg)} trend={team.trends.efg} />
+        <Tile label="Team 3FG%" value={pct(team.fg3Pct)} trend={team.trends.fg3} />
+        <Tile label="Team FT%" value={pct(team.ftPct)} trend={team.trends.ft} />
+        <Tile label="TO / Practice" value={team.toPerPractice.toFixed(1)} trend={team.trends.to} />
+        <Tile label="Deflections / Practice" value={team.defPerPractice.toFixed(1)} trend={team.trends.def} />
+        <Tile label="Steals / Practice" value={team.stlPerPractice.toFixed(1)} trend={team.trends.stl} />
       </div>
     </div>
   );
