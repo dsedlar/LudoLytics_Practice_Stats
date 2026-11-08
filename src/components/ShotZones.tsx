@@ -1,27 +1,21 @@
-// Per-player shot-zone chart on a half court (hoop at top). Zones are colored
-// areas (red = poor shooting → green = excellent) with FG% + makes/attempts;
-// the court lines are drawn on top so it reads as a basketball half court.
+// Per-player shot-zone chart on the same half court as the hexbin / live entry.
+// Zones are colored areas (red = poor -> green = great, vs. each zone's
+// benchmark) with FG% + makes/attempts; grey court lines are drawn on top.
 import type { PlayerZones } from "../lib/seasonData";
-import { ZONE_BENCHMARK, type PlayerZone } from "../lib/court";
+import { COURT, ZONE_BENCHMARK, type PlayerZone } from "../lib/court";
+import CourtBackdrop from "./CourtBackdrop";
 
-const FLOOR = "#D6D8DC"; // grey court
-const LINE = "#8A8F98"; // grey court lines
-const FILL_OP = 0.6; // zone colors are semi-transparent so the court shows through
-
-const sc = 5.52; // px per foot
-const OX = 12, OY = 12; // top-left of court; baseline is the top edge
-const hx = OX + 25 * sc;          // basket x (center)
-const hy = OY + 5.25 * sc;        // basket y (near top)
-const rimR = 4 * sc;              // restricted area
-const rArc = 19.75 * sc;          // 3-point radius
-const OUTER = 360;
-const COURT = { x: OX, y: OY, w: 50 * sc, h: 33 * sc };
-const fx = (ft: number) => OX + ft * sc;
-const fy = (ft: number) => OY + ft * sc;
+const FLOOR = "#F3EED4";
+const FILL_OP = 0.6;
+const B = COURT.basket;        // (25, 5.25) feet
+const rimR = COURT.atrR;       // 4
+const rArc = COURT.threeR;     // 19.75
+const OUTER = 30;              // zones cover the scoring area; deep backcourt stays plain
+const W = COURT.width, H = COURT.height; // 50 x 47 feet
 
 const rad = (d: number) => (d * Math.PI) / 180;
-const P = (r: number, d: number): [number, number] => [hx + r * Math.sin(rad(d)), hy + r * Math.cos(rad(d))];
-const f = (n: number) => n.toFixed(1);
+const P = (r: number, d: number): [number, number] => [B.x + r * Math.sin(rad(d)), B.y + r * Math.cos(rad(d))];
+const f = (n: number) => n.toFixed(2);
 
 function wedge(ri: number, ro: number, d1: number, d2: number): string {
   const [ix1, iy1] = P(ri, d1), [ix2, iy2] = P(ri, d2);
@@ -30,25 +24,24 @@ function wedge(ri: number, ro: number, d1: number, d2: number): string {
 }
 
 interface ZoneDef { key: PlayerZone; path: string; la: number; lr: number }
+const MR = (rimR + rArc) / 2;
+const TR = rArc + 4;
 const ZONES: ZoneDef[] = [
-  { key: "midLeft", path: wedge(rimR, rArc, -110, -30), la: -58, lr: (rimR + rArc) / 2 },
-  { key: "paint", path: wedge(rimR, rArc, -30, 30), la: 0, lr: (rimR + rArc) / 2 },
-  { key: "midRight", path: wedge(rimR, rArc, 30, 110), la: 58, lr: (rimR + rArc) / 2 },
-  { key: "cornerLeft", path: wedge(rArc, OUTER, -110, -68), la: -83, lr: rArc + 20 },
-  { key: "wingLeft", path: wedge(rArc, OUTER, -68, -24), la: -46, lr: rArc + 26 },
-  { key: "top", path: wedge(rArc, OUTER, -24, 24), la: 0, lr: rArc + 26 },
-  { key: "wingRight", path: wedge(rArc, OUTER, 24, 68), la: 46, lr: rArc + 26 },
-  { key: "cornerRight", path: wedge(rArc, OUTER, 68, 110), la: 83, lr: rArc + 20 },
+  { key: "midLeft", path: wedge(rimR, rArc, -110, -30), la: -58, lr: MR },
+  { key: "paint", path: wedge(rimR, rArc, -30, 30), la: 0, lr: MR },
+  { key: "midRight", path: wedge(rimR, rArc, 30, 110), la: 58, lr: MR },
+  { key: "cornerLeft", path: wedge(rArc, OUTER, -110, -68), la: -83, lr: TR },
+  { key: "wingLeft", path: wedge(rArc, OUTER, -68, -24), la: -46, lr: TR },
+  { key: "top", path: wedge(rArc, OUTER, -24, 24), la: 0, lr: TR },
+  { key: "wingRight", path: wedge(rArc, OUTER, 24, 68), la: 46, lr: TR },
+  { key: "cornerRight", path: wedge(rArc, OUTER, 68, 110), la: 83, lr: TR },
 ];
 
-// Zone-relative grading: each zone is judged against a realistic benchmark FG%
-// for that spot (rim shots expected high, threes lower), then colored by how far
-// above/below the player shoots there.
-// red (poor) -> green (excellent); null bg = no shots (show bare grey court)
+// red (poor) -> green (great) vs each zone's benchmark; null = no shots
 const RAMP = ["#D64545", "#E8894A", "#EFC84C", "#86C06A", "#3E9F54"];
 function color(key: PlayerZone, m: number, a: number): string | null {
   if (a === 0) return null;
-  const delta = m / a - ZONE_BENCHMARK[key]; // vs. what's good for this zone
+  const delta = m / a - ZONE_BENCHMARK[key];
   if (delta < -0.12) return RAMP[0];
   if (delta < -0.04) return RAMP[1];
   if (delta < 0.04) return RAMP[2];
@@ -60,39 +53,8 @@ function Label({ x, y, m, a }: { x: number; y: number; m: number; a: number }) {
   if (a === 0) return null;
   return (
     <g>
-      <text x={x} y={y - 1} textAnchor="middle" fontSize="14" fontWeight={800} fill="#1f2937">
-        {`${Math.round((m / a) * 100)}%`}
-      </text>
-      <text x={x} y={y + 12} textAnchor="middle" fontSize="10.5" fill="#374151">
-        {m}/{a}
-      </text>
-    </g>
-  );
-}
-
-// 3-point arc + corner lines
-const cornerJoinY = 5.25 + Math.sqrt(19.75 * 19.75 - 19 * 19); // ft where corner meets arc
-const arcL = P(rArc, -68.3), arcR = P(rArc, 68.3); // approx arc endpoints at corners
-
-function CourtLines() {
-  return (
-    <g fill="none" stroke={LINE} strokeWidth={1.6} strokeLinecap="round">
-      {/* boundary */}
-      <rect x={COURT.x} y={COURT.y} width={COURT.w} height={COURT.h} rx="2" />
-      {/* paint / key */}
-      <rect x={fx(19)} y={fy(0)} width={12 * sc} height={19 * sc} />
-      {/* free-throw circle: solid toward court, dashed inside the key */}
-      <path d={`M${f(fx(19))},${f(fy(19))} A${f(6 * sc)},${f(6 * sc)} 0 0 0 ${f(fx(31))},${f(fy(19))}`} />
-      <path d={`M${f(fx(19))},${f(fy(19))} A${f(6 * sc)},${f(6 * sc)} 0 0 1 ${f(fx(31))},${f(fy(19))}`} strokeDasharray="5 5" />
-      {/* restricted area */}
-      <path d={`M${f(hx - rimR)},${f(hy)} A${f(rimR)},${f(rimR)} 0 0 0 ${f(hx + rimR)},${f(hy)}`} />
-      {/* backboard + rim */}
-      <line x1={fx(22)} y1={fy(4)} x2={fx(28)} y2={fy(4)} strokeWidth={2.2} />
-      <circle cx={hx} cy={hy} r={0.75 * sc} />
-      {/* 3-point line: straight corners + arc */}
-      <line x1={fx(6)} y1={fy(0)} x2={fx(6)} y2={fy(cornerJoinY)} />
-      <line x1={fx(44)} y1={fy(0)} x2={fx(44)} y2={fy(cornerJoinY)} />
-      <path d={`M${f(arcL[0])},${f(arcL[1])} A${f(rArc)},${f(rArc)} 0 0 0 ${f(arcR[0])},${f(arcR[1])}`} />
+      <text x={x} y={y} textAnchor="middle" fontSize="2.6" fontWeight={800} fill="#1f2937">{`${Math.round((m / a) * 100)}%`}</text>
+      <text x={x} y={y + 2.2} textAnchor="middle" fontSize="1.9" fill="#374151">{m}/{a}</text>
     </g>
   );
 }
@@ -102,31 +64,31 @@ export default function ShotZones({ zones }: { zones: PlayerZones }) {
   const rimC = color("rim", rim.m, rim.a);
   return (
     <div className="w-full">
-      <svg viewBox="0 0 300 206" className="w-full" style={{ maxHeight: 340 }}>
-        <defs>
-          <clipPath id="court"><rect x={COURT.x} y={COURT.y} width={COURT.w} height={COURT.h} rx="2" /></clipPath>
-        </defs>
-        <rect x={COURT.x} y={COURT.y} width={COURT.w} height={COURT.h} rx="2" fill={FLOOR} />
-        <g clipPath="url(#court)">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full rounded-lg" style={{ background: FLOOR, maxHeight: 360 }}>
+        <defs><clipPath id="zonecourt"><rect x={0} y={0} width={W} height={H} /></clipPath></defs>
+        {/* colored zone areas (under the court lines) */}
+        <g clipPath="url(#zonecourt)">
           {ZONES.map((z) => {
             const c = color(z.key, zones[z.key].m, zones[z.key].a);
             return c ? <path key={z.key} d={z.path} fill={c} fillOpacity={FILL_OP} /> : null;
           })}
-          {rimC && <circle cx={hx} cy={hy} r={rimR} fill={rimC} fillOpacity={FILL_OP} />}
+          {rimC && <circle cx={B.x} cy={B.y} r={rimR} fill={rimC} fillOpacity={FILL_OP} />}
         </g>
-        <CourtLines />
+        {/* grey court lines on top */}
+        <CourtBackdrop color="#6B7280" />
+        {/* labels */}
         {ZONES.map((z) => {
           const [lx, ly] = P(z.lr, z.la);
           return <Label key={z.key} x={lx} y={ly} m={zones[z.key].m} a={zones[z.key].a} />;
         })}
-        <Label x={hx} y={hy + 26} m={rim.m} a={rim.a} />
+        <Label x={B.x} y={B.y + 2.8} m={rim.m} a={rim.a} />
       </svg>
       <div className="mt-1 flex items-center justify-center gap-2 text-[10px] text-gray-400">
         <span>Poor</span>
         {RAMP.map((c) => (
           <span key={c} style={{ background: c, width: 16, height: 10, borderRadius: 2, display: "inline-block", opacity: FILL_OP }} />
         ))}
-        <span>Excellent</span>
+        <span>Great</span>
       </div>
     </div>
   );

@@ -73,7 +73,7 @@ export default function HexShotChart({ shots }: { shots: Shot[] }) {
     <div className="w-full relative">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full rounded-lg" style={{ background: FLOOR, maxHeight: 360 }}>
         <defs><clipPath id="hexcourt"><rect x={0} y={0} width={W} height={H} /></clipPath></defs>
-        <CourtBackdrop color="#B20000" />
+        <CourtBackdrop color="#6B7280" />
         <g clipPath="url(#hexcourt)">
           {bins.map((b, i) => {
             const r = GRID_R * (0.34 + 0.66 * Math.sqrt(b.a / maxA));
@@ -84,6 +84,7 @@ export default function HexShotChart({ shots }: { shots: Shot[] }) {
                 key={i}
                 d={hexPath(b.cx, b.cy, r)}
                 fill={ramp(t)}
+                fillOpacity={0.78}
                 stroke={FLOOR}
                 strokeWidth={0.15}
                 onMouseEnter={() => setHover(b)}
