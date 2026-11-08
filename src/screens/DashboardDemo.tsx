@@ -16,7 +16,7 @@ export default function DashboardDemo() {
       </div>
       <p className="mt-1 text-gray-600 text-sm">Sample season data. Click a player to see their growth.</p>
       <div className="mt-4 grid lg:grid-cols-2 gap-4 items-stretch">
-        <PracticeLevel grades={season.grades} />
+        <PracticeLevel grades={season.grades} teams={season.teams} />
         <div className="bg-white border rounded-lg p-4">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-lg font-bold">Team shot chart</h2>
@@ -26,7 +26,7 @@ export default function DashboardDemo() {
         </div>
       </div>
       <div className="mt-4">
-        <DashboardSummary team={season.team} teams={season.teams} />
+        <DashboardSummary team={season.team} />
       </div>
       <div className="mt-4">
         <DashboardView players={season.players} playerHref={(id) => `/player-demo/${id}`} />

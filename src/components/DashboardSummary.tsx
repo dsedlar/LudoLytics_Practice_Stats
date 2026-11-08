@@ -1,5 +1,6 @@
 import type { TeamSeason, GradePoint, Trend, TeamRecord } from "../lib/seasonData";
 import TeamRecords from "./TeamRecords";
+import { GRADE_SCALE } from "../lib/config";
 
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
@@ -48,22 +49,31 @@ function Tile({ label, value, trend }: { label: string; value: string; trend: Tr
   );
 }
 
-// Practice-level chart card (left of the top row).
-export function PracticeLevel({ grades }: { grades: GradePoint[] }) {
+// Practice-level chart card (left of the top row): grade trend, the last
+// practice's level, then the team records.
+export function PracticeLevel({ grades, teams }: { grades: GradePoint[]; teams: TeamRecord[] }) {
+  const last = grades.length ? grades[grades.length - 1].grade : null;
   return (
-    <div className="bg-white border rounded-lg p-4 h-full">
+    <div className="bg-white border rounded-lg p-4 h-full flex flex-col">
       <h2 className="text-lg font-bold mb-1">Varsity Practice Level</h2>
       <GradeChart grades={grades} />
+      {last != null && (
+        <div className="text-center text-gray-700 mt-2">
+          Last Practice: <b>{GRADE_SCALE[last].blurb}</b>
+        </div>
+      )}
+      <div className="mt-3">
+        <TeamRecords teams={teams} />
+      </div>
     </div>
   );
 }
 
-// Team records + KPI tiles (row below the practice level + shot chart).
-export default function DashboardSummary({ team, teams }: { team: TeamSeason; teams: TeamRecord[] }) {
+// KPI tiles (row below the practice level + shot chart).
+export default function DashboardSummary({ team }: { team: TeamSeason }) {
   return (
     <div className="bg-white border rounded-lg p-4">
-      <TeamRecords teams={teams} />
-      <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         <Tile label="Team eFG%" value={pct(team.efg)} trend={team.trends.efg} />
         <Tile label="Team 3FG%" value={pct(team.fg3Pct)} trend={team.trends.fg3} />
         <Tile label="Team FT%" value={pct(team.ftPct)} trend={team.trends.ft} />
