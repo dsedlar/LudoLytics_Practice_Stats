@@ -88,7 +88,8 @@ export default function App() {
           <Route path="/coach-entry-demo" element={<CoachEntryDemo />} />
           <Route path="/history" element={<RequireAuth><History /></RequireAuth>} />
           <Route path="/history-demo" element={<HistoryDemo />} />
-          <Route path="/display" element={<RequireAuth><Signage /></RequireAuth>} />
+          {/* Locker-room display is public (no login) so a TV/Pi can show it. */}
+          <Route path="/display" element={<Signage />} />
           <Route path="/display-demo" element={<SignageDemo />} />
           <Route path="/roster" element={<RequireAuth><Roster /></RequireAuth>} />
           <Route path="/roster-demo" element={<RosterDemo />} />
