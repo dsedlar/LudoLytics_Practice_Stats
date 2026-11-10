@@ -16,6 +16,9 @@ export interface RawTally {
   tip: number; or: number; dr: number;
   stl: number; blk: number; def: number; foul: number; dive: number; chg: number;
   fd: number; gs: number; ta: number; misc: number;
+  // validation ("win it at the line") free throws — a subset of the FT totals
+  // above, tracked separately for Clutch FT%.
+  vftM: number; vftA: number;
 }
 
 export function emptyTally(): RawTally {
@@ -25,6 +28,7 @@ export function emptyTally(): RawTally {
     tip: 0, or: 0, dr: 0,
     stl: 0, blk: 0, def: 0, foul: 0, dive: 0, chg: 0,
     fd: 0, gs: 0, ta: 0, misc: 0,
+    vftM: 0, vftA: 0,
   };
 }
 

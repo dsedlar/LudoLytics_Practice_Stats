@@ -5,6 +5,7 @@ import { compute, emptyTally, type RawTally, type Computed } from "./stats";
 import { applyEvent, type EventRow } from "./aggregate";
 import { playerZoneFor, PLAYER_ZONES, type PlayerZone } from "./court";
 import { isShootSegment } from "./config";
+import { practiceWinner, teamShootPcts } from "./practiceOutcome";
 
 export type ZoneSplit = { m: number; a: number };
 export type PlayerZones = Record<PlayerZone, ZoneSplit>;
@@ -55,9 +56,9 @@ export interface SeasonResult {
 }
 
 export interface SeasonInput {
-  practices: { id: string; practice_date: string; player_of_day?: string | null; grade?: number | null }[];
+  practices: { id: string; practice_date: string; player_of_day?: string | null; grade?: number | null; tiebreak_winner_squad_id?: string | null }[];
   roster: { practice_id: string; player_id: string; squad_id: string | null; present: boolean; name: string; jersey: string }[];
-  squads: { id: string; practice_id: string; name: string; color: string; wins: number; losses: number }[];
+  squads: { id: string; practice_id: string; name: string; color: string; wins: number; losses: number; ties?: number }[];
   events: EventRow[];
   drills: { practice_id: string; player_id: string; drill: string; makes: number; attempts: number | null }[];
 }
@@ -80,6 +81,7 @@ export interface PlayerSeason {
   tally: RawTally; // season raw totals
   ptsPerG: number; cpPerG: number; perAvg: number;
   toTotal: number; // season turnovers incl. transition/thespian drill TOs
+  clutch: { m: number; a: number; pct: number }; // validation ("at the line") FTs
   drills: { baylorAvg: number; ninetyAvg: number; transM: number; transA: number; transPct: number; ftAvg: number };
   zones: PlayerZones; // season FG makes/attempts per court zone (located shots)
   shots: Shot[]; // the player's located FG attempts (for the hexbin chart)
@@ -218,6 +220,11 @@ export function buildSeason(input: SeasonInput): SeasonResult {
       shots: shotsByPlayer.get(playerId) ?? [],
       ptsPerG: total.pts / gp, cpPerG: total.casper / gp, perAvg: mean(history.map((h) => h.per)),
       toTotal: (totals.get(playerId)?.to ?? 0) + (drillTOByPlayer.get(playerId) ?? 0),
+      clutch: {
+        m: totals.get(playerId)?.vftM ?? 0,
+        a: totals.get(playerId)?.vftA ?? 0,
+        pct: (totals.get(playerId)?.vftA ?? 0) ? (totals.get(playerId)!.vftM) / (totals.get(playerId)!.vftA) : 0,
+      },
       drills: {
         baylorAvg: mean(pick("baylor").map((d) => Number(d.makes))),
         ninetyAvg: mean(pick("ninetys").map((d) => Number(d.makes))),
@@ -310,17 +317,35 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     .sort((a, b) => (a.date < b.date ? -1 : 1));
 
   // per-team (by squad name) season record + current W/L streak.
-  // A practice counts only when it has a decided winner: wins>losses = W,
-  // losses>wins = L, equal (e.g. 0-0, undecided/live) = neither.
-  const byName = new Map<string, { color: string; days: { date: string; result: "W" | "L" | null }[] }>();
+  // Every practice resolves to exactly one winner via the tiebreaker cascade
+  // (more wins → Transition% → Thespian% → Baylor% → FT% → coach override), so
+  // there are no "undecided" days unless a practice is genuinely dead-even with
+  // no coach pick (then it counts for neither team).
+  const overrideByPractice = new Map(input.practices.map((p) => [p.id, p.tiebreak_winner_squad_id ?? null]));
+  const squadsByPractice = new Map<string, SeasonInput["squads"]>();
   input.squads.forEach((s) => {
-    const date = dateById.get(s.practice_id) ?? "";
-    const w = s.wins ?? 0;
-    const l = s.losses ?? 0;
-    const result: "W" | "L" | null = w > l ? "W" : l > w ? "L" : null;
-    if (!byName.has(s.name)) byName.set(s.name, { color: s.color, days: [] });
-    byName.get(s.name)!.days.push({ date, result });
+    if (!squadsByPractice.has(s.practice_id)) squadsByPractice.set(s.practice_id, []);
+    squadsByPractice.get(s.practice_id)!.push(s);
   });
+  const sideFor = (s: SeasonInput["squads"][number]) => {
+    const sqEvents = input.events.filter((e) => e.practice_id === s.practice_id && e.squad_id === s.id);
+    const sqDrills = input.drills
+      .filter((d) => d.practice_id === s.practice_id && playerSquadAt.get(`${d.player_id}|${s.practice_id}`) === s.id)
+      .map((d) => ({ drill: d.drill, makes: Number(d.makes) }));
+    return { id: s.id, wins: s.wins ?? 0, pcts: teamShootPcts(sqEvents, sqDrills) };
+  };
+  const byName = new Map<string, { color: string; days: { date: string; result: "W" | "L" | null }[] }>();
+  const ensure = (name: string, color: string) => { if (!byName.has(name)) byName.set(name, { color, days: [] }); };
+  for (const [pid, sqs] of squadsByPractice) {
+    const date = dateById.get(pid) ?? "";
+    sqs.forEach((s) => ensure(s.name, s.color));
+    if (sqs.length < 2) {
+      sqs.forEach((s) => byName.get(s.name)!.days.push({ date, result: (s.wins ?? 0) > (s.losses ?? 0) ? "W" : (s.losses ?? 0) > (s.wins ?? 0) ? "L" : null }));
+      continue;
+    }
+    const { winnerId } = practiceWinner(sideFor(sqs[0]), sideFor(sqs[1]), overrideByPractice.get(pid));
+    sqs.forEach((s) => byName.get(s.name)!.days.push({ date, result: winnerId == null ? null : s.id === winnerId ? "W" : "L" }));
+  }
   const teams: TeamRecord[] = [...byName.entries()]
     .map(([name, { color, days }]) => {
       const decided = days.filter((d) => d.result).sort((a, b) => (a.date < b.date ? -1 : 1));

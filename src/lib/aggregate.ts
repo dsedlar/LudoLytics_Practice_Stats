@@ -30,7 +30,16 @@ const isShot = (t: string): t is ShotType => t in SHOT_FIELDS;
 
 /** Apply a single event to a tally (mutates and returns it). */
 export function applyEvent(t: RawTally, ev: Pick<EventRow, "type" | "made">): RawTally {
-  if (isShot(ev.type)) {
+  if (ev.type === "vft") {
+    // Validation FT: a real live free throw (counts in FT make/attempt, so points,
+    // possessions and FT% all include it) AND tracked separately for Clutch FT%.
+    t.ftA += 1;
+    t.vftA += 1;
+    if (ev.made) {
+      t.ftM += 1;
+      t.vftM += 1;
+    }
+  } else if (isShot(ev.type)) {
     const [mField, aField] = SHOT_FIELDS[ev.type];
     t[aField] += 1;
     if (ev.made) t[mField] += 1;

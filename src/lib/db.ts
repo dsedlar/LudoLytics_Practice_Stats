@@ -158,6 +158,7 @@ export interface SquadRow {
   sort_order: number;
   wins: number;
   losses: number;
+  ties?: number; // added in migration 008; undefined until then
 }
 export interface RosterRow {
   id: string;
@@ -320,6 +321,18 @@ export async function setSquadLosses(squadId: string, losses: number) {
   if (error) throw error;
 }
 
+// Tied runs (missed validation FT). Column added in migration 008.
+export async function setSquadTies(squadId: string, ties: number) {
+  const { error } = await client().from("squads").update({ ties: Math.max(0, ties) }).eq("id", squadId);
+  if (error) throw error;
+}
+
+// Only written in the rare dead-even tiebreaker case (migration 008 column).
+export async function setTiebreakWinner(practiceId: string, squadId: string | null) {
+  const { error } = await client().from("practices").update({ tiebreak_winner_squad_id: squadId }).eq("id", practiceId);
+  if (error) throw error;
+}
+
 export async function setSquadColor(squadId: string, color: string) {
   const { error } = await client().from("squads").update({ color }).eq("id", squadId);
   if (error) throw error;
@@ -377,7 +390,7 @@ export interface PracticeSummary {
   grade: number | null;
   status: string;
   finish: string | null;
-  squads: { name: string; color: string; wins: number; losses: number }[];
+  squads: { name: string; color: string; wins: number; losses: number; ties?: number }[];
   present: number;
   total: number;
 }
@@ -387,17 +400,17 @@ export async function getHistory(): Promise<PracticeSummary[]> {
   const sb = client();
   const [pr, sq, ro] = await Promise.all([
     sb.from("practices").select("id, practice_date, grade, status, finish_time").order("practice_date", { ascending: false }),
-    sb.from("squads").select("practice_id, name, color, wins, losses, sort_order").order("sort_order"),
+    sb.from("squads").select("*").order("sort_order"),
     sb.from("roster_entries").select("practice_id, present"),
   ]);
   if (pr.error) throw pr.error;
   if (sq.error) throw sq.error;
   if (ro.error) throw ro.error;
 
-  const squadsByPractice = new Map<string, { name: string; color: string; wins: number; losses: number }[]>();
-  (sq.data as { practice_id: string; name: string; color: string; wins: number; losses: number }[]).forEach((s) => {
+  const squadsByPractice = new Map<string, { name: string; color: string; wins: number; losses: number; ties: number }[]>();
+  (sq.data as { practice_id: string; name: string; color: string; wins: number; losses: number; ties?: number }[]).forEach((s) => {
     if (!squadsByPractice.has(s.practice_id)) squadsByPractice.set(s.practice_id, []);
-    squadsByPractice.get(s.practice_id)!.push({ name: s.name, color: s.color, wins: s.wins ?? 0, losses: s.losses ?? 0 });
+    squadsByPractice.get(s.practice_id)!.push({ name: s.name, color: s.color, wins: s.wins ?? 0, losses: s.losses ?? 0, ties: s.ties ?? 0 });
   });
   const att = new Map<string, { present: number; total: number }>();
   (ro.data as { practice_id: string; present: boolean }[]).forEach((r) => {
@@ -436,9 +449,11 @@ import type { EventRow } from "./aggregate";
 export async function getSeasonData(): Promise<SeasonInput> {
   const sb = client();
   const [pr, ro, sq, ev, dr] = await Promise.all([
-    sb.from("practices").select("id, practice_date, player_of_day, grade").order("practice_date"),
+    // select("*") so new columns (ties, tiebreak_winner_squad_id from migration
+    // 008) are included once present, without erroring before the migration runs.
+    sb.from("practices").select("*").order("practice_date"),
     sb.from("roster_entries").select("practice_id, player_id, squad_id, present, jersey, players(name)"),
-    sb.from("squads").select("id, practice_id, name, color, wins, losses"),
+    sb.from("squads").select("*"),
     sb.from("events").select("id, practice_id, squad_id, player_id, segment, type, made, shot_x, shot_y"),
     sb.from("drill_results").select("practice_id, player_id, drill, makes, attempts"),
   ]);
@@ -448,7 +463,7 @@ export async function getSeasonData(): Promise<SeasonInput> {
   if (ev.error) throw ev.error;
   if (dr.error) throw dr.error;
   return {
-    practices: pr.data as { id: string; practice_date: string; player_of_day: string | null; grade: number | null }[],
+    practices: pr.data as { id: string; practice_date: string; player_of_day: string | null; grade: number | null; tiebreak_winner_squad_id?: string | null }[],
     roster: (ro.data as unknown as { practice_id: string; player_id: string; squad_id: string | null; present: boolean; jersey: string | null; players: { name: string } | null }[]).map((r) => ({
       practice_id: r.practice_id,
       player_id: r.player_id,
@@ -457,7 +472,7 @@ export async function getSeasonData(): Promise<SeasonInput> {
       name: r.players?.name ?? "—",
       jersey: r.jersey ?? "",
     })),
-    squads: sq.data as { id: string; practice_id: string; name: string; color: string; wins: number; losses: number }[],
+    squads: sq.data as { id: string; practice_id: string; name: string; color: string; wins: number; losses: number; ties?: number }[],
     events: ev.data as EventRow[],
     drills: dr.data as { practice_id: string; player_id: string; drill: string; makes: number; attempts: number | null }[],
   };
