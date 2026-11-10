@@ -14,7 +14,7 @@ export interface RawTally {
   // counting
   pot: number; second: number; ast: number; to: number;
   tip: number; or: number; dr: number;
-  stl: number; blk: number; def: number; lb: number; dive: number; chg: number;
+  stl: number; blk: number; def: number; foul: number; dive: number; chg: number;
   fd: number; gs: number; ta: number; misc: number;
 }
 
@@ -23,7 +23,7 @@ export function emptyTally(): RawTally {
     atrM: 0, atrA: 0, nonatr2M: 0, nonatr2A: 0, fg3M: 0, fg3A: 0, ftM: 0, ftA: 0,
     pot: 0, second: 0, ast: 0, to: 0,
     tip: 0, or: 0, dr: 0,
-    stl: 0, blk: 0, def: 0, lb: 0, dive: 0, chg: 0,
+    stl: 0, blk: 0, def: 0, foul: 0, dive: 0, chg: 0,
     fd: 0, gs: 0, ta: 0, misc: 0,
   };
 }
@@ -71,7 +71,6 @@ export function compute(t: RawTally, casperValues: Record<string, number> = CASP
     casperValues.or * t.or +
     casperValues.dr * t.dr +
     casperValues.tip * t.tip +
-    casperValues.lb * t.lb +
     casperValues.dive * t.dive +
     casperValues.chg * t.chg +
     casperValues.stl * t.stl +

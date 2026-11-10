@@ -6,7 +6,7 @@ import type { DrillRow } from "../lib/db";
 const GROUPS: { title: string; keys: CountingType[] }[] = [
   { title: "Playmaking", keys: ["ast", "pot", "second", "to"] },
   { title: "Rebounding", keys: ["or", "dr", "tip"] },
-  { title: "Defense", keys: ["stl", "blk", "def", "lb", "dive", "chg"] },
+  { title: "Defense", keys: ["stl", "blk", "def", "foul", "dive", "chg"] },
   { title: "Effort / Other", keys: ["fd", "gs", "ta", "misc"] },
 ];
 

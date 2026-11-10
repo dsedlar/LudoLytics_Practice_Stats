@@ -49,7 +49,7 @@ export function makeDemoData(): { bundle: PracticeBundle; events: EventRow[]; dr
     for (let k = 0; k < 3 + ri(5); k++) push(sq, pid, "thespian", "fg3", rnd() < 0.36);
     for (let k = 0; k < ri(2); k++) push(sq, pid, "thespian", "to", null);
     for (let k = 0; k < ri(5); k++) push(sq, pid, "live", "ft", rnd() < 0.75);
-    for (const t of ["pot", "second", "ast", "to", "tip", "or", "dr", "stl", "blk", "def", "lb", "dive", "chg", "fd", "gs", "ta", "misc"]) {
+    for (const t of ["pot", "second", "ast", "to", "tip", "or", "dr", "stl", "blk", "def", "foul", "dive", "chg", "fd", "gs", "ta", "misc"]) {
       for (let k = 0; k < ri(4); k++) push(sq, pid, "live", t, null);
     }
   }

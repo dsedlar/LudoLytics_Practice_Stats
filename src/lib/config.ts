@@ -13,7 +13,6 @@ export const CASPER_VALUES: Record<string, number> = {
   or: 1.5, // Offensive Rebound
   dr: 1, // Defensive Rebound
   tip: 0.5, // Tip
-  lb: 1, // Loose Ball
   dive: 2, // Dive
   chg: 4, // Charge Taken
   stl: 1, // Steal
@@ -95,7 +94,7 @@ export const COUNTING_TYPES = [
   "stl",
   "blk",
   "def", // deflection
-  "lb",
+  "foul", // foul committed
   "dive",
   "chg",
   "fd", // foul drawn
@@ -116,7 +115,7 @@ export const COUNTING_LABELS: Record<CountingType, string> = {
   stl: "Steal",
   blk: "Block",
   def: "Deflection",
-  lb: "Loose Ball",
+  foul: "Foul",
   dive: "Dive",
   chg: "Charge",
   fd: "Foul Drawn",

@@ -14,7 +14,7 @@ export interface StatBlock {
   fd: number;
   play: { pot: number; second: number; ast: number; to: number; toPct: number; ato: number };
   reb: { tip: number; or: number; dr: number; orPct: number; tot: number };
-  def: { stl: number; blk: number; def: number; lb: number; dive: number; chg: number };
+  def: { stl: number; blk: number; def: number; foul: number; dive: number; chg: number };
   casper: number;
   per: number;
 }
@@ -39,7 +39,7 @@ export function statBlock(t: RawTally, opponentDR = 0): StatBlock {
       tip: t.tip, or: t.or, dr: t.dr, tot: t.or + t.dr,
       orPct: t.or + opponentDR ? t.or / (t.or + opponentDR) : 0,
     },
-    def: { stl: t.stl, blk: t.blk, def: t.def, lb: t.lb, dive: t.dive, chg: t.chg },
+    def: { stl: t.stl, blk: t.blk, def: t.def, foul: t.foul, dive: t.dive, chg: t.chg },
     casper: c.casper, per: c.per,
   };
 }
@@ -247,7 +247,7 @@ function blockCols(b: StatBlock): Record<string, number> {
     AST: b.play.ast, PAST: b.play.pot, "2ndAST": b.play.second,
     TO: b.play.to, "A/TO": round(b.play.ato, 2),
     OREB: b.reb.or, DREB: b.reb.dr, REB: b.reb.tot, Tip: b.reb.tip,
-    STL: b.def.stl, BLK: b.def.blk, DEF: b.def.def, LB: b.def.lb, Dive: b.def.dive, Charge: b.def.chg,
+    STL: b.def.stl, BLK: b.def.blk, DEF: b.def.def, Foul: b.def.foul, Dive: b.def.dive, Charge: b.def.chg,
     FD: b.fd, CP: round(b.casper, 1), PER: round(b.per, 1),
   };
 }
