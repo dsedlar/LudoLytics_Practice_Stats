@@ -111,8 +111,12 @@ export function makeSeasonDemo(): SeasonInput {
       for (let k = 0; k < 2 + ri(5); k++) { const [x, y] = threeXY(); push("fg3", rnd() < 0.32 + growth, "live", x, y); }
       for (let k = 0; k < ri(4); k++) push("ft", rnd() < 0.72);
       for (const t of ["ast", "to", "or", "dr", "stl", "def", "chg", "dive"]) for (let k = 0; k < ri(3); k++) push(t, null);
-      // transition 3s (events, not a drill)
+      // transition + thespian shooting segments (events, not drills), each with
+      // the occasional turnover that counts toward TO totals (not efficiency)
       for (let k = 0; k < 3 + ri(4); k++) push("fg3", rnd() < 0.3 + growth, "transition");
+      for (let k = 0; k < ri(2); k++) push("to", null, "transition");
+      for (let k = 0; k < 3 + ri(4); k++) push("fg3", rnd() < 0.33 + growth, "thespian");
+      for (let k = 0; k < ri(2); k++) push("to", null, "thespian");
       drills.push({ practice_id: pr.id, player_id: pl.id, drill: "baylor", makes: 38 + pIdx + ri(18), attempts: null });
       drills.push({ practice_id: pr.id, player_id: pl.id, drill: "ninetys", makes: 10 + ri(7), attempts: null });
       drills.push({ practice_id: pr.id, player_id: pl.id, drill: "ft", makes: 13 + ri(6), attempts: null });

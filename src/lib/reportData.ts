@@ -44,11 +44,11 @@ export function statBlock(t: RawTally, opponentDR = 0): StatBlock {
   };
 }
 
-// Fold transition 3s into a team block's 3FG line only (makes/attempts/%);
-// possessions, efficiency and points stay scrimmage-only.
-function addTransition3s(b: StatBlock, trans: { m: number; a: number }): StatBlock {
-  const m = b.fg3.m + trans.m;
-  const a = b.fg3.a + trans.a;
+// Fold drill-segment 3s (transition + thespian) into a block's 3FG line only
+// (makes/attempts/%); possessions, efficiency and points stay scrimmage-only.
+function addDrill3s(b: StatBlock, d: { m: number; a: number }): StatBlock {
+  const m = b.fg3.m + d.m;
+  const a = b.fg3.a + d.a;
   return { ...b, fg3: { ...b.fg3, m, a, pct: a ? m / a : 0 } };
 }
 
@@ -125,6 +125,12 @@ function seg3s(events: EventRow[], seg: string): { m: number; a: number } {
 }
 const transOf = (events: EventRow[]) => seg3s(events, "transition");
 const thesOf = (events: EventRow[]) => seg3s(events, "thespian");
+// Combined transition + thespian 3s (folded into the Team Stats 3FG line).
+const drill3sOf = (events: EventRow[]) => {
+  const t = transOf(events);
+  const h = thesOf(events);
+  return { m: t.m + h.m, a: t.a + h.a };
+};
 // Turnovers logged in the drill segments (transition + thespian).
 function drillTOof(events: EventRow[]): number {
   return events.filter((x) => isShootSegment(x.segment) && x.type === "to").length;
@@ -179,10 +185,10 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
           },
         };
       });
-    // TEAM STATS: 3FG line includes transition 3s; TO includes transition +
-    // thespian turnovers (both display-only, not possessions).
+    // TEAM STATS: 3FG line includes transition + thespian 3s; TO includes
+    // transition + thespian turnovers (both display-only, not possessions).
     const sqEv = events.filter((e) => e.squad_id === s.id);
-    const teamBlock = addDrillTO(addTransition3s(statBlock(t, oppDR), transOf(sqEv)), drillTOof(sqEv));
+    const teamBlock = addDrillTO(addDrill3s(statBlock(t, oppDR), drill3sOf(sqEv)), drillTOof(sqEv));
     return { id: s.id, name: s.name, color: s.color, team: teamBlock, wins, wl, players, totals: addDrillTO(statBlock(t, oppDR), drillTOof(sqEv)) };
   });
 
@@ -217,7 +223,7 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
     finishTime: bundle.practice.finish_time,
     grade: bundle.practice.grade,
     attPresent: present, attTotal: total, attPct: total ? present / total : 0,
-    squads, combined: addDrillTO(addTransition3s(statBlock(combinedTally), transOf(events)), drillTOof(events)),
+    squads, combined: addDrillTO(addDrill3s(statBlock(combinedTally), drill3sOf(events)), drillTOof(events)),
     liveTeam, drills: drillLines,
     absent: bundle.roster.filter((r) => !isPracticing(r)).map((r) => ({ jersey: r.jersey ?? "", name: r.players?.name ?? "—" })),
   };

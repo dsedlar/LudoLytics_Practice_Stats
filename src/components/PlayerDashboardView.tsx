@@ -105,9 +105,9 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
   const fg3Pct = (hp?: HistoryPoint) => (hp && hp.tally.fg3A ? hp.tally.fg3M / hp.tally.fg3A : null);
   const seasonFg3 = p.tally.fg3A ? p.tally.fg3M / p.tally.fg3A : 0;
   const rpg = (p.tally.or + p.tally.dr) / Math.max(1, p.gp);
-  const topg = p.tally.to / Math.max(1, p.gp);
+  const topg = p.toTotal / Math.max(1, p.gp);
   const rebOf = (hp?: HistoryPoint) => (hp ? hp.tally.or + hp.tally.dr : null);
-  const toOf = (hp?: HistoryPoint) => (hp ? hp.tally.to : null);
+  const toOf = (hp?: HistoryPoint) => (hp ? hp.toCount : null);
 
   return (
     <div>
@@ -172,7 +172,7 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
                   <td className="p-2">{t.or}</td>
                   <td className="p-2">{t.dr}</td>
                   <td className="p-2">{t.ast}</td>
-                  <td className="p-2">{t.to}</td>
+                  <td className="p-2">{hp.toCount}</td>
                   <td className="p-2">{t.stl}</td>
                   <td className="p-2">{t.blk}</td>
                   <td className="p-2 font-semibold">{f1(hp.cp)}</td>
@@ -198,7 +198,7 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
               <td className="p-2">{p.tally.or}</td>
               <td className="p-2">{p.tally.dr}</td>
               <td className="p-2">{p.tally.ast}</td>
-              <td className="p-2">{p.tally.to}</td>
+              <td className="p-2">{p.toTotal}</td>
               <td className="p-2">{p.tally.stl}</td>
               <td className="p-2">{p.tally.blk}</td>
               <td className="p-2">{f1(p.total.casper)}</td>

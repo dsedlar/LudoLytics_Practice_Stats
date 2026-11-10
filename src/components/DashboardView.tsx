@@ -10,7 +10,7 @@ type SortKey = "jersey" | "wl" | "efg" | "fg3" | "ft" | "ts" | "pps" | "topg" | 
 
 const fg3 = (p: PlayerSeason) => (p.tally.fg3A ? p.tally.fg3M / p.tally.fg3A : 0);
 const ftPct = (p: PlayerSeason) => (p.tally.ftA ? p.tally.ftM / p.tally.ftA : 0);
-const toPerG = (p: PlayerSeason) => p.tally.to / Math.max(1, p.gp);
+const toPerG = (p: PlayerSeason) => p.toTotal / Math.max(1, p.gp);
 const rebPerG = (p: PlayerSeason) => (p.tally.or + p.tally.dr) / Math.max(1, p.gp);
 const winPct = (p: PlayerSeason) => (p.record.w + p.record.l ? p.record.w / (p.record.w + p.record.l) : 0);
 

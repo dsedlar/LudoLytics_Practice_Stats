@@ -4,6 +4,7 @@
 import { compute, emptyTally, type RawTally, type Computed } from "./stats";
 import { applyEvent, type EventRow } from "./aggregate";
 import { playerZoneFor, PLAYER_ZONES, type PlayerZone } from "./court";
+import { isShootSegment } from "./config";
 
 export type ZoneSplit = { m: number; a: number };
 export type PlayerZones = Record<PlayerZone, ZoneSplit>;
@@ -65,6 +66,7 @@ export interface HistoryPoint {
   practiceId: string; date: string;
   pts: number; ts: number; efg: number; per: number; cp: number;
   tally: RawTally;
+  toCount: number; // live TO + transition/thespian drill turnovers
   trans: { m: number; a: number };
   drills: { baylor: number | null; ninety: number | null; ft: number | null };
   wl: { w: number; l: number };
@@ -77,6 +79,7 @@ export interface PlayerSeason {
   total: Computed;
   tally: RawTally; // season raw totals
   ptsPerG: number; cpPerG: number; perAvg: number;
+  toTotal: number; // season turnovers incl. transition/thespian drill TOs
   drills: { baylorAvg: number; ninetyAvg: number; transPct: number; ftAvg: number };
   zones: PlayerZones; // season FG makes/attempts per court zone (located shots)
   shots: Shot[]; // the player's located FG attempts (for the hexbin chart)
@@ -150,6 +153,11 @@ export function buildSeason(input: SeasonInput): SeasonResult {
   const drillAt = new Map<string, number>();
   input.drills.forEach((d) => drillAt.set(`${d.player_id}|${d.practice_id}|${d.drill}`, Number(d.makes)));
   const transAt = new Map<string, { m: number; a: number }>();
+  // Transition + thespian turnovers add to displayed TO counts (not to
+  // possessions/efficiency), mirroring the per-practice report.
+  const drillTOByPP = new Map<string, number>(); // `player|practice` -> count
+  const drillTOByPlayer = new Map<string, number>();
+  const drillTOByPractice = new Map<string, number>();
   input.events.forEach((e) => {
     if (e.segment === "transition" && e.type === "fg3") {
       const k = `${e.player_id}|${e.practice_id}`;
@@ -157,6 +165,11 @@ export function buildSeason(input: SeasonInput): SeasonResult {
       cur.a += 1;
       if (e.made) cur.m += 1;
       transAt.set(k, cur);
+    }
+    if (isShootSegment(e.segment) && e.type === "to") {
+      drillTOByPP.set(`${e.player_id}|${e.practice_id}`, (drillTOByPP.get(`${e.player_id}|${e.practice_id}`) ?? 0) + 1);
+      drillTOByPlayer.set(e.player_id, (drillTOByPlayer.get(e.player_id) ?? 0) + 1);
+      drillTOByPractice.set(e.practice_id, (drillTOByPractice.get(e.practice_id) ?? 0) + 1);
     }
   });
   const drillVal = (player: string, pid: string, drill: string) => {
@@ -180,6 +193,7 @@ export function buildSeason(input: SeasonInput): SeasonResult {
         return {
           practiceId: pid, date: dateById.get(pid) ?? "",
           pts: c.pts, ts: c.ts, efg: c.efg, per: c.per, cp: c.casper, tally: t,
+          toCount: t.to + (drillTOByPP.get(`${playerId}|${pid}`) ?? 0),
           trans: transAt.get(`${playerId}|${pid}`) ?? { m: 0, a: 0 },
           drills: { baylor: drillVal(playerId, pid, "baylor"), ninety: drillVal(playerId, pid, "ninetys"), ft: drillVal(playerId, pid, "ft") },
           wl: { w: sw?.w ?? 0, l: sw?.l ?? 0 },
@@ -203,6 +217,7 @@ export function buildSeason(input: SeasonInput): SeasonResult {
       zones: zonesByPlayer.get(playerId) ?? emptyZones(),
       shots: shotsByPlayer.get(playerId) ?? [],
       ptsPerG: total.pts / gp, cpPerG: total.casper / gp, perAvg: mean(history.map((h) => h.per)),
+      toTotal: (totals.get(playerId)?.to ?? 0) + (drillTOByPlayer.get(playerId) ?? 0),
       drills: {
         baylorAvg: mean(pick("baylor").map((d) => Number(d.makes))),
         ninetyAvg: mean(pick("ninetys").map((d) => Number(d.makes))),
@@ -247,9 +262,21 @@ export function buildSeason(input: SeasonInput): SeasonResult {
   const tsOf = (t: RawTally) => (hasFga(t) || t.ftA ? compute(t).ts : null);
   const pppOf = (t: RawTally) => (hasFga(t) || t.to || t.ftA ? compute(t).ppp : null);
 
+  // Team TO totals include drill (transition + thespian) turnovers.
+  const totalDrillTO = [...drillTOByPractice.values()].reduce((a, b) => a + b, 0);
+  const toAt = (pid: string | undefined): number | null =>
+    pid == null ? null : (byPractice.get(pid)?.to ?? 0) + (drillTOByPractice.get(pid) ?? 0);
+  const toTrend: Trend = (() => {
+    if (orderedPids.length < 2) return "same";
+    const a = toAt(orderedPids[orderedPids.length - 1]);
+    const b = toAt(orderedPids[orderedPids.length - 2]);
+    if (a == null || b == null || a === b) return "same";
+    return a < b ? "better" : "worse"; // fewer turnovers is better
+  })();
+
   const team: TeamSeason = {
     practices: practicesWithData,
-    toPerPractice: practicesWithData ? totalTally.to / practicesWithData : 0,
+    toPerPractice: practicesWithData ? (totalTally.to + totalDrillTO) / practicesWithData : 0,
     fg3Pct: totalTally.fg3A ? totalTally.fg3M / totalTally.fg3A : 0,
     pps: tc.pps,
     ftPct: totalTally.ftA ? totalTally.ftM / totalTally.ftA : 0,
@@ -262,7 +289,7 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     ppp: tc.ppp,
     casper: tc.casper,
     trends: {
-      to: trend((t) => t.to, false), // fewer turnovers is better
+      to: toTrend, // fewer turnovers is better (incl. drill TOs)
       fg3: trend(fg3, true),
       pps: trend(ppsOf, true),
       ft: trend(ftOf, true),
