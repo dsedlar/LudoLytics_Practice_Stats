@@ -33,8 +33,9 @@ export default function DemoEntryPanel({
   const [undoStack, setUndoStack] = useState<number[]>([]);
   const [flash, setFlash] = useState("");
   const [wins, setWins] = useState(0);
-  const [losses, setLosses] = useState(0);
-  const currentGame = wins + losses + 1;
+  const [losses] = useState(0); // demo is one squad; losses only accrue to the opponent
+  const [ties, setTies] = useState(0);
+  const currentGame = wins + losses + ties + 1;
 
   const tallies = useMemo(() => tallyByPlayer(events), [events]);
   const players: TilePlayer[] = roster.map((r) => {
@@ -87,9 +88,11 @@ export default function DemoEntryPanel({
     setUndoStack((s) => s.slice(0, -1));
     setEvents((e) => e.filter((x) => x.id !== last));
   }
-  function onEndDrill(won: boolean) {
-    if (won) setWins((w) => w + 1);
-    else setLosses((l) => l + 1);
+  // Winning bench records the run: validation FT made = win, missed = tie.
+  function onRecordResult(ftPlayerId: string, made: boolean) {
+    add(ftPlayerId, "vft", made, "live");
+    if (made) setWins((w) => w + 1);
+    else setTies((t) => t + 1);
     setSelected("");
   }
   function drillSave(playerId: string, drill: string, makes: number) {
@@ -114,7 +117,8 @@ export default function DemoEntryPanel({
       flash={flash}
       wins={wins}
       losses={losses}
-      onEndDrill={onEndDrill}
+      ties={ties}
+      onRecordResult={onRecordResult}
       transitionRows={transitionRows}
       onTransition={onTransition}
       onTransitionTO={onTransitionTO}

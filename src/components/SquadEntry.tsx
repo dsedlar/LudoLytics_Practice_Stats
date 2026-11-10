@@ -3,7 +3,7 @@ import { usePracticeData } from "../lib/usePracticeData";
 import { tallyByPlayer } from "../lib/aggregate";
 import { compute, emptyTally } from "../lib/stats";
 import { SHOT_LABELS, COUNTING_LABELS, type ShotType, type CountingType } from "../lib/config";
-import { logEvent, deleteEvent, upsertDrillResult, setSquadWins, setSquadLosses } from "../lib/db";
+import { logEvent, deleteEvent, upsertDrillResult, setSquadWins, setSquadLosses, setSquadTies } from "../lib/db";
 import LiveEntryView, { type TilePlayer, type TransitionRow } from "./LiveEntryView";
 import type { CourtShot } from "./Court";
 import type { Tab } from "./LiveEntryView";
@@ -31,7 +31,8 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
 
   const wins = squad.wins ?? 0;
   const losses = squad.losses ?? 0;
-  const currentGame = wins + losses + 1;
+  const ties = squad.ties ?? 0;
+  const currentGame = wins + losses + ties + 1;
 
   const roster = bundle.roster
     .filter((r) => r.squad_id === squadId && r.present)
@@ -115,9 +116,23 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
     }
   }
 
-  async function onEndDrill(won: boolean) {
-    if (won) await setSquadWins(squadId, wins + 1);
-    else await setSquadLosses(squadId, losses + 1);
+  // The winning bench records the run. Log the validation FT (a live FT that
+  // counts in FT% + Clutch FT%), then bank the result and mirror it to the
+  // opponent: made FT = win here / loss there; miss = tie for both.
+  async function onRecordResult(ftPlayerId: string, made: boolean) {
+    const opp = bundle!.squads.find((s) => s.id !== squadId);
+    try {
+      await logEvent({ practice_id: practiceId, squad_id: squadId, player_id: ftPlayerId, segment: "live", type: "vft", made, game_index: currentGame });
+      if (made) {
+        await setSquadWins(squadId, wins + 1);
+        if (opp) await setSquadLosses(opp.id, (opp.losses ?? 0) + 1);
+      } else {
+        await setSquadTies(squadId, ties + 1);
+        if (opp) await setSquadTies(opp.id, (opp.ties ?? 0) + 1);
+      }
+    } catch (err) {
+      setFlash(`Error: ${(err as Error).message}`);
+    }
     setSelected("");
   }
 
@@ -139,7 +154,8 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
       flash={flash}
       wins={wins}
       losses={losses}
-      onEndDrill={onEndDrill}
+      ties={ties}
+      onRecordResult={onRecordResult}
       transitionRows={transitionRows}
       onTransition={onTransition}
       onTransitionTO={onTransitionTO}

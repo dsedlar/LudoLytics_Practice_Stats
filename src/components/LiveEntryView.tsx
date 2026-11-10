@@ -51,7 +51,11 @@ export interface LiveEntryViewProps {
   flash: string;
   wins: number;
   losses: number;
-  onEndDrill: (won: boolean) => void;
+  ties: number;
+  // The winning bench records the run: pick who shot the validation FT and
+  // whether it was made (win) or missed (tie). The loss/tie is mirrored to the
+  // opponent by the caller.
+  onRecordResult: (ftPlayerId: string, made: boolean) => void;
   // transition + thespian (3-point shooting segments: 3s + turnovers)
   transitionRows: TransitionRow[];
   onTransition: (playerId: string, made: boolean) => void;
@@ -102,7 +106,11 @@ export default function LiveEntryView(p: LiveEntryViewProps) {
 
 function LiveTab({ p }: { p: LiveEntryViewProps }) {
   const [ending, setEnding] = useState(false);
-  const drillNo = p.wins + p.losses + 1;
+  const [ftShooter, setFtShooter] = useState<string | null>(null);
+  const drillNo = p.wins + p.losses + p.ties + 1;
+  const reset = () => { setEnding(false); setFtShooter(null); };
+  const shooterName = p.players.find((pl) => pl.playerId === ftShooter)?.name;
+  const record = (made: boolean) => { if (ftShooter) { p.onRecordResult(ftShooter, made); reset(); } };
 
   return (
     <>
@@ -125,21 +133,42 @@ function LiveTab({ p }: { p: LiveEntryViewProps }) {
         {p.players.length === 0 && <p className="text-gray-500 col-span-full">No players assigned to this squad.</p>}
       </div>
 
-      {/* drill bar */}
-      <div className="mt-3 flex items-center gap-3 flex-wrap bg-white border rounded-lg px-3 py-2">
-        <span className="text-sm font-semibold">Live drill #{drillNo}</span>
-        <span className="text-xs text-gray-500">Season W-L {p.wins}-{p.losses}</span>
-        <div className="flex-1" />
-        {!ending ? (
-          <button onClick={() => setEnding(true)} className="text-sm bg-navy text-white rounded px-3 py-1.5 font-medium">
-            End drill & record result
-          </button>
-        ) : (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">{p.squadName} result:</span>
-            <button onClick={() => { p.onEndDrill(true); setEnding(false); }} className="text-sm bg-green-600 text-white rounded px-3 py-1.5 font-semibold">Won</button>
-            <button onClick={() => { p.onEndDrill(false); setEnding(false); }} className="text-sm bg-garnet text-white rounded px-3 py-1.5 font-semibold">Lost</button>
-            <button onClick={() => setEnding(false)} className="text-sm text-gray-400 px-1">cancel</button>
+      {/* drill bar — the winning bench records the run via the validation FT */}
+      <div className="mt-3 bg-white border rounded-lg px-3 py-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm font-semibold">Live drill #{drillNo}</span>
+          <span className="text-xs text-gray-500">W-L {p.wins}-{p.losses}{p.ties ? ` · ${p.ties}T` : ""}</span>
+          <div className="flex-1" />
+          {!ending && (
+            <button onClick={() => setEnding(true)} className="text-sm bg-navy text-white rounded px-3 py-1.5 font-medium">
+              End drill — {p.squadName} won
+            </button>
+          )}
+        </div>
+
+        {ending && ftShooter == null && (
+          <div className="mt-2 border-t pt-2">
+            <div className="text-sm text-gray-600 mb-1">
+              {p.squadName} won — tap who <b>shot the validation FT</b>:
+              <button onClick={reset} className="ml-2 text-xs text-gray-400">cancel</button>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {p.players.map((pl) => (
+                <button key={pl.playerId} onClick={() => setFtShooter(pl.playerId)} className="bg-white border hover:border-garnet rounded px-3 py-2 text-sm font-medium">
+                  <span className="text-gray-400">#{pl.jersey}</span> {pl.name}
+                </button>
+              ))}
+              {p.players.length === 0 && <span className="text-sm text-gray-400">No players assigned.</span>}
+            </div>
+          </div>
+        )}
+
+        {ending && ftShooter != null && (
+          <div className="mt-2 border-t pt-2 flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-gray-600">Validation FT by <b className="text-black">{shooterName}</b>:</span>
+            <button onClick={() => record(true)} className="text-sm bg-green-600 text-white rounded px-4 py-1.5 font-semibold">Made → Win</button>
+            <button onClick={() => record(false)} className="text-sm bg-garnet text-white rounded px-4 py-1.5 font-semibold">Miss → Tie</button>
+            <button onClick={() => setFtShooter(null)} className="text-sm text-gray-400 px-1">back</button>
           </div>
         )}
       </div>
