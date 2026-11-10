@@ -4,14 +4,16 @@ import { usePracticeData } from "../lib/usePracticeData";
 import { tallyByPlayer, tallyBySquad } from "../lib/aggregate";
 import { compute, emptyTally, addTally, pct, type RawTally } from "../lib/stats";
 import { GRADE_SCALE } from "../lib/config";
-import { setGrade, finishPractice, setSquadWins, setSquadLosses, updateSquad, setPlayerSquad, updatePractice } from "../lib/db";
+import { setGrade, finishPractice, setSquadWins, setSquadLosses, setSquadTies, setTiebreakWinner, updateSquad, setPlayerSquad, updatePractice } from "../lib/db";
+import { practiceWinner, teamShootPcts } from "../lib/practiceOutcome";
 
 export default function Coach() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  const { bundle, events, error, loading, reload } = usePracticeData(id);
+  const { bundle, events, drills, error, loading, reload } = usePracticeData(id);
   const [copied, setCopied] = useState("");
   const [actErr, setActErr] = useState("");
+  const [tiebreakPrompt, setTiebreakPrompt] = useState(false);
 
   // Run a write then reload so the UI reflects it immediately (don't rely on realtime).
   async function run(fn: () => Promise<void>) {
@@ -51,6 +53,22 @@ export default function Coach() {
 
   const combined = bundle.squads.reduce((acc, s) => addTally(acc, squadTally(s.id)), emptyTally());
 
+  // Practice winner via the tiebreaker cascade (more wins → Transition% →
+  // Thespian% → Baylor% → FT% → coach's dead-even pick).
+  const sideOf = (s: (typeof bundle.squads)[number]) => ({
+    id: s.id,
+    wins: s.wins ?? 0,
+    pcts: teamShootPcts(
+      events.filter((e) => e.squad_id === s.id),
+      drills.filter((d) => d.squad_id === s.id).map((d) => ({ drill: d.drill, makes: Number(d.makes) })),
+    ),
+  });
+  const [sqA, sqB] = bundle.squads;
+  const winnerInfo = sqA && sqB
+    ? practiceWinner(sideOf(sqA), sideOf(sqB), bundle.practice.tiebreak_winner_squad_id)
+    : { winnerId: sqA?.id ?? null, reason: "wins" as const, reasonLabel: "Wins" };
+  const winnerName = winnerInfo.winnerId ? bundle.squads.find((s) => s.id === winnerInfo.winnerId)?.name ?? null : null;
+
   // Two squads scrimmage each other, so a win for one is a loss for the other.
   // Mirror every W/L change to the opposing squad to keep the record consistent.
   const other = (squadId: string) => bundle!.squads.find((s) => s.id !== squadId);
@@ -73,6 +91,19 @@ export default function Coach() {
     await setSquadLosses(squadId, newLosses);
     const opp = other(squadId);
     if (opp && applied !== 0) await setSquadWins(opp.id, Math.max(0, (opp.wins ?? 0) + applied));
+  }
+
+  // A tie (missed validation FT) belongs to both squads, so adjust both together.
+  async function adjustTies(delta: number) {
+    for (const s of bundle!.squads) await setSquadTies(s.id, Math.max(0, (s.ties ?? 0) + delta));
+  }
+
+  async function finishWith(winnerId: string | null) {
+    await run(async () => {
+      if (winnerId) await setTiebreakWinner(id, winnerId);
+      await finishPractice(id, new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+      navigate(`/practice/${id}/report`);
+    });
   }
 
   // Only two teams (Grey/Garnet) — swap relabels each squad to the other
@@ -108,7 +139,7 @@ export default function Coach() {
       <div className="mt-4 grid sm:grid-cols-3 gap-3">
         {bundle.squads.map((s) => {
           const t = squadTally(s.id);
-          return <SummaryCard key={s.id} name={s.name} color={s.color} t={t} c={compute(t)} toCount={t.to + (drillTOBySquad.get(s.id) ?? 0)} record={{ w: s.wins ?? 0, l: s.losses ?? 0 }} />;
+          return <SummaryCard key={s.id} name={s.name} color={s.color} t={t} c={compute(t)} toCount={t.to + (drillTOBySquad.get(s.id) ?? 0)} record={{ w: s.wins ?? 0, l: s.losses ?? 0, ties: s.ties ?? 0 }} />;
         })}
         <SummaryCard name="Combined" color="#00142D" t={combined} c={compute(combined)} toCount={combined.to + [...drillTOBySquad.values()].reduce((a, b) => a + b, 0)} wide={bundle.squads.length < 2} />
       </div>
@@ -165,15 +196,17 @@ export default function Coach() {
               </div>
             </div>
           ))}
+          {/* ties are shared by both squads (missed validation FT) */}
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-gray-400">Ties</span>
+            <button onClick={() => run(() => adjustTies(-1))} className="w-7 h-7 rounded border leading-none">−</button>
+            <span className="text-lg font-black w-6 text-center">{bundle.squads[0]?.ties ?? 0}</span>
+            <button onClick={() => run(() => adjustTies(+1))} className="w-7 h-7 rounded border leading-none">+</button>
+          </div>
           <span className="text-sm text-gray-500 self-center">
             Winner of the day:{" "}
-            <b>
-              {(() => {
-                const sorted = [...bundle.squads].sort((a, b) => (b.wins ?? 0) - (a.wins ?? 0));
-                if ((sorted[0]?.wins ?? 0) === (sorted[1]?.wins ?? 0)) return "Tied";
-                return sorted[0].name;
-              })()}
-            </b>
+            <b>{winnerName ?? "Dead-even — pick at Finish"}</b>
+            {winnerName && winnerInfo.reason !== "wins" && <span className="text-gray-400"> (on {winnerInfo.reasonLabel})</span>}
           </span>
         </div>
       </div>
@@ -239,12 +272,12 @@ export default function Coach() {
 
       <div className="mt-6">
         <button
-          onClick={() =>
-            run(async () => {
-              await finishPractice(id, new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
-              navigate(`/practice/${id}/report`);
-            })
-          }
+          onClick={() => {
+            // Only prompt when the cascade truly can't decide (dead-even on wins
+            // and all four tiebreakers). Otherwise finish straight away.
+            if (winnerInfo.winnerId == null) setTiebreakPrompt(true);
+            else finishWith(null);
+          }}
           className="bg-navy text-white px-5 py-3 rounded-lg font-semibold"
         >
           {bundle.practice.status === "finished" ? "Re-finish (update time)" : "Finish practice"}
@@ -252,12 +285,32 @@ export default function Coach() {
         <Link to={`/practice/${id}/report`} className="ml-3 bg-garnet text-white px-5 py-3 rounded-lg font-semibold">
           View report →
         </Link>
+        {tiebreakPrompt && (
+          <div className="mt-3 bg-amber-50 border border-amber-300 rounded-lg p-3">
+            <div className="text-sm font-semibold mb-2">
+              Teams are dead-even (wins and all tiebreakers). Pick the practice winner:
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {bundle.squads.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => { setTiebreakPrompt(false); finishWith(s.id); }}
+                  className="text-white rounded px-4 py-2 font-semibold text-sm"
+                  style={{ background: s.color }}
+                >
+                  {s.name} wins
+                </button>
+              ))}
+              <button onClick={() => setTiebreakPrompt(false)} className="text-sm text-gray-500 px-2">cancel</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function SummaryCard({ name, color, t, c, toCount, record, wide }: { name: string; color: string; t: RawTally; c: ReturnType<typeof compute>; toCount?: number; record?: { w: number; l: number }; wide?: boolean }) {
+function SummaryCard({ name, color, t, c, toCount, record, wide }: { name: string; color: string; t: RawTally; c: ReturnType<typeof compute>; toCount?: number; record?: { w: number; l: number; ties: number }; wide?: boolean }) {
   return (
     <div className={`rounded-lg p-3 text-white ${wide ? "sm:col-span-3" : ""}`} style={{ background: color }}>
       <div className="font-bold tracking-wide uppercase">{name}</div>
@@ -270,6 +323,7 @@ function SummaryCard({ name, color, t, c, toCount, record, wide }: { name: strin
         <Stat label="Casper" value={String(c.casper)} />
         {record && <Stat label="W" value={String(record.w)} />}
         {record && <Stat label="L" value={String(record.l)} />}
+        {record && record.ties > 0 && <Stat label="T" value={String(record.ties)} />}
       </div>
     </div>
   );

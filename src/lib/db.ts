@@ -149,6 +149,7 @@ export interface PracticeRow {
   grade: number | null;
   status: string;
   player_of_day: string | null;
+  tiebreak_winner_squad_id?: string | null; // migration 008; dead-even coach pick
 }
 export interface SquadRow {
   id: string;

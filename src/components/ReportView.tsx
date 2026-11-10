@@ -86,7 +86,7 @@ export default function ReportView({ m }: { m: ReportModel }) {
       {/* summary cards */}
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
         {m.squads.map((s) => (
-          <SummaryCard key={s.id} name={s.name} color={s.color} block={s.team} wins={s.wins} />
+          <SummaryCard key={s.id} name={s.name} color={s.color} block={s.team} wins={s.wins} ties={s.ties} />
         ))}
         <SummaryCard name="Combined" color="#00142D" block={m.combined} wins={m.squads.reduce((a, s) => a + s.wins, 0)} />
         <div style={{ flex: "0 0 150px", border: "1px solid #ddd", borderRadius: 4, padding: 8 }}>
@@ -159,7 +159,7 @@ export default function ReportView({ m }: { m: ReportModel }) {
   );
 }
 
-function SummaryCard({ name, color, block, wins }: { name: string; color: string; block: StatBlock; wins: number }) {
+function SummaryCard({ name, color, block, wins, ties = 0 }: { name: string; color: string; block: StatBlock; wins: number; ties?: number }) {
   return (
     <div style={{ flex: 1, border: `2px solid ${color}`, borderRadius: 4, overflow: "hidden" }}>
       <div style={{ background: color, color: "#fff", fontFamily: F_COMPRESSED, fontWeight: 600, letterSpacing: "0.12em", fontSize: 12, textAlign: "center", padding: "2px 0" }}>{name.toUpperCase()}</div>
@@ -168,6 +168,7 @@ function SummaryCard({ name, color, block, wins }: { name: string; color: string
           [f2(block.ppp), "PPP"],
           [String(round1(block.casper)), "CASPER"],
           [String(wins), "WINS"],
+          ...(ties > 0 ? [[String(ties), "TIES"]] : []),
           [String(Math.round(block.poss)), "POSS"],
         ].map(([v, l]) => (
           <div key={l} style={{ textAlign: "center" }}>

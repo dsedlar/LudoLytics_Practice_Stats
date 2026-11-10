@@ -18,8 +18,8 @@ export function makeDemoData(): { bundle: PracticeBundle; events: EventRow[]; dr
   const rnd = lcg(42);
   const ri = (n: number) => Math.floor(rnd() * n);
   const squads = [
-    { id: "sA", practice_id: "demo", name: "Garnet", color: "#B20000", sort_order: 0, wins: 4, losses: 6 },
-    { id: "sB", practice_id: "demo", name: "White", color: "#00142D", sort_order: 1, wins: 6, losses: 4 },
+    { id: "sA", practice_id: "demo", name: "Garnet", color: "#B20000", sort_order: 0, wins: 4, losses: 6, ties: 2 },
+    { id: "sB", practice_id: "demo", name: "White", color: "#00142D", sort_order: 1, wins: 6, losses: 4, ties: 2 },
   ];
   const roster = [
     ...NAMES_A.map((n, i) => ({ id: "rA" + i, squad_id: "sA", player_id: "pA" + i, jersey: JERS_A[i], present: true, players: { name: n } })),

@@ -74,7 +74,7 @@ export interface PlayerLine {
   drills: { baylor: number | null; ninetys: number | null; transM: number | null; transA: number | null; thesM: number | null; thesA: number | null; ft: number | null };
 }
 export interface SquadReport {
-  id: string; name: string; color: string; team: StatBlock; wins: number; wl: string;
+  id: string; name: string; color: string; team: StatBlock; wins: number; ties: number; wl: string;
   players: PlayerLine[];
   totals: StatBlock;
 }
@@ -189,7 +189,7 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
     // transition + thespian turnovers (both display-only, not possessions).
     const sqEv = events.filter((e) => e.squad_id === s.id);
     const teamBlock = addDrillTO(addDrill3s(statBlock(t, oppDR), drill3sOf(sqEv)), drillTOof(sqEv));
-    return { id: s.id, name: s.name, color: s.color, team: teamBlock, wins, wl, players, totals: addDrillTO(statBlock(t, oppDR), drillTOof(sqEv)) };
+    return { id: s.id, name: s.name, color: s.color, team: teamBlock, wins, ties: (s as { ties?: number }).ties ?? 0, wl, players, totals: addDrillTO(statBlock(t, oppDR), drillTOof(sqEv)) };
   });
 
   const combinedTally = squadIds.reduce((acc, sid) => addTally(acc, sqT(sid)), emptyTally());
