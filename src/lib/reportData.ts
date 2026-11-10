@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 import { compute, emptyTally, addTally, type RawTally } from "./stats";
 import { tallyByPlayer, tallyBySquad, type EventRow } from "./aggregate";
-import { SHOOTING_DRILLS } from "./config";
+import { SHOOTING_DRILLS, isShootSegment } from "./config";
 import type { PracticeBundle, DrillRow } from "./db";
 import type { SeasonResult } from "./seasonData";
 
@@ -52,17 +52,26 @@ function addTransition3s(b: StatBlock, trans: { m: number; a: number }): StatBlo
   return { ...b, fg3: { ...b.fg3, m, a, pct: a ? m / a : 0 } };
 }
 
+// Add drill-segment turnovers (transition + thespian) to a block's TO count
+// only — possessions, PPP, PER and scoring are left unchanged (live scrimmage).
+function addDrillTO(b: StatBlock, toCount: number): StatBlock {
+  if (!toCount) return b;
+  const to = b.play.to + toCount;
+  return { ...b, play: { ...b.play, to, ato: b.play.ast / Math.max(1, to), toPct: b.poss ? to / b.poss : 0 } };
+}
+
 export interface DrillLine {
   name: string; color: string;
   baylor: { avg: number; pct: number };
   ninetys: { avg: number; pct: number };
   transition: { m: number; a: number; pct: number };
+  thespian: { m: number; a: number; pct: number };
   ft: { avg: number; pct: number };
 }
 export interface PlayerLine {
   playerId: string; jersey: string; name: string; present: boolean; wl: string;
   block: StatBlock;
-  drills: { baylor: number | null; ninetys: number | null; transM: number | null; transA: number | null; ft: number | null };
+  drills: { baylor: number | null; ninetys: number | null; transM: number | null; transA: number | null; thesM: number | null; thesA: number | null; ft: number | null };
 }
 export interface SquadReport {
   id: string; name: string; color: string; team: StatBlock; wins: number; wl: string;
@@ -92,7 +101,7 @@ export function formatLongDate(d: string): string {
   return dt.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 }
 
-function drillLine(name: string, color: string, rows: DrillRow[], trans: { m: number; a: number }): DrillLine {
+function drillLine(name: string, color: string, rows: DrillRow[], trans: { m: number; a: number }, thes: { m: number; a: number }): DrillLine {
   const pick = (d: string) => rows.filter((r) => r.drill === d);
   const avg = (d: string) => {
     const rs = pick(d);
@@ -104,14 +113,21 @@ function drillLine(name: string, color: string, rows: DrillRow[], trans: { m: nu
     baylor: { avg: avg("baylor"), pct: avg("baylor") / denom("baylor") },
     ninetys: { avg: avg("ninetys"), pct: avg("ninetys") / denom("ninetys") },
     transition: { m: trans.m, a: trans.a, pct: trans.a ? trans.m / trans.a : 0 },
+    thespian: { m: thes.m, a: thes.a, pct: thes.a ? thes.m / thes.a : 0 },
     ft: { avg: avg("ft"), pct: avg("ft") / denom("ft") },
   };
 }
 
-// Transition 3s (made/attempts) from events for a set of rows.
-function transOf(events: EventRow[]): { m: number; a: number } {
-  const e = events.filter((x) => x.segment === "transition" && x.type === "fg3");
+// 3-point makes/attempts for a shooting segment, from events.
+function seg3s(events: EventRow[], seg: string): { m: number; a: number } {
+  const e = events.filter((x) => x.segment === seg && x.type === "fg3");
   return { m: e.filter((x) => x.made).length, a: e.length };
+}
+const transOf = (events: EventRow[]) => seg3s(events, "transition");
+const thesOf = (events: EventRow[]) => seg3s(events, "thespian");
+// Turnovers logged in the drill segments (transition + thespian).
+function drillTOof(events: EventRow[]): number {
+  return events.filter((x) => isShootSegment(x.segment) && x.type === "to").length;
 }
 
 export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: DrillRow[]): ReportModel {
@@ -119,7 +135,7 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
   // stats. They appear only in the Transition 3-Point Summary and the per-player
   // Trans column (both computed from `events` via transOf). Every other tally is
   // built from play (non-transition) events only.
-  const playEvents = events.filter((e) => e.segment !== "transition");
+  const playEvents = events.filter((e) => e.segment === "live");
   const perPlayer = tallyByPlayer(playEvents);
   // Team totals follow where each stat was earned (the event's squad_id), so a
   // player who switches teams mid-practice splits correctly between both teams.
@@ -144,23 +160,30 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
         const pt = perPlayer.get(r.player_id) ?? emptyTally();
         const dr = drills.filter((d) => d.player_id === r.player_id);
         const g = (k: string) => dr.find((d) => d.drill === k);
-        const pTrans = transOf(events.filter((e) => e.player_id === r.player_id));
+        const pEv = events.filter((e) => e.player_id === r.player_id);
+        const pTrans = transOf(pEv);
+        const pThes = thesOf(pEv);
         return {
           playerId: r.player_id, jersey: r.jersey ?? "", name: r.players?.name ?? "—",
           present: r.present, wl,
-          block: statBlock(pt, oppDR),
+          // Individual TO includes transition/thespian turnovers (count only).
+          block: addDrillTO(statBlock(pt, oppDR), drillTOof(pEv)),
           drills: {
             baylor: g("baylor") ? Number(g("baylor")!.makes) : null,
             ninetys: g("ninetys") ? Number(g("ninetys")!.makes) : null,
             transM: pTrans.a ? pTrans.m : null,
             transA: pTrans.a ? pTrans.a : null,
+            thesM: pThes.a ? pThes.m : null,
+            thesA: pThes.a ? pThes.a : null,
             ft: g("ft") ? Number(g("ft")!.makes) : null,
           },
         };
       });
-    // TEAM STATS 3FG line includes transition 3s (but not as possessions).
-    const teamBlock = addTransition3s(statBlock(t, oppDR), transOf(events.filter((e) => e.squad_id === s.id)));
-    return { id: s.id, name: s.name, color: s.color, team: teamBlock, wins, wl, players, totals: statBlock(t, oppDR) };
+    // TEAM STATS: 3FG line includes transition 3s; TO includes transition +
+    // thespian turnovers (both display-only, not possessions).
+    const sqEv = events.filter((e) => e.squad_id === s.id);
+    const teamBlock = addDrillTO(addTransition3s(statBlock(t, oppDR), transOf(sqEv)), drillTOof(sqEv));
+    return { id: s.id, name: s.name, color: s.color, team: teamBlock, wins, wl, players, totals: addDrillTO(statBlock(t, oppDR), drillTOof(sqEv)) };
   });
 
   const combinedTally = squadIds.reduce((acc, sid) => addTally(acc, sqT(sid)), emptyTally());
@@ -176,10 +199,11 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
     block: statBlock(squadIds.reduce((a, sid) => addTally(a, liveT(sid)), emptyTally())),
   });
 
-  const drillLines: DrillLine[] = bundle.squads.map((s) =>
-    drillLine(s.name, s.color, drills.filter((d) => d.squad_id === s.id), transOf(events.filter((e) => e.squad_id === s.id))),
-  );
-  drillLines.push(drillLine("Combined", "#00142D", drills, transOf(events)));
+  const drillLines: DrillLine[] = bundle.squads.map((s) => {
+    const sqEv = events.filter((e) => e.squad_id === s.id);
+    return drillLine(s.name, s.color, drills.filter((d) => d.squad_id === s.id), transOf(sqEv), thesOf(sqEv));
+  });
+  drillLines.push(drillLine("Combined", "#00142D", drills, transOf(events), thesOf(events)));
 
   // "Practicing" = assigned to a squad AND present. Players left in the
   // "not practicing" bucket (no squad) are not counted toward attendance.
@@ -193,7 +217,7 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
     finishTime: bundle.practice.finish_time,
     grade: bundle.practice.grade,
     attPresent: present, attTotal: total, attPct: total ? present / total : 0,
-    squads, combined: addTransition3s(statBlock(combinedTally), transOf(events)),
+    squads, combined: addDrillTO(addTransition3s(statBlock(combinedTally), transOf(events)), drillTOof(events)),
     liveTeam, drills: drillLines,
     absent: bundle.roster.filter((r) => !isPracticing(r)).map((r) => ({ jersey: r.jersey ?? "", name: r.players?.name ?? "—" })),
   };
@@ -227,6 +251,7 @@ const BLANK_DRILLS = {
   "90s makes": "" as number | string, "90s %": "" as number | string,
   "FT drill makes": "" as number | string, "FT drill %": "" as number | string,
   "Trans M": "" as number | string, "Trans A": "" as number | string, "Trans %": "" as number | string,
+  "Thes M": "" as number | string, "Thes A": "" as number | string, "Thes %": "" as number | string,
 };
 
 export function buildBoxScore(model: ReportModel): Record<string, unknown>[] {
@@ -244,6 +269,8 @@ export function buildBoxScore(model: ReportModel): Record<string, unknown>[] {
         "FT drill makes": d.ft ?? "", "FT drill %": d.ft == null ? "" : pctInt(d.ft / denom("ft")),
         "Trans M": d.transM ?? "", "Trans A": d.transA ?? "",
         "Trans %": d.transA ? pctInt((d.transM ?? 0) / d.transA) : "",
+        "Thes M": d.thesM ?? "", "Thes A": d.thesA ?? "",
+        "Thes %": d.thesA ? pctInt((d.thesM ?? 0) / d.thesA) : "",
       });
     }
     rows.push({

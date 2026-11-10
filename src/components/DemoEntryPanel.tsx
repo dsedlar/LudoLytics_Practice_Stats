@@ -44,10 +44,14 @@ export default function DemoEntryPanel({
   const squadShots: CourtShot[] = events
     .filter((e) => e.segment === "live" && (e.game_index ?? 1) === currentGame && e.shot_x != null && e.shot_y != null && (e.type === "atr" || e.type === "nonatr2" || e.type === "fg3"))
     .map((e) => ({ x: e.shot_x as number, y: e.shot_y as number, made: !!e.made }));
-  const transitionRows: TransitionRow[] = roster.map((r) => {
-    const ev = events.filter((e) => e.segment === "transition" && e.type === "fg3" && e.player_id === r.player_id);
-    return { ...r, made: ev.filter((e) => e.made).length, att: ev.length };
-  });
+  const segRows = (seg: string): TransitionRow[] =>
+    roster.map((r) => {
+      const ev = events.filter((e) => e.segment === seg && e.player_id === r.player_id);
+      const shots = ev.filter((e) => e.type === "fg3");
+      return { ...r, made: shots.filter((e) => e.made).length, att: shots.length, to: ev.filter((e) => e.type === "to").length };
+    });
+  const transitionRows = segRows("transition");
+  const thespianRows = segRows("thespian");
 
   function add(playerId: string, type: string, made: boolean | undefined, segment: string, x?: number, y?: number) {
     const newId = (events[events.length - 1]?.id ?? 0) + 1 + Math.floor(Math.random() * 1000);
@@ -67,6 +71,15 @@ export default function DemoEntryPanel({
   }
   function onTransition(playerId: string, made: boolean) {
     add(playerId, "fg3", made, "transition");
+  }
+  function onTransitionTO(playerId: string) {
+    add(playerId, "to", undefined, "transition");
+  }
+  function onThespian(playerId: string, made: boolean) {
+    add(playerId, "fg3", made, "thespian");
+  }
+  function onThespianTO(playerId: string) {
+    add(playerId, "to", undefined, "thespian");
   }
   function undo() {
     const last = undoStack[undoStack.length - 1];
@@ -104,6 +117,10 @@ export default function DemoEntryPanel({
       onEndDrill={onEndDrill}
       transitionRows={transitionRows}
       onTransition={onTransition}
+      onTransitionTO={onTransitionTO}
+      thespianRows={thespianRows}
+      onThespian={onThespian}
+      onThespianTO={onThespianTO}
       drillPlayers={roster}
       drills={drills}
       onDrillSave={drillSave}

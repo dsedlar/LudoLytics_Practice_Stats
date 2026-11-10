@@ -103,9 +103,10 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     }
   }
 
-  // Transition 3s are a separate drill and do NOT count toward player/team
-  // stats; they are tracked separately below (transAt) for the Trans column.
-  const playEvents = input.events.filter((e) => e.segment !== "transition");
+  // Transition and Thespian are separate shooting drills and do NOT count
+  // toward season player/team stats; transition is tracked separately (transAt)
+  // for the Trans column. Only live scrimmage events build the season tallies.
+  const playEvents = input.events.filter((e) => e.segment === "live");
 
   // per (player, practice) tally and per-player total
   const perPP = new Map<string, RawTally>();

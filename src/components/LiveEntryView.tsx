@@ -28,9 +28,10 @@ export interface TransitionRow {
   name: string;
   made: number;
   att: number;
+  to: number;
 }
 
-export type Tab = "live" | "transition" | "drills";
+export type Tab = "live" | "transition" | "thespian" | "drills";
 
 export interface LiveEntryViewProps {
   squadName: string;
@@ -51,9 +52,13 @@ export interface LiveEntryViewProps {
   wins: number;
   losses: number;
   onEndDrill: (won: boolean) => void;
-  // transition
+  // transition + thespian (3-point shooting segments: 3s + turnovers)
   transitionRows: TransitionRow[];
   onTransition: (playerId: string, made: boolean) => void;
+  onTransitionTO: (playerId: string) => void;
+  thespianRows: TransitionRow[];
+  onThespian: (playerId: string, made: boolean) => void;
+  onThespianTO: (playerId: string) => void;
   // drills
   drillPlayers: DrillPlayer[];
   drills: DrillRow[];
@@ -63,6 +68,7 @@ export interface LiveEntryViewProps {
 const TABS: { key: Tab; label: string }[] = [
   { key: "live", label: "Live" },
   { key: "transition", label: "Transition" },
+  { key: "thespian", label: "Thespian" },
   { key: "drills", label: "Shooting Drills" },
 ];
 
@@ -87,7 +93,8 @@ export default function LiveEntryView(p: LiveEntryViewProps) {
       </div>
 
       {p.tab === "live" && <LiveTab p={p} />}
-      {p.tab === "transition" && <TransitionTab rows={p.transitionRows} onTransition={p.onTransition} color={p.squadColor} />}
+      {p.tab === "transition" && <ShootSegmentTab rows={p.transitionRows} onShot={p.onTransition} onTO={p.onTransitionTO} color={p.squadColor} label="Transition" />}
+      {p.tab === "thespian" && <ShootSegmentTab rows={p.thespianRows} onShot={p.onThespian} onTO={p.onThespianTO} color={p.squadColor} label="Thespian" />}
       {p.tab === "drills" && <DrillsTab players={p.drillPlayers} drills={p.drills} onSave={p.onDrillSave} />}
     </div>
   );
@@ -179,16 +186,23 @@ function LiveTab({ p }: { p: LiveEntryViewProps }) {
   );
 }
 
-function TransitionTab({ rows, onTransition, color }: { rows: TransitionRow[]; onTransition: (id: string, made: boolean) => void; color: string }) {
-  const tot = rows.reduce((a, r) => ({ made: a.made + r.made, att: a.att + r.att }), { made: 0, att: 0 });
+// Transition / Thespian: log 3-point makes/misses and turnovers per player.
+function ShootSegmentTab({ rows, onShot, onTO, color, label }: {
+  rows: TransitionRow[];
+  onShot: (id: string, made: boolean) => void;
+  onTO: (id: string) => void;
+  color: string;
+  label: string;
+}) {
+  const tot = rows.reduce((a, r) => ({ made: a.made + r.made, att: a.att + r.att, to: a.to + r.to }), { made: 0, att: 0, to: 0 });
   return (
-    <div className="mt-4 max-w-2xl">
-      <p className="text-sm text-gray-500 mb-2">Transition drills — log each 3-point attempt as a make or miss.</p>
+    <div className="mt-4 max-w-3xl">
+      <p className="text-sm text-gray-500 mb-2">{label} — log each 3-point attempt as a make or miss, and tap TO for a turnover.</p>
       <div className="bg-white border rounded-lg overflow-hidden">
         <table className="min-w-full text-sm">
           <thead>
             <tr className="text-left border-b bg-gray-50">
-              <th className="p-2">#</th><th className="p-2">Player</th><th className="p-2 text-center">3PT</th><th className="p-2 text-center">%</th><th className="p-2"></th>
+              <th className="p-2">#</th><th className="p-2">Player</th><th className="p-2 text-center">3PT</th><th className="p-2 text-center">%</th><th className="p-2 text-center">TO</th><th className="p-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -198,10 +212,12 @@ function TransitionTab({ rows, onTransition, color }: { rows: TransitionRow[]; o
                 <td className="p-2 font-semibold">{r.name}</td>
                 <td className="p-2 text-center">{r.made}-{r.att}</td>
                 <td className="p-2 text-center">{r.att ? Math.round((r.made / r.att) * 100) : 0}%</td>
+                <td className="p-2 text-center">{r.to}</td>
                 <td className="p-2">
                   <div className="flex gap-1 justify-end">
-                    <button onClick={() => onTransition(r.player_id, true)} className="bg-green-600 text-white rounded px-3 py-1.5 text-sm font-semibold">Make</button>
-                    <button onClick={() => onTransition(r.player_id, false)} className="bg-gray-200 rounded px-3 py-1.5 text-sm font-semibold">Miss</button>
+                    <button onClick={() => onShot(r.player_id, true)} className="bg-green-600 text-white rounded px-3 py-1.5 text-sm font-semibold">Make</button>
+                    <button onClick={() => onShot(r.player_id, false)} className="bg-gray-200 rounded px-3 py-1.5 text-sm font-semibold">Miss</button>
+                    <button onClick={() => onTO(r.player_id)} className="bg-navy text-white rounded px-3 py-1.5 text-sm font-semibold">TO</button>
                   </div>
                 </td>
               </tr>
@@ -212,6 +228,7 @@ function TransitionTab({ rows, onTransition, color }: { rows: TransitionRow[]; o
               <td className="p-2" colSpan={2}>Squad total</td>
               <td className="p-2 text-center">{tot.made}-{tot.att}</td>
               <td className="p-2 text-center">{tot.att ? Math.round((tot.made / tot.att) * 100) : 0}%</td>
+              <td className="p-2 text-center">{tot.to}</td>
               <td />
             </tr>
           </tfoot>

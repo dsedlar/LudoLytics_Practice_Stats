@@ -56,9 +56,13 @@ export const GRADE_SCALE: Record<number, { label: string; blurb: string }> = {
 };
 
 // ---- Stat event taxonomy ---------------------------------------------------
-// Live Play + Transition segments are logged as append-only events (one row per
-// occurrence), which makes real-time sync and one-tap undo trivial.
-export type Segment = "live" | "transition";
+// Live Play is the scrimmage. Transition and Thespian are 3-point shooting
+// segments (made/miss 3s + turnovers only). Each event is one append-only row.
+export type Segment = "live" | "transition" | "thespian";
+
+// 3-point shooting segments (not the live scrimmage): 3s + turnovers only.
+export const SHOOT_SEGMENTS = ["transition", "thespian"] as const;
+export const isShootSegment = (seg: string) => seg === "transition" || seg === "thespian";
 
 // Shot events carry a `made` boolean; counting events do not.
 export const SHOT_TYPES = ["atr", "nonatr2", "fg3", "ft"] as const;

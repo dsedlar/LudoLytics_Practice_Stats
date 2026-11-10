@@ -44,7 +44,7 @@ export default function ShotChartView({
       ? events.filter(
           (e) =>
             e.squad_id === sq.id &&
-            e.segment !== "transition" && // transition 3s live only in the Transition summary
+            e.segment === "live" && // only scrimmage shots have court locations
             SHOT_TYPES.has(e.type) &&
             e.shot_x != null &&
             e.shot_y != null,

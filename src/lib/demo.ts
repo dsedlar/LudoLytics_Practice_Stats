@@ -40,11 +40,14 @@ export function makeDemoData(): { bundle: PracticeBundle; events: EventRow[]; dr
     if (!r.present) continue;
     const sq = r.squad_id;
     const pid = r.player_id;
-    for (const seg of ["live", "transition"]) {
-      for (let k = 0; k < 2 + ri(4); k++) push(sq, pid, seg, "atr", rnd() < 0.6);
-      for (let k = 0; k < 2 + ri(5); k++) push(sq, pid, seg, "nonatr2", rnd() < 0.42);
-      for (let k = 0; k < 2 + ri(6); k++) push(sq, pid, seg, "fg3", rnd() < 0.34);
-    }
+    for (let k = 0; k < 2 + ri(4); k++) push(sq, pid, "live", "atr", rnd() < 0.6);
+    for (let k = 0; k < 2 + ri(5); k++) push(sq, pid, "live", "nonatr2", rnd() < 0.42);
+    for (let k = 0; k < 2 + ri(6); k++) push(sq, pid, "live", "fg3", rnd() < 0.34);
+    // transition + thespian: 3s and the occasional turnover
+    for (let k = 0; k < 3 + ri(5); k++) push(sq, pid, "transition", "fg3", rnd() < 0.33);
+    for (let k = 0; k < ri(2); k++) push(sq, pid, "transition", "to", null);
+    for (let k = 0; k < 3 + ri(5); k++) push(sq, pid, "thespian", "fg3", rnd() < 0.36);
+    for (let k = 0; k < ri(2); k++) push(sq, pid, "thespian", "to", null);
     for (let k = 0; k < ri(5); k++) push(sq, pid, "live", "ft", rnd() < 0.75);
     for (const t of ["pot", "second", "ast", "to", "tip", "or", "dr", "stl", "blk", "def", "lb", "dive", "chg", "fd", "gs", "ta", "misc"]) {
       for (let k = 0; k < ri(4); k++) push(sq, pid, "live", t, null);

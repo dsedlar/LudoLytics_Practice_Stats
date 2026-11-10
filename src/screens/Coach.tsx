@@ -24,11 +24,22 @@ export default function Coach() {
     }
   }
 
-  // Transition 3s don't count toward team or player stats (they're a separate
-  // drill), so the live tallies use non-transition events only.
-  const playEvents = useMemo(() => events.filter((e) => e.segment !== "transition"), [events]);
+  // Transition/Thespian are separate shooting drills — their 3s don't count
+  // toward team/player stats, so the live tallies use live scrimmage events only.
+  const playEvents = useMemo(() => events.filter((e) => e.segment === "live"), [events]);
   const playerTallies = useMemo(() => tallyByPlayer(playEvents), [playEvents]);
   const squadTallies = useMemo(() => tallyBySquad(playEvents), [playEvents]);
+  // Turnovers logged during transition/thespian add to the TO counts (only).
+  const drillTOByPlayer = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of events) if (e.segment !== "live" && e.type === "to") m.set(e.player_id, (m.get(e.player_id) ?? 0) + 1);
+    return m;
+  }, [events]);
+  const drillTOBySquad = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of events) if (e.segment !== "live" && e.type === "to") m.set(e.squad_id, (m.get(e.squad_id) ?? 0) + 1);
+    return m;
+  }, [events]);
 
   if (loading) return <p className="text-gray-500">Loading practice…</p>;
   if (error) return <p className="text-red-600">Error: {error}</p>;
@@ -97,9 +108,9 @@ export default function Coach() {
       <div className="mt-4 grid sm:grid-cols-3 gap-3">
         {bundle.squads.map((s) => {
           const t = squadTally(s.id);
-          return <SummaryCard key={s.id} name={s.name} color={s.color} t={t} c={compute(t)} record={{ w: s.wins ?? 0, l: s.losses ?? 0 }} />;
+          return <SummaryCard key={s.id} name={s.name} color={s.color} t={t} c={compute(t)} toCount={t.to + (drillTOBySquad.get(s.id) ?? 0)} record={{ w: s.wins ?? 0, l: s.losses ?? 0 }} />;
         })}
-        <SummaryCard name="Combined" color="#00142D" t={combined} c={compute(combined)} wide={bundle.squads.length < 2} />
+        <SummaryCard name="Combined" color="#00142D" t={combined} c={compute(combined)} toCount={combined.to + [...drillTOBySquad.values()].reduce((a, b) => a + b, 0)} wide={bundle.squads.length < 2} />
       </div>
 
       {/* device links + coach take-stats */}
@@ -219,7 +230,7 @@ export default function Coach() {
                 .filter((r) => r.squad_id === s.id && r.present)
                 .map((r) => {
                   const t = playerTallies.get(r.player_id) ?? emptyTally();
-                  return { playerId: r.player_id, name: r.players?.name ?? "—", jersey: r.jersey, t, c: compute(t) };
+                  return { playerId: r.player_id, name: r.players?.name ?? "—", jersey: r.jersey, t, c: compute(t), toCount: t.to + (drillTOByPlayer.get(r.player_id) ?? 0) };
                 })}
             />
           );
@@ -246,7 +257,7 @@ export default function Coach() {
   );
 }
 
-function SummaryCard({ name, color, t, c, record, wide }: { name: string; color: string; t: RawTally; c: ReturnType<typeof compute>; record?: { w: number; l: number }; wide?: boolean }) {
+function SummaryCard({ name, color, t, c, toCount, record, wide }: { name: string; color: string; t: RawTally; c: ReturnType<typeof compute>; toCount?: number; record?: { w: number; l: number }; wide?: boolean }) {
   return (
     <div className={`rounded-lg p-3 text-white ${wide ? "sm:col-span-3" : ""}`} style={{ background: color }}>
       <div className="font-bold tracking-wide uppercase">{name}</div>
@@ -255,7 +266,7 @@ function SummaryCard({ name, color, t, c, record, wide }: { name: string; color:
         <Stat label="PTS" value={String(c.pts)} />
         <Stat label="POSS" value={c.poss.toFixed(0)} />
         <Stat label="eFG%" value={pct(c.efg)} />
-        <Stat label="TO" value={String(t.to)} />
+        <Stat label="TO" value={String(toCount ?? t.to)} />
         <Stat label="Casper" value={String(c.casper)} />
         {record && <Stat label="W" value={String(record.w)} />}
         {record && <Stat label="L" value={String(record.l)} />}
@@ -281,7 +292,7 @@ function SquadTable({
 }: {
   name: string;
   color: string;
-  rows: { playerId: string; name: string; jersey: string | null; t: RawTally; c: ReturnType<typeof compute> }[];
+  rows: { playerId: string; name: string; jersey: string | null; t: RawTally; c: ReturnType<typeof compute>; toCount: number }[];
   moveToName?: string;
   onMove?: (playerId: string) => void;
 }) {
@@ -303,7 +314,7 @@ function SquadTable({
               <td className="p-2">{r.name}</td>
               <td className="p-2">{pct(r.t.fg3A > 0 ? r.t.fg3M / r.t.fg3A : 0)}</td>
               <td className="p-2">{pct(r.c.efg)}</td>
-              <td className="p-2">{r.t.to}</td>
+              <td className="p-2">{r.toCount}</td>
               <td className="p-2">{r.t.or + r.t.dr}</td>
               <td className="p-2 font-semibold">{r.c.casper}</td>
               {onMove && (

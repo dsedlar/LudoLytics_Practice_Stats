@@ -19,7 +19,8 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
   const [undoStack, setUndoStack] = useState<number[]>([]);
   const [flash, setFlash] = useState("");
 
-  const tallies = useMemo(() => tallyByPlayer(events), [events]);
+  // Live tiles show scrimmage pts/CP only (transition/thespian don't count).
+  const tallies = useMemo(() => tallyByPlayer(events.filter((e) => e.segment === "live")), [events]);
 
   if (loading) return <p className="text-gray-500">Loading practice…</p>;
   if (error) return <p className="text-red-600">Error: {error}</p>;
@@ -53,10 +54,21 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
     )
     .map((e) => ({ x: e.shot_x as number, y: e.shot_y as number, made: !!e.made }));
 
-  const transitionRows: TransitionRow[] = roster.map((r) => {
-    const ev = events.filter((e) => e.squad_id === squadId && e.segment === "transition" && e.type === "fg3" && e.player_id === r.player_id);
-    return { player_id: r.player_id, jersey: r.jersey ?? "", name: r.players?.name ?? "—", made: ev.filter((e) => e.made).length, att: ev.length };
-  });
+  const segRows = (seg: string): TransitionRow[] =>
+    roster.map((r) => {
+      const ev = events.filter((e) => e.squad_id === squadId && e.segment === seg && e.player_id === r.player_id);
+      const shots = ev.filter((e) => e.type === "fg3");
+      return {
+        player_id: r.player_id,
+        jersey: r.jersey ?? "",
+        name: r.players?.name ?? "—",
+        made: shots.filter((e) => e.made).length,
+        att: shots.length,
+        to: ev.filter((e) => e.type === "to").length,
+      };
+    });
+  const transitionRows = segRows("transition");
+  const thespianRows = segRows("thespian");
 
   async function pushEvent(playerId: string, type: string, made: boolean | undefined, segment: string, shotX?: number, shotY?: number) {
     try {
@@ -81,6 +93,15 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
 
   async function onTransition(playerId: string, made: boolean) {
     await pushEvent(playerId, "fg3", made, "transition");
+  }
+  async function onTransitionTO(playerId: string) {
+    await pushEvent(playerId, "to", undefined, "transition");
+  }
+  async function onThespian(playerId: string, made: boolean) {
+    await pushEvent(playerId, "fg3", made, "thespian");
+  }
+  async function onThespianTO(playerId: string) {
+    await pushEvent(playerId, "to", undefined, "thespian");
   }
 
   async function undo() {
@@ -121,6 +142,10 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
       onEndDrill={onEndDrill}
       transitionRows={transitionRows}
       onTransition={onTransition}
+      onTransitionTO={onTransitionTO}
+      thespianRows={thespianRows}
+      onThespian={onThespian}
+      onThespianTO={onThespianTO}
       drillPlayers={roster.map((r) => ({ player_id: r.player_id, jersey: r.jersey ?? "", name: r.players?.name ?? "—" }))}
       drills={drills}
       onDrillSave={(playerId, drill, makes, attempts) =>

@@ -114,7 +114,11 @@ export default function ReportView({ m }: { m: ReportModel }) {
         </div>
         <div style={{ flex: 1 }}>
           <Bar title="TRANSITION 3-POINT SUMMARY" />
-          <TransitionSummary rows={m.drills} />
+          <Seg3Summary rows={m.drills} label="TRANS 3PT" get={(r) => r.transition} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <Bar title="THESPIAN 3-POINT SUMMARY" />
+          <Seg3Summary rows={m.drills} label="THES 3PT" get={(r) => r.thespian} />
         </div>
         <div style={{ flex: 2 }}>
           <Bar title="BAYLOR SHOOTING & FREE THROWS" />
@@ -282,24 +286,27 @@ function LivePlayCompact({ rows }: { rows: BlockRow[] }) {
   );
 }
 
-function TransitionSummary({ rows }: { rows: DrillLine[] }) {
+function Seg3Summary({ rows, label, get }: { rows: DrillLine[]; label: string; get: (r: DrillLine) => { m: number; a: number; pct: number } }) {
   return (
     <table style={{ width: "100%", borderCollapse: "collapse" }}>
       <thead>
         <tr>
-          {["TEAM", "TRANS 3PT", "%"].map((h, i) => (
+          {["TEAM", label, "%"].map((h, i) => (
             <th key={i} style={{ ...th, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
           ))}
         </tr>
       </thead>
       <tbody>
-        {rows.map((r) => (
-          <tr key={r.name}>
-            <td style={{ ...td, textAlign: "left", fontWeight: 700, color: r.color }}>{r.name}</td>
-            <td style={td}>{ma(r.transition.m, r.transition.a)}</td>
-            <td style={{ ...td, ...bg(r.transition.a ? pctTier(r.transition.pct) : null) }}>{dash(p(r.transition.pct), r.transition.a > 0)}</td>
-          </tr>
-        ))}
+        {rows.map((r) => {
+          const v = get(r);
+          return (
+            <tr key={r.name}>
+              <td style={{ ...td, textAlign: "left", fontWeight: 700, color: r.color }}>{r.name}</td>
+              <td style={td}>{ma(v.m, v.a)}</td>
+              <td style={{ ...td, ...bg(v.a ? pctTier(v.pct) : null) }}>{dash(p(v.pct), v.a > 0)}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
@@ -334,7 +341,7 @@ function DrillTable({ rows }: { rows: DrillLine[] }) {
 }
 
 const IND_HEAD = ["AT", "W-L", "PTS", "PPS", "eFG%", "TS%", "FGM-A", "FG%", "FGM-A", "FG%", "FGM-A", "FG%", "FTM-A", "FT%", "FD",
-  "Pot", "2nd", "Ast", "TO", "A/TO", "Tip", "OR", "DR", "TOT", "STL", "BLK", "Def", "LB", "Dive", "Chg", "CP", "PER", "BAY", "90s", "Trans", "FT"];
+  "Pot", "2nd", "Ast", "TO", "A/TO", "Tip", "OR", "DR", "TOT", "STL", "BLK", "Def", "LB", "Dive", "Chg", "CP", "PER", "BAY", "90s", "Trans", "Thes", "FT"];
 
 function IndividualTable({ m }: { m: ReportModel }) {
   return (
@@ -380,7 +387,7 @@ function SquadRows({ name, color, players, totals, wl }: { name: string; color: 
       {players.map((pl) => <PlayerRow key={pl.playerId} pl={pl} />)}
       <tr style={{ borderTop: "1px solid #bbb" }}>
         <td style={{ ...td, textAlign: "left", fontWeight: 800 }} colSpan={2}>TEAM TOTALS</td>
-        <BlockCells b={totals} drills={{ baylor: null, ninetys: null, transM: null, transA: null, ft: null }} wl={wl} bold />
+        <BlockCells b={totals} drills={{ baylor: null, ninetys: null, transM: null, transA: null, thesM: null, thesA: null, ft: null }} wl={wl} bold />
       </tr>
     </>
   );
@@ -417,7 +424,9 @@ function BlockCells({ b, drills, wl, bold, present = true }: { b: StatBlock; dri
       <td style={{ ...td, fontWeight: 700, ...bg(cpTier(b.casper)) }}>{round1(b.casper)}</td>
       <td style={{ ...td, ...bg(perTier(b.per)) }}>{f1(b.per)}</td>
       <td style={td}>{drills.baylor ?? "–"}</td><td style={td}>{drills.ninetys ?? "–"}</td>
-      <td style={td}>{drills.transM != null ? ma(drills.transM, drills.transA ?? 0) : "–"}</td><td style={td}>{drills.ft ?? "–"}</td>
+      <td style={td}>{drills.transM != null ? ma(drills.transM, drills.transA ?? 0) : "–"}</td>
+      <td style={td}>{drills.thesM != null ? ma(drills.thesM, drills.thesA ?? 0) : "–"}</td>
+      <td style={td}>{drills.ft ?? "–"}</td>
     </>
   );
 }
