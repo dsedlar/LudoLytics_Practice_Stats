@@ -430,11 +430,11 @@ function BlockCells({ b, drills, wl, bold, present = true }: { b: StatBlock; dri
       <td style={td}>{b.def.stl}</td><td style={td}>{b.def.blk}</td><td style={td}>{b.def.def}</td><td style={td}>{b.def.foul}</td><td style={td}>{b.def.dive}</td><td style={td}>{b.def.chg}</td>
       <td style={{ ...td, fontWeight: 700, ...bg(cpTier(b.casper)) }}>{round1(b.casper)}</td>
       <td style={{ ...td, ...bg(perTier(b.per)) }}>{f1(b.per)}</td>
-      <td style={{ ...td, ...bg(drills.baylor != null ? pctTier(drills.baylor / BAY_D) : null) }}>{drills.baylor != null ? p(drills.baylor / BAY_D) : "–"}</td>
-      <td style={{ ...td, ...bg(drills.ninetys != null ? pctTier(drills.ninetys / NINETY_D) : null) }}>{drills.ninetys != null ? p(drills.ninetys / NINETY_D) : "–"}</td>
-      <td style={{ ...td, ...bg(drills.transA ? pctTier((drills.transM ?? 0) / drills.transA) : null) }}>{drills.transM != null && drills.transA ? p(drills.transM / drills.transA) : "–"}</td>
-      <td style={{ ...td, ...bg(drills.thesA ? pctTier((drills.thesM ?? 0) / drills.thesA) : null) }}>{drills.thesM != null && drills.thesA ? p(drills.thesM / drills.thesA) : "–"}</td>
-      <td style={{ ...td, ...bg(drills.ft != null ? pctTier(drills.ft / FT_D) : null) }}>{drills.ft != null ? p(drills.ft / FT_D) : "–"}</td>
+      <td style={td}>{drills.baylor != null ? p(drills.baylor / BAY_D) : "–"}</td>
+      <td style={td}>{drills.ninetys != null ? p(drills.ninetys / NINETY_D) : "–"}</td>
+      <td style={td}>{drills.transM != null && drills.transA ? p(drills.transM / drills.transA) : "–"}</td>
+      <td style={td}>{drills.thesM != null && drills.thesA ? p(drills.thesM / drills.thesA) : "–"}</td>
+      <td style={td}>{drills.ft != null ? p(drills.ft / FT_D) : "–"}</td>
     </>
   );
 }
