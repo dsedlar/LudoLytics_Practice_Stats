@@ -117,6 +117,8 @@ export function makeSeasonDemo(): SeasonInput {
       for (let k = 0; k < ri(2); k++) push("to", null, "transition");
       for (let k = 0; k < 3 + ri(4); k++) push("fg3", rnd() < 0.33 + growth, "thespian");
       for (let k = 0; k < ri(2); k++) push("to", null, "thespian");
+      // validation ("win it at the line") FTs — a live FT that also feeds Clutch FT%
+      for (let k = 0; k < ri(3); k++) push("vft", rnd() < 0.72 + growth, "live");
       drills.push({ practice_id: pr.id, player_id: pl.id, drill: "baylor", makes: 38 + pIdx + ri(18), attempts: null });
       drills.push({ practice_id: pr.id, player_id: pl.id, drill: "ninetys", makes: 10 + ri(7), attempts: null });
       drills.push({ practice_id: pr.id, player_id: pl.id, drill: "ft", makes: 13 + ri(6), attempts: null });

@@ -6,7 +6,7 @@ import { pct } from "../lib/stats";
 const f1 = (x: number) => x.toFixed(1);
 const f2 = (x: number) => x.toFixed(2);
 
-type SortKey = "jersey" | "wl" | "efg" | "fg3" | "ft" | "ts" | "pps" | "topg" | "rpg" | "per" | "cp";
+type SortKey = "jersey" | "wl" | "efg" | "fg3" | "ft" | "ts" | "pps" | "topg" | "rpg" | "per" | "cp" | "clutch";
 
 const fg3 = (p: PlayerSeason) => (p.tally.fg3A ? p.tally.fg3M / p.tally.fg3A : 0);
 const ftPct = (p: PlayerSeason) => (p.tally.ftA ? p.tally.ftM / p.tally.ftA : 0);
@@ -23,6 +23,7 @@ const COLS: { key: SortKey; label: string; get: (p: PlayerSeason) => number; fmt
   { key: "pps", label: "PPS", get: (p) => p.total.pps, fmt: (p) => f2(p.total.pps) },
   { key: "topg", label: "TO/P", get: toPerG, fmt: (p) => f1(toPerG(p)) },
   { key: "rpg", label: "Reb/P", get: rebPerG, fmt: (p) => f1(rebPerG(p)) },
+  { key: "clutch", label: "Clutch FT", get: (p) => p.clutch.pct, fmt: (p) => (p.clutch.a ? `${pct(p.clutch.pct)} (${p.clutch.m}/${p.clutch.a})` : "–") },
   { key: "per", label: "PER", get: (p) => p.perAvg, fmt: (p) => f1(p.perAvg) },
   { key: "cp", label: "CP Total", get: (p) => p.total.casper, fmt: (p) => f1(p.total.casper) },
 ];

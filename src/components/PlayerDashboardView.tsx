@@ -114,7 +114,7 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
     <div>
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <div className="eyebrow text-xs text-gray-500">#{p.jersey} · {p.gp} practices{p.pod ? ` · ${p.pod}× Player of the Day` : ""}</div>
+          <div className="eyebrow text-xs text-gray-500">#{p.jersey} · {p.gp} practices{p.pod ? ` · ${p.pod}× Player of the Day` : ""}{p.clutch.a ? ` · ${p.clutch.m}/${p.clutch.a} clutch FT` : ""}</div>
           <h1 className="text-4xl headline-bold text-garnet">{p.name}</h1>
         </div>
         <Link to={backHref} className="text-sm text-garnet font-medium">← Season dashboard</Link>
@@ -137,13 +137,14 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
       </div>
 
       {/* KPIs row */}
-      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
         <KTile label="eFG %" value={pct(p.total.efg)} t={trendOf(last?.efg ?? null, prev?.efg ?? null)} />
         <KTile label="TS %" value={pct(p.total.ts)} t={trendOf(last?.ts ?? null, prev?.ts ?? null)} />
         <KTile label="3FG %" value={pct(seasonFg3)} t={trendOf(fg3Pct(last), fg3Pct(prev))} />
         <KTile label="Reb / Game" value={f1(rpg)} t={trendOf(rebOf(last), rebOf(prev))} />
         <KTile label="TO / Game" value={f1(topg)} t={trendOf(toOf(last), toOf(prev), false)} />
         <KTile label="Casper / Practice" value={f1(p.cpPerG)} t={trendOf(last?.cp ?? null, prev?.cp ?? null)} />
+        <KTile label="Clutch FT %" value={p.clutch.a ? pct(p.clutch.pct) : "–"} t="same" />
       </div>
 
       {/* detailed table */}
