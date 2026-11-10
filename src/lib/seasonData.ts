@@ -80,7 +80,7 @@ export interface PlayerSeason {
   tally: RawTally; // season raw totals
   ptsPerG: number; cpPerG: number; perAvg: number;
   toTotal: number; // season turnovers incl. transition/thespian drill TOs
-  drills: { baylorAvg: number; ninetyAvg: number; transPct: number; ftAvg: number };
+  drills: { baylorAvg: number; ninetyAvg: number; transM: number; transA: number; transPct: number; ftAvg: number };
   zones: PlayerZones; // season FG makes/attempts per court zone (located shots)
   shots: Shot[]; // the player's located FG attempts (for the hexbin chart)
   history: HistoryPoint[];
@@ -221,7 +221,7 @@ export function buildSeason(input: SeasonInput): SeasonResult {
       drills: {
         baylorAvg: mean(pick("baylor").map((d) => Number(d.makes))),
         ninetyAvg: mean(pick("ninetys").map((d) => Number(d.makes))),
-        transPct: trA ? trM / trA : 0,
+        transM: trM, transA: trA, transPct: trA ? trM / trA : 0,
         ftAvg: mean(pick("ft").map((d) => Number(d.makes))),
       },
       history,

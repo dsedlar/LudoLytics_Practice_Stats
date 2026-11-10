@@ -6,7 +6,7 @@ import {
   type DrillLine,
   type PlayerLine,
 } from "../lib/reportData";
-import { GRADE_SCALE } from "../lib/config";
+import { GRADE_SCALE, SHOOTING_DRILLS } from "../lib/config";
 
 // ---- formatting ----
 const p = (x: number) => `${Math.round(x * 100)}%`;
@@ -14,6 +14,11 @@ const f2 = (x: number) => x.toFixed(2);
 const f1 = (x: number) => x.toFixed(1);
 const ma = (m: number, a: number) => `${m}-${a}`;
 const dash = (s: string, show: boolean) => (show ? s : "–");
+
+// fixed-denominator drills: individual lines show makes/denom as a percentage
+const DRILL_DENOM = (k: string) => SHOOTING_DRILLS.find((d) => d.key === k)?.denominator ?? 1;
+const BAY_D = DRILL_DENOM("baylor");
+const FT_D = DRILL_DENOM("ft");
 
 // ---- heat map ----
 const TIER = ["#f4b8b8", "#f5e6a8", "#cfe8c0", "#9ed69e", "#4fae5a"];
@@ -113,11 +118,11 @@ export default function ReportView({ m }: { m: ReportModel }) {
           <LivePlayCompact rows={m.liveTeam} />
         </div>
         <div style={{ flex: 1 }}>
-          <Bar title="TRANSITION 3-POINT SUMMARY" />
+          <Bar title="Transition 3s Summary" />
           <Seg3Summary rows={m.drills} label="TRANS 3PT" get={(r) => r.transition} />
         </div>
         <div style={{ flex: 1 }}>
-          <Bar title="THESPIAN 3-POINT SUMMARY" />
+          <Bar title="Thespian 3s Summary" />
           <Seg3Summary rows={m.drills} label="THES 3PT" get={(r) => r.thespian} />
         </div>
         <div style={{ flex: 2 }}>
@@ -424,10 +429,11 @@ function BlockCells({ b, drills, wl, bold, present = true }: { b: StatBlock; dri
       <td style={td}>{b.def.stl}</td><td style={td}>{b.def.blk}</td><td style={td}>{b.def.def}</td><td style={td}>{b.def.foul}</td><td style={td}>{b.def.dive}</td><td style={td}>{b.def.chg}</td>
       <td style={{ ...td, fontWeight: 700, ...bg(cpTier(b.casper)) }}>{round1(b.casper)}</td>
       <td style={{ ...td, ...bg(perTier(b.per)) }}>{f1(b.per)}</td>
-      <td style={td}>{drills.baylor ?? "–"}</td><td style={td}>{drills.ninetys ?? "–"}</td>
-      <td style={td}>{drills.transM != null ? ma(drills.transM, drills.transA ?? 0) : "–"}</td>
-      <td style={td}>{drills.thesM != null ? ma(drills.thesM, drills.thesA ?? 0) : "–"}</td>
-      <td style={td}>{drills.ft ?? "–"}</td>
+      <td style={{ ...td, ...bg(drills.baylor != null ? pctTier(drills.baylor / BAY_D) : null) }}>{drills.baylor != null ? p(drills.baylor / BAY_D) : "–"}</td>
+      <td style={td}>{drills.ninetys ?? "–"}</td>
+      <td style={{ ...td, ...bg(drills.transA ? pctTier((drills.transM ?? 0) / drills.transA) : null) }}>{drills.transM != null && drills.transA ? p(drills.transM / drills.transA) : "–"}</td>
+      <td style={{ ...td, ...bg(drills.thesA ? pctTier((drills.thesM ?? 0) / drills.thesA) : null) }}>{drills.thesM != null && drills.thesA ? p(drills.thesM / drills.thesA) : "–"}</td>
+      <td style={{ ...td, ...bg(drills.ft != null ? pctTier(drills.ft / FT_D) : null) }}>{drills.ft != null ? p(drills.ft / FT_D) : "–"}</td>
     </>
   );
 }

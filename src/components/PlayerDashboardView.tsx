@@ -32,7 +32,8 @@ function PlayerShotPanel({ zones, shots }: { zones: PlayerSeason["zones"]; shots
 
 const denom = (k: string) => SHOOTING_DRILLS.find((d) => d.key === k)?.denominator ?? 1;
 const BAY_D = denom("baylor"), NINETY_D = denom("ninetys"), FT_D = denom("ft");
-const drillPct = (makes: number | null, d: number) => (makes == null ? "–" : pct(makes / d));
+// detail rows show makes (or makes/attempts) alongside the percentage
+const drillCell = (makes: number | null, d: number) => (makes == null ? "–" : `${makes} · ${pct(makes / d)}`);
 
 const f1 = (x: number) => x.toFixed(1);
 const ma = (m: number, a: number) => `${m}-${a}`;
@@ -178,10 +179,10 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
                   <td className="p-2 font-semibold">{f1(hp.cp)}</td>
                   <td className="p-2">{f1(hp.per)}</td>
                   <td className="p-2">{pct(hp.ts)}</td>
-                  <td className="p-2">{hp.trans.a ? pct(hp.trans.m / hp.trans.a) : "–"}</td>
-                  <td className="p-2">{drillPct(hp.drills.baylor, BAY_D)}</td>
-                  <td className="p-2">{drillPct(hp.drills.ninety, NINETY_D)}</td>
-                  <td className="p-2">{drillPct(hp.drills.ft, FT_D)}</td>
+                  <td className="p-2">{hp.trans.a ? `${ma(hp.trans.m, hp.trans.a)} · ${pct(hp.trans.m / hp.trans.a)}` : "–"}</td>
+                  <td className="p-2">{drillCell(hp.drills.baylor, BAY_D)}</td>
+                  <td className="p-2">{drillCell(hp.drills.ninety, NINETY_D)}</td>
+                  <td className="p-2">{drillCell(hp.drills.ft, FT_D)}</td>
                 </tr>
               );
             })}
@@ -204,10 +205,10 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
               <td className="p-2">{f1(p.total.casper)}</td>
               <td className="p-2">{f1(p.total.per)}</td>
               <td className="p-2">{pct(p.total.ts)}</td>
-              <td className="p-2">{pct(p.drills.transPct)}</td>
-              <td className="p-2">{pct(p.drills.baylorAvg / BAY_D)}</td>
-              <td className="p-2">{pct(p.drills.ninetyAvg / NINETY_D)}</td>
-              <td className="p-2">{pct(p.drills.ftAvg / FT_D)}</td>
+              <td className="p-2">{p.drills.transA ? `${ma(p.drills.transM, p.drills.transA)} · ${pct(p.drills.transPct)}` : pct(p.drills.transPct)}</td>
+              <td className="p-2">{`${f1(p.drills.baylorAvg)} · ${pct(p.drills.baylorAvg / BAY_D)}`}</td>
+              <td className="p-2">{`${f1(p.drills.ninetyAvg)} · ${pct(p.drills.ninetyAvg / NINETY_D)}`}</td>
+              <td className="p-2">{`${f1(p.drills.ftAvg)} · ${pct(p.drills.ftAvg / FT_D)}`}</td>
             </tr>
           </tfoot>
         </table>
