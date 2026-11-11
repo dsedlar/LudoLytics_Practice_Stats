@@ -1,6 +1,6 @@
 # Spec: Win Validation at the Line (free-throw validated wins, ties, clutch FT%)
 
-Status: **implementing** · Owner: Coach Sedlar · Last updated: 2026-11-10
+Status: **implemented** (migration 008 must be run) · Owner: Coach Sedlar · Last updated: 2026-11-10
 
 ## Summary
 
