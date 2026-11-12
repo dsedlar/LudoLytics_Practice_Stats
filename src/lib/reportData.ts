@@ -13,7 +13,7 @@ export interface StatBlock {
   ft: { m: number; a: number; pct: number };
   fd: number;
   play: { pot: number; second: number; ast: number; to: number; toPct: number; ato: number };
-  reb: { tip: number; or: number; dr: number; orPct: number; tot: number };
+  reb: { tip: number; or: number; dr: number; orPct: number; drPct: number; tot: number };
   def: { stl: number; blk: number; def: number; foul: number; dive: number; chg: number };
   casper: number;
   per: number;
@@ -24,7 +24,7 @@ function zone(m: number, a: number, fga: number): Zone {
   return { m, a, pct: a ? m / a : 0, fr: fga ? a / fga : 0 };
 }
 
-export function statBlock(t: RawTally, opponentDR = 0): StatBlock {
+export function statBlock(t: RawTally, opponentDR = 0, opponentOR = 0): StatBlock {
   const c = compute(t);
   const fga = c.fga;
   return {
@@ -37,7 +37,9 @@ export function statBlock(t: RawTally, opponentDR = 0): StatBlock {
     play: { pot: t.pot, second: t.second, ast: t.ast, to: t.to, toPct: c.poss ? t.to / c.poss : 0, ato: c.ato },
     reb: {
       tip: t.tip, or: t.or, dr: t.dr, tot: t.or + t.dr,
+      // OR% = OR / (OR + opp DR); DR% = DR / (DR + opp OR)
       orPct: t.or + opponentDR ? t.or / (t.or + opponentDR) : 0,
+      drPct: t.dr + opponentOR ? t.dr / (t.dr + opponentOR) : 0,
     },
     def: { stl: t.stl, blk: t.blk, def: t.def, foul: t.foul, dive: t.dive, chg: t.chg },
     casper: c.casper, per: c.per,
@@ -196,8 +198,8 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
 
   // Live-play rich stat line per squad + combined (from live-segment events only)
   const liveTeam: BlockRow[] = bundle.squads.map((s, i) => {
-    const oppLiveDR = liveT(squadIds[1 - i] ?? "").dr;
-    return { name: s.name, color: s.color, block: statBlock(liveT(s.id), oppLiveDR) };
+    const opp = liveT(squadIds[1 - i] ?? "");
+    return { name: s.name, color: s.color, block: statBlock(liveT(s.id), opp.dr, opp.or) };
   });
   liveTeam.push({
     name: "Combined",

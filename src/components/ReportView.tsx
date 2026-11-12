@@ -260,17 +260,19 @@ function LivePlayCompact({ rows }: { rows: BlockRow[] }) {
         <tr>
           <th style={grp}></th><th style={grp} colSpan={5}></th>
           <th style={grp} colSpan={2}>ATR</th><th style={grp} colSpan={2}>2FG</th><th style={grp} colSpan={2}>3FG</th>
-          <th style={grp} colSpan={5}></th><th style={grp}>CASPER</th>
+          <th style={grp} colSpan={6}></th><th style={grp}>CASPER</th>
         </tr>
         <tr>
-          {["TEAM", "POSS", "PPP", "PPS", "eFG%", "TS%", "M-A", "%", "M-A", "%", "M-A", "%", "FD", "Ast", "TO", "Foul", "OR", "CP"].map((h, i) => (
+          {["TEAM", "POSS", "PPP", "PPS", "eFG%", "TS%", "M-A", "%", "M-A", "%", "M-A", "%", "FD", "Ast", "TO", "Foul", "OR", "DR%", "CP"].map((h, i) => (
             <th key={i} style={{ ...th, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
           ))}
         </tr>
       </thead>
       <tbody>
-        {rows.map((r) => {
+        {rows.map((r, idx) => {
           const b = r.block;
+          const isCombined = idx === rows.length - 1; // combined row has no opponent, so no DR%
+          const showDr = !isCombined && b.reb.dr > 0;
           return (
             <tr key={r.name}>
               <td style={{ ...td, textAlign: "left", fontWeight: 700, color: r.color }}>{r.name}</td>
@@ -285,6 +287,7 @@ function LivePlayCompact({ rows }: { rows: BlockRow[] }) {
               <td style={td}>{b.play.to}</td>
               <td style={td}>{b.def.foul}</td>
               <td style={td}>{b.reb.or}</td>
+              <td style={{ ...td, ...bg(showDr ? pctTier(b.reb.drPct) : null) }}>{showDr ? p(b.reb.drPct) : "–"}</td>
               <td style={{ ...td, fontWeight: 700 }}>{round1(b.casper)}</td>
             </tr>
           );
