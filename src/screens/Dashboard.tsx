@@ -30,6 +30,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-3xl headline-bold text-garnet">Season Dashboard</h1>
         <div className="flex items-center gap-2 flex-wrap">
+          <Link to="/weekly" className="text-sm bg-garnet text-white rounded px-3 py-2 font-semibold">📄 Weekly Report</Link>
           <Link to="/display" className="text-sm border rounded px-3 py-2 font-medium">Locker-room display</Link>
           <button onClick={() => exportSeasonCSV().catch((e) => alert(e.message))} className="text-sm border rounded px-3 py-2 font-medium">Season CSV</button>
           <button onClick={() => exportBackupJSON().catch((e) => alert(e.message))} className="text-sm border rounded px-3 py-2 font-medium">Backup (JSON)</button>

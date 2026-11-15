@@ -13,6 +13,8 @@ import Report from "./screens/Report";
 import ReportDemo from "./screens/ReportDemo";
 import Dashboard from "./screens/Dashboard";
 import DashboardDemo from "./screens/DashboardDemo";
+import Weekly from "./screens/Weekly";
+import WeeklyDemo from "./screens/WeeklyDemo";
 import CourtDemo from "./screens/CourtDemo";
 import PlayerDashboard from "./screens/PlayerDashboard";
 import PlayerDashboardDemo from "./screens/PlayerDashboardDemo";
@@ -81,6 +83,8 @@ export default function App() {
           <Route path="/report-demo" element={<ReportDemo />} />
           <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
           <Route path="/dashboard-demo" element={<DashboardDemo />} />
+          <Route path="/weekly" element={<RequireAuth><Weekly /></RequireAuth>} />
+          <Route path="/weekly-demo" element={<WeeklyDemo />} />
           <Route path="/player/:playerId" element={<RequireAuth><PlayerDashboard /></RequireAuth>} />
           <Route path="/player-demo/:playerId" element={<PlayerDashboardDemo />} />
           <Route path="/court-demo" element={<CourtDemo />} />
