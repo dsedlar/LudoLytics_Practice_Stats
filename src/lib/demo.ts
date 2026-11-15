@@ -33,16 +33,26 @@ export function makeDemoData(): { bundle: PracticeBundle; events: EventRow[]; dr
 
   const events: EventRow[] = [];
   let id = 1;
-  const push = (squad: string, player: string, segment: string, type: string, made: boolean | null) =>
-    events.push({ id: id++, practice_id: "demo", squad_id: squad, player_id: player, segment, type, made });
+  const push = (squad: string, player: string, segment: string, type: string, made: boolean | null, x: number | null = null, y: number | null = null) =>
+    events.push({ id: id++, practice_id: "demo", squad_id: squad, player_id: player, segment, type, made, shot_x: x, shot_y: y });
+
+  // half-court shot locations (x: 0..50 width, y: 0..47 baseline->mid)
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const atrXY = (): [number, number] => [25 + (rnd() - 0.5) * 8, 3 + rnd() * 5];
+  const midXY = (): [number, number] => [clamp(25 + (rnd() - 0.5) * 26, 2, 48), 8 + rnd() * 10];
+  const threeXY = (): [number, number] => {
+    const ang = (rnd() - 0.5) * 2 * ((80 * Math.PI) / 180);
+    const R = 20 + rnd() * 3;
+    return [clamp(25 + R * Math.sin(ang), 1, 49), clamp(5.25 + R * Math.cos(ang), 1, 44)];
+  };
 
   for (const r of roster) {
     if (!r.present) continue;
     const sq = r.squad_id;
     const pid = r.player_id;
-    for (let k = 0; k < 2 + ri(4); k++) push(sq, pid, "live", "atr", rnd() < 0.6);
-    for (let k = 0; k < 2 + ri(5); k++) push(sq, pid, "live", "nonatr2", rnd() < 0.42);
-    for (let k = 0; k < 2 + ri(6); k++) push(sq, pid, "live", "fg3", rnd() < 0.34);
+    for (let k = 0; k < 2 + ri(4); k++) { const [x, y] = atrXY(); push(sq, pid, "live", "atr", rnd() < 0.6, x, y); }
+    for (let k = 0; k < 2 + ri(5); k++) { const [x, y] = midXY(); push(sq, pid, "live", "nonatr2", rnd() < 0.42, x, y); }
+    for (let k = 0; k < 2 + ri(6); k++) { const [x, y] = threeXY(); push(sq, pid, "live", "fg3", rnd() < 0.34, x, y); }
     // transition + thespian: 3s and the occasional turnover
     for (let k = 0; k < 3 + ri(5); k++) push(sq, pid, "transition", "fg3", rnd() < 0.33);
     for (let k = 0; k < ri(2); k++) push(sq, pid, "transition", "to", null);

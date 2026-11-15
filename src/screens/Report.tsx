@@ -39,6 +39,7 @@ export default function Report() {
           <ShotChartView
             squads={bundle.squads}
             events={events}
+            roster={bundle.roster}
             date={bundle.practice.practice_date}
             startTime={bundle.practice.start_time}
           />

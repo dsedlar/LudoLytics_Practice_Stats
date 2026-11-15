@@ -1,6 +1,7 @@
 // Full-court shot chart (ESPN-style), page-filling in landscape.
 // Grey team shoots at the LEFT hoop, Garnet at the RIGHT hoop, using the
 // half-court shot coordinates (x: 0..50 width, y: 0..47 baseline->mid).
+import { useState } from "react";
 import type { EventRow } from "../lib/aggregate";
 import { formatLongDate } from "../lib/reportData";
 
@@ -9,8 +10,19 @@ interface SquadLite {
   name: string;
   color: string;
 }
+interface RosterLite {
+  player_id: string;
+  jersey: string | null;
+  players: { name: string } | null;
+}
 
 const SHOT_TYPES = new Set(["atr", "nonatr2", "fg3"]);
+const PLAY_TYPES = [
+  { key: "all", label: "All Play Types" },
+  { key: "atr", label: "At the Rim" },
+  { key: "nonatr2", label: "2FG" },
+  { key: "fg3", label: "3FG" },
+];
 
 // palette (muted hardwood, like the reference chart)
 const FLOOR = "#DCC9A6";
@@ -26,30 +38,35 @@ const fy = (ft: number) => 30 + ft * 10;
 export default function ShotChartView({
   squads,
   events,
+  roster = [],
   date,
   startTime,
 }: {
   squads: SquadLite[];
   events: EventRow[];
+  roster?: RosterLite[];
   date: string;
   startTime?: string | null;
 }) {
+  const [player, setPlayer] = useState("all");
+  const [playType, setPlayType] = useState("all");
+
   const grey = squads.find((s) => /gr[ae]y/i.test(s.name)) ?? squads[0];
   const garnet = squads.find((s) => grey && s.id !== grey.id) ?? squads[1];
   const greyColor = grey?.color ?? "#6B7280";
   const garnetColor = garnet?.color ?? "#B20000";
 
-  const shotsFor = (sq?: SquadLite) =>
-    sq
-      ? events.filter(
-          (e) =>
-            e.squad_id === sq.id &&
-            e.segment === "live" && // only scrimmage shots have court locations
-            SHOT_TYPES.has(e.type) &&
-            e.shot_x != null &&
-            e.shot_y != null,
-        )
-      : [];
+  // every located scrimmage shot (only live shots carry court coordinates)
+  const located = events.filter((e) => e.segment === "live" && SHOT_TYPES.has(e.type) && e.shot_x != null && e.shot_y != null);
+
+  // player dropdown = players who actually took a located shot
+  const nameById = new Map(roster.map((r) => [r.player_id, { name: r.players?.name ?? "—", jersey: r.jersey ?? "" }]));
+  const shooters = [...new Set(located.map((e) => e.player_id))]
+    .map((id) => ({ id, ...(nameById.get(id) ?? { name: "—", jersey: "" }) }))
+    .sort((a, b) => Number(a.jersey || 999) - Number(b.jersey || 999));
+
+  const pass = (e: EventRow) => (player === "all" || e.player_id === player) && (playType === "all" || e.type === playType);
+  const shotsFor = (sq?: SquadLite) => (sq ? located.filter((e) => e.squad_id === sq.id && pass(e)) : []);
 
   // Left team at the left hoop; right team mirrored (180°) to the right hoop.
   const leftDots = shotsFor(grey).map((e) => ({ cx: fx(e.shot_y as number), cy: fy(e.shot_x as number), made: !!e.made }));
@@ -70,6 +87,24 @@ export default function ShotChartView({
           </div>
         </div>
         <img src="/ludolytics-logo.svg" alt="Ludolytics" style={{ height: 26, width: "auto" }} />
+      </div>
+
+      {/* filters — on-screen only (hidden when printing the chart) */}
+      <div className="no-print mb-3 flex items-center gap-2 flex-wrap">
+        <select value={playType} onChange={(e) => setPlayType(e.target.value)} className="border rounded-full px-4 py-2 text-sm font-semibold bg-white">
+          {PLAY_TYPES.map((t) => (
+            <option key={t.key} value={t.key}>{t.label}</option>
+          ))}
+        </select>
+        <select value={player} onChange={(e) => setPlayer(e.target.value)} className="border rounded-full px-4 py-2 text-sm font-semibold bg-white">
+          <option value="all">All Players</option>
+          {shooters.map((s) => (
+            <option key={s.id} value={s.id}>{s.jersey ? `#${s.jersey} ` : ""}{s.name}</option>
+          ))}
+        </select>
+        {(player !== "all" || playType !== "all") && (
+          <button onClick={() => { setPlayer("all"); setPlayType("all"); }} className="text-sm text-garnet font-medium px-2">Clear</button>
+        )}
       </div>
 
       <svg viewBox="0 0 1000 560" className="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
