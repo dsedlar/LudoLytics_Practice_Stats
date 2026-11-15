@@ -307,6 +307,17 @@ export async function upsertDrillResult(row: {
   if (error) throw error;
 }
 
+// Remove a drill result entirely (drill was not done) — distinct from a 0 score.
+export async function deleteDrillResult(practiceId: string, playerId: string, drill: string) {
+  const { error } = await client()
+    .from("drill_results")
+    .delete()
+    .eq("practice_id", practiceId)
+    .eq("player_id", playerId)
+    .eq("drill", drill);
+  if (error) throw error;
+}
+
 export async function setGrade(practiceId: string, grade: number | null) {
   const { error } = await client().from("practices").update({ grade }).eq("id", practiceId);
   if (error) throw error;

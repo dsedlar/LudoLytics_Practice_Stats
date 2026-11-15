@@ -95,8 +95,11 @@ export default function DemoEntryPanel({
     else setTies((t) => t + 1);
     setSelected("");
   }
-  function drillSave(playerId: string, drill: string, makes: number) {
-    setDrills((d) => [...d.filter((r) => !(r.player_id === playerId && r.drill === drill)), { id: `${playerId}-${drill}`, squad_id: "s", player_id: playerId, drill, makes, attempts: null }]);
+  function drillSave(playerId: string, drill: string, makes: number | null) {
+    setDrills((d) => {
+      const without = d.filter((r) => !(r.player_id === playerId && r.drill === drill));
+      return makes == null ? without : [...without, { id: `${playerId}-${drill}`, squad_id: "s", player_id: playerId, drill, makes, attempts: null }];
+    });
   }
 
   return (

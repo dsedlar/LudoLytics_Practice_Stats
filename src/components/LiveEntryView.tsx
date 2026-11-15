@@ -66,7 +66,7 @@ export interface LiveEntryViewProps {
   // drills
   drillPlayers: DrillPlayer[];
   drills: DrillRow[];
-  onDrillSave: (playerId: string, drill: string, makes: number, attempts?: number | null) => void;
+  onDrillSave: (playerId: string, drill: string, makes: number | null, attempts?: number | null) => void;
 }
 
 const TABS: { key: Tab; label: string }[] = [
@@ -274,15 +274,40 @@ function DrillsTab({
 }: {
   players: DrillPlayer[];
   drills: DrillRow[];
-  onSave: (playerId: string, drill: string, makes: number, attempts?: number | null) => void;
+  onSave: (playerId: string, drill: string, makes: number | null, attempts?: number | null) => void;
 }) {
-  function val(playerId: string, drill: string) {
+  const keyOf = (playerId: string, drill: string) => `${playerId}|${drill}`;
+  const savedVal = (playerId: string, drill: string) => {
     const row = drills.find((d) => d.player_id === playerId && d.drill === drill);
-    return row ? row.makes : "";
-  }
+    return row ? String(row.makes) : "";
+  };
+  // local draft so an empty box stays empty (rather than snapping back to a saved 0)
+  const [vals, setVals] = useState<Record<string, string>>(() => {
+    const m: Record<string, string> = {};
+    for (const row of drills) m[keyOf(row.player_id, row.drill)] = String(row.makes);
+    return m;
+  });
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  const current = (playerId: string, drill: string) => {
+    const k = keyOf(playerId, drill);
+    return k in vals ? vals[k] : savedVal(playerId, drill);
+  };
+  const setVal = (playerId: string, drill: string, v: string) => setVals((s) => ({ ...s, [keyOf(playerId, drill)]: v }));
+  // Empty box -> null (delete the record = "not done"); a number -> save that score.
+  const commit = (playerId: string, drill: string) => {
+    const raw = current(playerId, drill).trim();
+    onSave(playerId, drill, raw === "" ? null : Number(raw) || 0, null);
+  };
+  const saveAll = () => {
+    for (const pl of players) for (const d of SHOOTING_DRILLS) commit(pl.player_id, d.key);
+    setSavedFlash(true);
+    setTimeout(() => setSavedFlash(false), 1800);
+  };
+
   return (
     <div className="mt-4 overflow-x-auto">
-      <p className="text-sm text-gray-500 mb-2">End of practice — enter each player's drill score.</p>
+      <p className="text-sm text-gray-500 mb-2">End of practice — enter each player's drill score. Leave a box empty for a drill that wasn't done.</p>
       <table className="min-w-full text-sm bg-white border rounded-lg">
         <thead>
           <tr className="border-b text-left">
@@ -300,10 +325,11 @@ function DrillsTab({
                 <td key={d.key} className="p-2 text-center">
                   <input
                     type="number"
-                    defaultValue={val(pl.player_id, d.key)}
-                    onBlur={(e) => onSave(pl.player_id, d.key, Number(e.target.value) || 0, null)}
+                    value={current(pl.player_id, d.key)}
+                    onChange={(e) => setVal(pl.player_id, d.key, e.target.value)}
+                    onBlur={() => commit(pl.player_id, d.key)}
                     className="w-16 border rounded px-1 text-center"
-                    placeholder="makes"
+                    placeholder="—"
                   />
                 </td>
               ))}
@@ -311,7 +337,11 @@ function DrillsTab({
           ))}
         </tbody>
       </table>
-      <p className="text-xs text-gray-500 mt-2">Saves when you tab out of a field.</p>
+      <div className="mt-3 flex items-center gap-3 flex-wrap">
+        <button onClick={saveAll} className="bg-navy text-white px-4 py-2 rounded-lg font-semibold text-sm">Save drills</button>
+        {savedFlash && <span className="text-green-600 text-sm font-medium">Saved ✓</span>}
+        <span className="text-xs text-gray-500">Changes also save when you tab out of a box. Clear a box to mark that drill as not done.</span>
+      </div>
     </div>
   );
 }

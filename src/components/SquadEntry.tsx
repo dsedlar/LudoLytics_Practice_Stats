@@ -3,7 +3,7 @@ import { usePracticeData } from "../lib/usePracticeData";
 import { tallyByPlayer } from "../lib/aggregate";
 import { compute, emptyTally } from "../lib/stats";
 import { SHOT_LABELS, COUNTING_LABELS, type ShotType, type CountingType } from "../lib/config";
-import { logEvent, deleteEvent, upsertDrillResult, setSquadWins, setSquadLosses, setSquadTies } from "../lib/db";
+import { logEvent, deleteEvent, upsertDrillResult, deleteDrillResult, setSquadWins, setSquadLosses, setSquadTies } from "../lib/db";
 import LiveEntryView, { type TilePlayer, type TransitionRow } from "./LiveEntryView";
 import type { CourtShot } from "./Court";
 import type { Tab } from "./LiveEntryView";
@@ -165,7 +165,9 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
       drillPlayers={roster.map((r) => ({ player_id: r.player_id, jersey: r.jersey ?? "", name: r.players?.name ?? "—" }))}
       drills={drills}
       onDrillSave={(playerId, drill, makes, attempts) =>
-        upsertDrillResult({ practice_id: practiceId, squad_id: squadId, player_id: playerId, drill, makes, attempts })
+        makes == null
+          ? deleteDrillResult(practiceId, playerId, drill)
+          : upsertDrillResult({ practice_id: practiceId, squad_id: squadId, player_id: playerId, drill, makes, attempts })
       }
     />
   );
