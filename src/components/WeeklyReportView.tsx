@@ -127,7 +127,8 @@ export default function WeeklyReportView({ m }: { m: WeeklyModel }) {
           <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 2 }}>
             <thead>
               <tr>
-                <th colSpan={15} style={{ ...th, borderBottom: "none" }} />
+                <th colSpan={2} style={{ ...th, borderBottom: "none" }} />
+                <th colSpan={13} style={{ ...th, background: "#f3f4f6", color: GARNET, letterSpacing: "0.06em" }}>Live Play Stats</th>
                 <th colSpan={5} style={{ ...th, background: "#f3f4f6", borderLeft: "2px solid #d1d5db", color: GARNET, letterSpacing: "0.06em" }}>Shooting Drills</th>
               </tr>
               <tr>
