@@ -47,6 +47,11 @@ export default function HistoryView({ rows, onChangeDate, onDelete }: HistoryVie
               </span>
             ))}
           </span>
+          {r.winner?.name && (
+            <span className="text-sm font-semibold whitespace-nowrap" style={{ color: r.winner.color ?? undefined }}>
+              🏆 {r.winner.name} won{r.winner.note ? <span className="font-normal text-gray-500"> ({r.winner.note})</span> : null}
+            </span>
+          )}
           <span className="text-sm text-gray-600">
             {r.grade ? <>Grade <b>{r.grade}</b> {GRADE_SCALE[r.grade]?.label}</> : "No grade"}
           </span>

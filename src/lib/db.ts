@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 import { supabase } from "./supabase";
 import type { PracticeDraft } from "./types";
+import { practiceWinners } from "./practiceOutcome";
 
 function client() {
   if (!supabase) throw new Error("Supabase is not configured. Add your keys to .env.");
@@ -473,19 +474,32 @@ export interface PracticeSummary {
   squads: { name: string; color: string; wins: number; losses: number; ties?: number }[];
   present: number;
   total: number;
+  winner?: { name: string | null; color: string | null; note: string } | null; // decided by the tiebreaker cascade
 }
 
-/** All practices with squad records + attendance, newest first. */
+/** All practices with squad records + attendance + winner, newest first. */
 export async function getHistory(): Promise<PracticeSummary[]> {
   const sb = client();
-  const [pr, sq, ro] = await Promise.all([
-    sb.from("practices").select("id, practice_date, grade, status, finish_time").order("practice_date", { ascending: false }),
+  const [pr, sq, ro, ev, dr] = await Promise.all([
+    sb.from("practices").select("*").order("practice_date", { ascending: false }),
     sb.from("squads").select("*").order("sort_order"),
-    sb.from("roster_entries").select("practice_id, present"),
+    sb.from("roster_entries").select("practice_id, present, player_id, squad_id"),
+    sb.from("events").select("practice_id, squad_id, segment, type, made"),
+    sb.from("drill_results").select("practice_id, player_id, drill, makes"),
   ]);
   if (pr.error) throw pr.error;
   if (sq.error) throw sq.error;
   if (ro.error) throw ro.error;
+  if (ev.error) throw ev.error;
+  if (dr.error) throw dr.error;
+
+  const winners = practiceWinners(
+    pr.data as { id: string; tiebreak_winner_squad_id?: string | null }[],
+    sq.data as { id: string; practice_id: string; name: string; color: string; wins: number }[],
+    ev.data as { practice_id: string; squad_id: string; segment: string; type: string; made: boolean | null }[],
+    dr.data as { practice_id: string; player_id: string; drill: string; makes: number }[],
+    ro.data as { practice_id: string; player_id: string; squad_id: string | null }[],
+  );
 
   const squadsByPractice = new Map<string, { name: string; color: string; wins: number; losses: number; ties: number }[]>();
   (sq.data as { practice_id: string; name: string; color: string; wins: number; losses: number; ties?: number }[]).forEach((s) => {
@@ -500,16 +514,20 @@ export async function getHistory(): Promise<PracticeSummary[]> {
     att.set(r.practice_id, a);
   });
 
-  return (pr.data as { id: string; practice_date: string; grade: number | null; status: string; finish_time: string | null }[]).map((p) => ({
-    id: p.id,
-    date: p.practice_date,
-    grade: p.grade,
-    status: p.status,
-    finish: p.finish_time,
-    squads: squadsByPractice.get(p.id) ?? [],
-    present: att.get(p.id)?.present ?? 0,
-    total: att.get(p.id)?.total ?? 0,
-  }));
+  return (pr.data as { id: string; practice_date: string; grade: number | null; status: string; finish_time: string | null }[]).map((p) => {
+    const w = winners.get(p.id);
+    return {
+      id: p.id,
+      date: p.practice_date,
+      grade: p.grade,
+      status: p.status,
+      finish: p.finish_time,
+      squads: squadsByPractice.get(p.id) ?? [],
+      present: att.get(p.id)?.present ?? 0,
+      total: att.get(p.id)?.total ?? 0,
+      winner: w && w.winnerId ? { name: w.name, color: w.color, note: w.reason === "wins" ? "" : w.reasonLabel } : null,
+    };
+  });
 }
 
 export async function deletePractice(id: string) {

@@ -60,6 +60,51 @@ const REASON_LABEL: Record<WinReason, string> = {
  * Returns the winning squad id (or null if dead-even and no coach override),
  * plus the reason it was decided.
  */
+// Per-practice winners for a set of practices, computed from the raw season-shape
+// data (squads + events + drills + roster). Reusable by the History list etc.
+export interface PracticeWinnerInfo {
+  winnerId: string | null;
+  name: string | null;
+  color: string | null;
+  reason: WinReason;
+  reasonLabel: string;
+}
+export function practiceWinners(
+  practices: { id: string; tiebreak_winner_squad_id?: string | null }[],
+  squads: { id: string; practice_id: string; name: string; color: string; wins: number }[],
+  events: { practice_id: string; squad_id: string; segment: string; type: string; made: boolean | null }[],
+  drills: { practice_id: string; player_id: string; drill: string; makes: number }[],
+  roster: { practice_id: string; player_id: string; squad_id: string | null }[],
+): Map<string, PracticeWinnerInfo> {
+  const squadsByPractice = new Map<string, typeof squads>();
+  squads.forEach((s) => {
+    if (!squadsByPractice.has(s.practice_id)) squadsByPractice.set(s.practice_id, []);
+    squadsByPractice.get(s.practice_id)!.push(s);
+  });
+  const playerSquadAt = new Map<string, string | null>();
+  roster.forEach((r) => playerSquadAt.set(`${r.player_id}|${r.practice_id}`, r.squad_id));
+  const overrideByPractice = new Map(practices.map((p) => [p.id, p.tiebreak_winner_squad_id ?? null]));
+  const sideFor = (s: (typeof squads)[number]): Side => ({
+    id: s.id,
+    wins: s.wins ?? 0,
+    pcts: teamShootPcts(
+      events.filter((e) => e.practice_id === s.practice_id && e.squad_id === s.id),
+      drills.filter((d) => d.practice_id === s.practice_id && playerSquadAt.get(`${d.player_id}|${s.practice_id}`) === s.id).map((d) => ({ drill: d.drill, makes: Number(d.makes) })),
+    ),
+  });
+  const out = new Map<string, PracticeWinnerInfo>();
+  for (const [pid, sqs] of squadsByPractice) {
+    if (sqs.length < 2) {
+      out.set(pid, { winnerId: null, name: null, color: null, reason: "none", reasonLabel: "—" });
+      continue;
+    }
+    const w = practiceWinner(sideFor(sqs[0]), sideFor(sqs[1]), overrideByPractice.get(pid));
+    const win = sqs.find((s) => s.id === w.winnerId);
+    out.set(pid, { winnerId: w.winnerId, name: win?.name ?? null, color: win?.color ?? null, reason: w.reason, reasonLabel: w.reasonLabel });
+  }
+  return out;
+}
+
 export function practiceWinner(a: Side, b: Side, overrideId?: string | null): { winnerId: string | null; reason: WinReason; reasonLabel: string } {
   const out = (winnerId: string | null, reason: WinReason) => ({ winnerId, reason, reasonLabel: REASON_LABEL[reason] });
   if (a.wins !== b.wins) return out(a.wins > b.wins ? a.id : b.id, "wins");
