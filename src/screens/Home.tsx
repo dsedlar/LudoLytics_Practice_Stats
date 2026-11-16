@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { getLivePractice, getSquads, claimSquad, releaseSquad, type PracticeRow, type SquadRow } from "../lib/db";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
@@ -11,11 +11,23 @@ const FEATURES = [
 ];
 
 export default function Home() {
-  const { isManager } = useAuth();
+  const { isManager, isPlayer, playerId } = useAuth();
   const [live, setLive] = useState<PracticeRow | null>(null);
   useEffect(() => {
     if (isSupabaseConfigured) getLivePractice().then(setLive).catch(() => {});
   }, []);
+
+  // Players only ever see their own page.
+  if (isPlayer) {
+    return playerId ? (
+      <Navigate to={`/player/${playerId}`} replace />
+    ) : (
+      <div className="bg-white border rounded-lg p-5 max-w-lg">
+        <h1 className="text-2xl headline-bold text-garnet">Welcome</h1>
+        <p className="mt-2 text-gray-600">Your account isn't linked to a player yet. Ask your coach to connect it in the roster, then sign in again.</p>
+      </div>
+    );
+  }
 
   if (isManager) return <ManagerHome live={live} />;
 

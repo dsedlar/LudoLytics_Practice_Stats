@@ -117,7 +117,7 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
           <div className="eyebrow text-xs text-gray-500">#{p.jersey} · {p.gp} practices{p.pod ? ` · ${p.pod}× Player of the Day` : ""}{p.clutch.a ? ` · ${p.clutch.m}/${p.clutch.a} clutch FT` : ""}</div>
           <h1 className="text-4xl headline-bold text-garnet">{p.name}</h1>
         </div>
-        <Link to={backHref} className="text-sm text-garnet font-medium">← Season dashboard</Link>
+        {backHref && <Link to={backHref} className="text-sm text-garnet font-medium">← Season dashboard</Link>}
       </div>
 
       {/* trend chart (wider) + shot chart (narrower) side by side */}

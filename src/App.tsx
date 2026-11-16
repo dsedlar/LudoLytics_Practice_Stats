@@ -3,6 +3,7 @@ import { isSupabaseConfigured } from "./lib/supabase";
 import { useAuth } from "./lib/auth";
 import RequireAuth from "./components/RequireAuth";
 import RequireCoach from "./components/RequireCoach";
+import RequireNotPlayer from "./components/RequireNotPlayer";
 import RequireAdmin from "./components/RequireAdmin";
 import Login from "./screens/Login";
 import Home from "./screens/Home";
@@ -80,12 +81,12 @@ export default function App() {
           <Route path="/setup" element={<RequireCoach><Setup /></RequireCoach>} />
           <Route path="/practice/:id/coach" element={<RequireCoach><Coach /></RequireCoach>} />
           <Route path="/practice/:id/entry" element={<RequireCoach><CoachEntry /></RequireCoach>} />
-          <Route path="/practice/:id/squad/:squadId" element={<RequireAuth><LiveEntry /></RequireAuth>} />
-          <Route path="/practice/:id/report" element={<RequireAuth><Report /></RequireAuth>} />
+          <Route path="/practice/:id/squad/:squadId" element={<RequireNotPlayer><LiveEntry /></RequireNotPlayer>} />
+          <Route path="/practice/:id/report" element={<RequireNotPlayer><Report /></RequireNotPlayer>} />
           <Route path="/report-demo" element={<ReportDemo />} />
-          <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
+          <Route path="/dashboard" element={<RequireNotPlayer><Dashboard /></RequireNotPlayer>} />
           <Route path="/dashboard-demo" element={<DashboardDemo />} />
-          <Route path="/weekly" element={<RequireAuth><Weekly /></RequireAuth>} />
+          <Route path="/weekly" element={<RequireNotPlayer><Weekly /></RequireNotPlayer>} />
           <Route path="/weekly-demo" element={<WeeklyDemo />} />
           <Route path="/player/:playerId" element={<RequireAuth><PlayerDashboard /></RequireAuth>} />
           <Route path="/player-demo/:playerId" element={<PlayerDashboardDemo />} />
