@@ -139,6 +139,42 @@ export async function createPracticeFromDraft(draft: PracticeDraft): Promise<str
 }
 
 // ---------------------------------------------------------------------------
+// User roles / profiles (migration 009) — admin only
+// ---------------------------------------------------------------------------
+export interface ProfileRow {
+  id: string;
+  email: string | null;
+  role: "admin" | "coach" | "manager" | "player";
+  display_name: string | null;
+  player_id: string | null;
+  players: { name: string } | null;
+}
+
+export async function getProfiles(): Promise<ProfileRow[]> {
+  const { data, error } = await client()
+    .from("profiles")
+    .select("id, email, role, display_name, player_id, players(name)")
+    .order("email");
+  if (error) throw error;
+  return data as unknown as ProfileRow[];
+}
+
+export async function setProfileRole(id: string, role: ProfileRow["role"]) {
+  const { error } = await client().from("profiles").update({ role }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function setProfilePlayer(id: string, playerId: string | null) {
+  const { error } = await client().from("profiles").update({ player_id: playerId }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function sendPasswordReset(email: string) {
+  const { error } = await client().auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/login` });
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
 // Live practice reads/writes
 // ---------------------------------------------------------------------------
 export interface PracticeRow {

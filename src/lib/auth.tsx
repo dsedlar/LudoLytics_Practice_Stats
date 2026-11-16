@@ -2,9 +2,10 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 
-// Admins can open Settings (season/roster management). Everyone else who is
-// signed in (coaches/managers) uses the rest of the app but not Settings.
-// Add more addresses here (lowercase) to grant admin access.
+export type Role = "admin" | "coach" | "manager" | "player";
+
+// Fallback admin check used only before migration 009 has run (no profiles yet).
+// Add more addresses here (lowercase) to grant admin access during setup.
 export const ADMIN_EMAILS = ["dsedlar@ves.org"];
 export const isAdminEmail = (email: string | null | undefined): boolean =>
   !!email && ADMIN_EMAILS.includes(email.trim().toLowerCase());
@@ -12,7 +13,12 @@ export const isAdminEmail = (email: string | null | undefined): boolean =>
 interface AuthCtx {
   user: User | null;
   loading: boolean;
+  role: Role;
+  playerId: string | null; // for player accounts: which roster player they are
   isAdmin: boolean;
+  isCoach: boolean; // admin or coach — full edit access
+  isManager: boolean;
+  isPlayer: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -20,7 +26,12 @@ interface AuthCtx {
 const Ctx = createContext<AuthCtx>({
   user: null,
   loading: true,
+  role: "coach",
+  playerId: null,
   isAdmin: false,
+  isCoach: true,
+  isManager: false,
+  isPlayer: false,
   signIn: async () => {},
   signOut: async () => {},
 });
@@ -28,6 +39,8 @@ const Ctx = createContext<AuthCtx>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<Role>("coach");
+  const [playerId, setPlayerId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!supabase) {
@@ -42,6 +55,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Load the signed-in user's role from `profiles`. If the table/row isn't there
+  // yet (migration 009 not run), fall back to the email allowlist so the app and
+  // admin access keep working during setup.
+  useEffect(() => {
+    let cancelled = false;
+    if (!supabase || !user) {
+      setRole("coach");
+      setPlayerId(null);
+      return;
+    }
+    supabase
+      .from("profiles")
+      .select("role, player_id")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error || !data) {
+          setRole(isAdminEmail(user.email) ? "admin" : "coach");
+          setPlayerId(null);
+          return;
+        }
+        setRole((data.role as Role) ?? (isAdminEmail(user.email) ? "admin" : "coach"));
+        setPlayerId((data as { player_id: string | null }).player_id ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   const signIn = async (email: string, password: string) => {
     if (!supabase) throw new Error("Supabase is not configured.");
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
@@ -51,9 +94,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase?.auth.signOut();
   };
 
-  const isAdmin = isAdminEmail(user?.email);
+  const isAdmin = role === "admin";
+  const value: AuthCtx = {
+    user,
+    loading,
+    role,
+    playerId,
+    isAdmin,
+    isCoach: role === "admin" || role === "coach",
+    isManager: role === "manager",
+    isPlayer: role === "player",
+    signIn,
+    signOut,
+  };
 
-  return <Ctx.Provider value={{ user, loading, isAdmin, signIn, signOut }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export const useAuth = () => useContext(Ctx);

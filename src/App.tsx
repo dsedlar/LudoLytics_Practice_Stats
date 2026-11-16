@@ -27,6 +27,7 @@ import SignageDemo from "./screens/SignageDemo";
 import Roster from "./screens/Roster";
 import RosterDemo from "./screens/RosterDemo";
 import Settings from "./screens/Settings";
+import Users from "./screens/Users";
 
 export default function App() {
   const { user, isAdmin, signOut } = useAuth();
@@ -98,6 +99,7 @@ export default function App() {
           <Route path="/roster" element={<RequireAuth><Roster /></RequireAuth>} />
           <Route path="/roster-demo" element={<RosterDemo />} />
           <Route path="/settings" element={<RequireAdmin><Settings /></RequireAdmin>} />
+          <Route path="/users" element={<RequireAdmin><Users /></RequireAdmin>} />
         </Routes>
       </main>
     </div>

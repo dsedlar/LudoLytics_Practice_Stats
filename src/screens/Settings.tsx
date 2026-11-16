@@ -29,6 +29,11 @@ export default function Settings() {
       <h2 className="mt-6 eyebrow text-[11px] text-garnet">Manage</h2>
       <div className="mt-2 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <Card
+          to="/users"
+          title="Users & roles"
+          desc="Set who's an admin, coach, manager, or player. Link player accounts and send password resets."
+        />
+        <Card
           to="/roster"
           title="Roster"
           desc="Add, edit, or remove players. Set who's active for the season."
