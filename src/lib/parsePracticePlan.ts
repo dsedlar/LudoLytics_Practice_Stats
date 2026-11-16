@@ -130,8 +130,8 @@ export function parsePlanXml(documentXml: string): ParsedPlan {
   return { date: dateMatch?.[1], time: timeMatch?.[1], squads, roster, warnings };
 }
 
-/** Browser entry point: read a .docx File and parse it. Uses JSZip. */
-export async function parsePlanFile(file: File): Promise<ParsedPlan> {
+/** Read a .docx File and parse it. Uses JSZip. */
+export async function parsePlanDocxFile(file: File): Promise<ParsedPlan> {
   const zip = await JSZip.loadAsync(file);
   const docEntry = zip.file("word/document.xml");
   if (!docEntry) {
@@ -139,4 +139,200 @@ export async function parsePlanFile(file: File): Promise<ParsedPlan> {
   }
   const xml = await docEntry.async("string");
   return parsePlanXml(xml);
+}
+
+/**
+ * Browser entry point: read a practice-plan File and parse it, picking the
+ * right reader by file type. We accept the VES plan as either a Word doc
+ * (.docx) or a PDF export (.pdf) — coaches print/share whichever they have.
+ */
+export async function parsePlanFile(file: File): Promise<ParsedPlan> {
+  const isPdf =
+    /\.pdf$/i.test(file.name) || file.type === "application/pdf";
+  return isPdf ? parsePlanPdfFile(file) : parsePlanDocxFile(file);
+}
+
+// ---------------------------------------------------------------------------
+// PDF reader
+// ---------------------------------------------------------------------------
+// A PDF has no table structure — just text fragments with (x, y) positions —
+// so we rebuild the layout: cluster fragments into rows by y, sort each row by
+// x, then read the TEAMS and NOT PRACTICING blocks (which sit in the right-hand
+// column) off those positions. Works directly against the VES plan template.
+
+export interface PlanTextItem {
+  str: string;
+  x: number;
+  y: number;
+  w: number;
+}
+interface PlanRow {
+  y: number;
+  items: PlanTextItem[];
+}
+
+/** Cluster positioned text fragments into rows (top→bottom), each sorted L→R. */
+function toRows(items: PlanTextItem[]): PlanRow[] {
+  const sorted = [...items]
+    .filter((i) => i.str && i.str.trim())
+    .sort((a, b) => b.y - a.y || a.x - b.x);
+  const rows: PlanRow[] = [];
+  for (const it of sorted) {
+    let row = rows.find((r) => Math.abs(r.y - it.y) <= 3);
+    if (!row) {
+      row = { y: it.y, items: [] };
+      rows.push(row);
+    }
+    row.items.push(it);
+  }
+  rows.forEach((r) => r.items.sort((a, b) => a.x - b.x));
+  rows.sort((a, b) => b.y - a.y);
+  return rows;
+}
+
+/** Join x-sorted fragments into text, inserting a space only across real gaps. */
+function joinItems(items: PlanTextItem[]): string {
+  let out = "";
+  let prevEnd = -Infinity;
+  for (const it of items) {
+    if (out && it.x - prevEnd > 2) out += " ";
+    out += it.str;
+    prevEnd = it.x + (it.w || 0);
+  }
+  return decodeEntities(out).replace(/\s+/g, " ").trim();
+}
+
+/** Read a "jersey + name" cell from a column's fragments. */
+function parseCell(items: PlanTextItem[]): PlanPlayer | null {
+  if (!items.length) return null;
+  let jersey = "";
+  let rest = items;
+  if (isJersey(items[0].str)) {
+    jersey = items[0].str.trim();
+    rest = items.slice(1);
+  }
+  const name = joinItems(rest);
+  if (!isName(name)) return null;
+  return { jersey, name };
+}
+
+/** Core PDF parser: takes the per-page positioned fragments (page 1 is used). */
+export function parsePlanFromItems(pages: PlanTextItem[][]): ParsedPlan {
+  const warnings: string[] = [];
+  const rows = toRows(pages[0] || []);
+
+  // --- date / time: the "Date: … | Time: …" line is split into kerned runs,
+  // so glue the whole row together before matching.
+  let date: string | undefined;
+  let time: string | undefined;
+  for (const r of rows) {
+    const concat = r.items.map((i) => i.str).join("");
+    const dm = concat.match(/Date:\s*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})/i);
+    if (dm) date = dm[1];
+    const tm = concat.match(/Time\s*:?\s*([0-9]{1,2}):([0-9]{2})\s*([AP]M)/i);
+    if (tm) time = `${tm[1]}:${tm[2]} ${tm[3].toUpperCase()}`;
+  }
+
+  // --- squads: find the GREY TEAM / GARNET TEAM header, then read the rows
+  // beneath it, splitting each at the midpoint between the two columns.
+  let greyX: number | null = null;
+  let garnetX: number | null = null;
+  let headerY = -Infinity;
+  for (const r of rows) {
+    for (const it of r.items) {
+      const t = it.str.trim();
+      if (/^grey team$/i.test(t)) { greyX = it.x; headerY = r.y; }
+      if (/^garnet team$/i.test(t)) garnetX = it.x;
+    }
+    if (greyX != null && garnetX != null) break;
+  }
+
+  const npRow = rows.find((r) => r.items.some((i) => /not\s*practicing/i.test(i.str)));
+  const squads: PlanSquad[] = [];
+  if (greyX != null && garnetX != null) {
+    const teamsLeft = greyX - 45;
+    const midX = (greyX + garnetX) / 2;
+    const npY = npRow ? npRow.y : -Infinity;
+    const grey: PlanPlayer[] = [];
+    const garnet: PlanPlayer[] = [];
+    for (const r of rows) {
+      if (r.y >= headerY) continue; // header and everything above it
+      if (r.y <= npY) continue; // NOT PRACTICING block and below
+      const ti = r.items.filter((i) => i.x >= teamsLeft);
+      if (!ti.length) continue;
+      const pl = parseCell(ti.filter((i) => i.x < midX));
+      if (pl) grey.push(pl);
+      const pr = parseCell(ti.filter((i) => i.x >= midX));
+      if (pr) garnet.push(pr);
+    }
+    squads.push({ name: "Grey", players: grey }, { name: "Garnet", players: garnet });
+  }
+
+  if (squads.length < 2 || squads.every((s) => s.players.length === 0)) {
+    warnings.push("Could not read the two squads from the plan — assign them manually.");
+  }
+
+  // --- not practicing: the "# / NAME / REASON" table. Assign each fragment to
+  // the nearest header column so a long reason doesn't bleed into the name.
+  const roster: PlanPlayer[] = [];
+  if (npRow) {
+    const below = rows.filter((r) => r.y < npRow.y);
+    const hdr = below.find(
+      (r) =>
+        r.items.some((i) => /^name$/i.test(i.str.trim())) &&
+        r.items.some((i) => /^reason$/i.test(i.str.trim())),
+    );
+    if (hdr) {
+      const nameX = hdr.items.find((i) => /^name$/i.test(i.str.trim()))!.x;
+      const reasonX = hdr.items.find((i) => /^reason$/i.test(i.str.trim()))!.x;
+      const hashItem = hdr.items.find((i) => i.str.trim() === "#");
+      const hashX = hashItem ? hashItem.x : (greyX ?? nameX) - 20;
+      const teamsLeft = hashX - 20;
+      // The grade checklist ("☐ 5 – Elite…") sits just below; stop before it.
+      const stop = below.find(
+        (r) => r.y < hdr.y && r.items.some((i) => /practice grade|grade \(check/i.test(i.str)),
+      );
+      const stopY = stop ? stop.y : -Infinity;
+      for (const r of below) {
+        if (r.y >= hdr.y || r.y <= stopY) continue;
+        const ti = r.items.filter((i) => i.x >= teamsLeft);
+        if (!ti.length) continue;
+        const jerseyItem = ti.find(
+          (i) => isJersey(i.str) && Math.abs(i.x - hashX) < Math.abs(i.x - nameX),
+        );
+        if (!jerseyItem) continue;
+        const nameItems = ti.filter(
+          (i) => i !== jerseyItem && Math.abs(i.x - nameX) <= Math.abs(i.x - reasonX),
+        );
+        const name = joinItems(nameItems);
+        if (!isName(name)) continue;
+        roster.push({ jersey: jerseyItem.str.trim(), name });
+      }
+    }
+  }
+
+  return { date, time, squads, roster, warnings };
+}
+
+/** Browser entry point: read a .pdf File and parse it. Uses pdf.js (lazy). */
+export async function parsePlanPdfFile(file: File): Promise<ParsedPlan> {
+  const pdfjs = await import("pdfjs-dist");
+  // Vite resolves this to a hashed asset URL for the worker.
+  const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+
+  const buf = await file.arrayBuffer();
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
+  const pages: PlanTextItem[][] = [];
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const content = await page.getTextContent();
+    const items: PlanTextItem[] = [];
+    for (const i of content.items) {
+      if (!("str" in i)) continue; // skip TextMarkedContent markers
+      items.push({ str: i.str, x: i.transform[4], y: i.transform[5], w: i.width || 0 });
+    }
+    pages.push(items);
+  }
+  return parsePlanFromItems(pages);
 }

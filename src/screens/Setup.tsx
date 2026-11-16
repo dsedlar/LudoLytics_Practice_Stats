@@ -96,15 +96,15 @@ export default function Setup() {
     return (
       <div>
         <h1 className="text-3xl headline-bold text-garnet">Set up practice</h1>
-        <p className="mt-2 text-gray-600">Upload today's practice-plan Word doc to auto-fill the squads, or start from scratch.</p>
+        <p className="mt-2 text-gray-600">Upload today's practice plan (PDF or Word doc) to auto-fill the squads, or start from scratch.</p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <input ref={fileInput} type="file" accept=".docx" className="hidden" onChange={onFile} />
+          <input ref={fileInput} type="file" accept=".pdf,.docx" className="hidden" onChange={onFile} />
           <button
             onClick={() => fileInput.current?.click()}
             disabled={busy}
             className="bg-garnet text-white px-5 py-3 rounded-lg font-semibold disabled:opacity-50"
           >
-            {busy ? "Reading…" : "Upload practice plan (.docx)"}
+            {busy ? "Reading…" : "Upload practice plan (PDF or .docx)"}
           </button>
           <button onClick={() => setDraft(blankDraft())} className="border px-5 py-3 rounded-lg font-semibold">
             Start blank
