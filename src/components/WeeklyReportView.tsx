@@ -8,6 +8,7 @@ const GARNET = "#B20000";
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const f1 = (v: number) => v.toFixed(1);
+const f2 = (v: number) => v.toFixed(2);
 
 function Bar({ title }: { title: string }) {
   return (
@@ -95,8 +96,8 @@ export default function WeeklyReportView({ m }: { m: WeeklyModel }) {
           <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 2 }}>
             <thead>
               <tr>
-                {["Date", "Winner", "Tiebreak", "Grade", "Attendance", "Records (W-L-T)"].map((h, i) => (
-                  <th key={h} style={{ ...th, textAlign: i === 0 || i === 5 ? "left" : "center" }}>{h}</th>
+                {["Date", "Winner", "Player of the Day", "Tiebreak", "Grade", "Attendance", "Records (W-L-T)"].map((h, i, arr) => (
+                  <th key={h} style={{ ...th, textAlign: i === 0 || i === arr.length - 1 ? "left" : "center" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -105,6 +106,7 @@ export default function WeeklyReportView({ m }: { m: WeeklyModel }) {
                 <tr key={d.practiceId}>
                   <td style={{ ...td, textAlign: "left", fontWeight: 600 }}>{formatLongDate(d.date)}</td>
                   <td style={{ ...td, fontWeight: 700, color: d.winnerColor ?? "#6b7280" }}>{d.winnerName ?? "—"}</td>
+                  <td style={{ ...td, fontWeight: 600 }}>{d.playerOfDayName ?? "–"}</td>
                   <td style={{ ...td, color: "#6b7280" }}>{d.reason === "Wins" ? "" : d.reason}</td>
                   <td style={td}>{d.grade ?? "–"}</td>
                   <td style={td}>{d.present}/{d.total}</td>
@@ -125,8 +127,12 @@ export default function WeeklyReportView({ m }: { m: WeeklyModel }) {
           <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 2 }}>
             <thead>
               <tr>
-                {["#", "Player", "GP", "PTS", "eFG%", "TS%", "3FG%", "Clutch FT", "REB", "TO", "CP", "PER", "BAY", "90s", "FT", "Trans", "Thes"].map((h, i) => (
-                  <th key={h} style={{ ...th, textAlign: i === 1 ? "left" : "center" }}>{h}</th>
+                <th colSpan={15} style={{ ...th, borderBottom: "none" }} />
+                <th colSpan={5} style={{ ...th, background: "#f3f4f6", borderLeft: "2px solid #d1d5db", color: GARNET, letterSpacing: "0.06em" }}>Shooting Drills</th>
+              </tr>
+              <tr>
+                {["#", "Player", "W-L", "eFG%", "TS%", "3FG%", "FT%", "PPS", "Clutch FT", "AST", "REB", "DEF", "TO", "CP", "PER", "BAY", "90s", "FT", "Trans", "Thes"].map((h, i) => (
+                  <th key={h} style={{ ...th, textAlign: i === 1 ? "left" : "center", borderLeft: i === 15 ? "2px solid #d1d5db" : undefined }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -135,7 +141,7 @@ export default function WeeklyReportView({ m }: { m: WeeklyModel }) {
                 <PlayerRow key={p.playerId} p={p} />
               ))}
               {m.players.length === 0 && (
-                <tr><td colSpan={17} style={{ ...td, color: "#9ca3af" }}>No players practiced in this range.</td></tr>
+                <tr><td colSpan={20} style={{ ...td, color: "#9ca3af" }}>No players practiced in this range.</td></tr>
               )}
             </tbody>
           </table>
@@ -143,8 +149,8 @@ export default function WeeklyReportView({ m }: { m: WeeklyModel }) {
       )}
 
       <div style={{ marginTop: 10, fontSize: 7.5, color: "#9ca3af", lineHeight: 1.4 }}>
-        Efficiency (eFG/TS/PPP/PER) from live scrimmage only; TO includes transition/thespian turnovers. Clutch FT = validation free throws.
-        Drill cells are shooting % (Baylor /{DRILL_DENOMS.baylor}, 90s /{DRILL_DENOMS.ninety}, FT /{DRILL_DENOMS.ft}); Trans/Thes are made/attempted 3s. #BeLikeMitch
+        W-L is the overall practice result (tiebreaker-aware). eFG/TS/PPS/FT%/AST/DEF/PER from live scrimmage only (FT% includes validation FTs); TO includes transition/thespian turnovers. Clutch FT = validation free throws; DEF = deflections; PPS = points per shot.
+        Shooting-drill cells are shooting % (Baylor /{DRILL_DENOMS.baylor}, 90s /{DRILL_DENOMS.ninety}, FT /{DRILL_DENOMS.ft}); Trans/Thes are made/attempted 3s with %. #BeLikeMitch
       </div>
     </div>
   );
@@ -152,22 +158,26 @@ export default function WeeklyReportView({ m }: { m: WeeklyModel }) {
 
 function PlayerRow({ p }: { p: PlayerWeekRow }) {
   const dp = (makes: number | null, d: number) => (makes == null ? "–" : pct(makes / d));
-  const seg = (s: { m: number; a: number }) => (s.a ? `${s.m}-${s.a}` : "–");
+  const seg = (s: { m: number; a: number }) => (s.a ? `${s.m}-${s.a} (${pct(s.m / s.a)})` : "–");
+  const drillLeft: React.CSSProperties = { ...td, borderLeft: "2px solid #d1d5db" };
   return (
     <tr>
       <td style={{ ...td, color: "#6b7280" }}>{p.jersey}</td>
       <td style={{ ...td, textAlign: "left", fontWeight: 600 }}>{p.name}</td>
-      <td style={td}>{p.gp}</td>
-      <td style={{ ...td, fontWeight: 600 }}>{p.pts}</td>
+      <td style={{ ...td, fontWeight: 600 }}>{p.record.w}-{p.record.l}</td>
       <td style={td}>{pct(p.efg)}</td>
       <td style={td}>{pct(p.ts)}</td>
       <td style={td}>{p.fg3Pct ? pct(p.fg3Pct) : "–"}</td>
+      <td style={td}>{p.ftPct ? pct(p.ftPct) : "–"}</td>
+      <td style={{ ...td, fontWeight: 600 }}>{f2(p.pps)}</td>
       <td style={td}>{p.clutch.a ? `${pct(p.clutch.pct)} (${p.clutch.m}/${p.clutch.a})` : "–"}</td>
+      <td style={td}>{p.ast}</td>
       <td style={td}>{p.reb}</td>
+      <td style={td}>{p.def}</td>
       <td style={td}>{p.to}</td>
       <td style={{ ...td, fontWeight: 600 }}>{f1(p.casper)}</td>
       <td style={td}>{f1(p.per)}</td>
-      <td style={td}>{dp(p.drills.baylor, DRILL_DENOMS.baylor)}</td>
+      <td style={drillLeft}>{dp(p.drills.baylor, DRILL_DENOMS.baylor)}</td>
       <td style={td}>{dp(p.drills.ninety, DRILL_DENOMS.ninety)}</td>
       <td style={td}>{dp(p.drills.ft, DRILL_DENOMS.ft)}</td>
       <td style={td}>{seg(p.drills.trans)}</td>

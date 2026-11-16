@@ -29,6 +29,7 @@ export interface DailyRow {
   winnerName: string | null;
   winnerColor: string | null;
   reason: string;
+  playerOfDayName: string | null;
   present: number;
   total: number;
   teams: { name: string; color: string; w: number; l: number; t: number }[];
@@ -37,13 +38,16 @@ export interface PlayerWeekRow {
   playerId: string;
   name: string;
   jersey: string;
-  gp: number;
-  pts: number;
+  record: { w: number; l: number }; // overall practice W-L across the week
+  pps: number; // points per FGA (live)
   efg: number;
   ts: number;
   fg3Pct: number;
+  ftPct: number; // live free-throw % (validation FTs included)
   clutch: { m: number; a: number; pct: number };
+  ast: number;
   reb: number;
+  def: number; // deflections
   to: number;
   casper: number;
   per: number; // average PER across the player's practices in range
@@ -88,6 +92,10 @@ export function buildWeekly(input: SeasonInput, startDate: string, endDate: stri
     .sort((a, b) => (a.practice_date < b.practice_date ? -1 : 1));
   const rangeIds = new Set(practicesInRange.map((p) => p.id));
   const priorIds = new Set(input.practices.filter((p) => inRange(p.practice_date, priorStart, priorEnd)).map((p) => p.id));
+
+  // player display info (name + jersey), used by both the daily and player tables
+  const info = new Map<string, { name: string; jersey: string }>();
+  input.roster.forEach((r) => { if (!info.has(r.player_id)) info.set(r.player_id, { name: r.name, jersey: r.jersey }); });
 
   // ---- team aggregate for a set of practices ----
   const teamAgg = (ids: Set<string>) => {
@@ -156,6 +164,9 @@ export function buildWeekly(input: SeasonInput, startDate: string, endDate: stri
     ),
   });
 
+  // which squad won each practice overall (tiebreaker-aware) — feeds per-player W-L
+  const winnerSquadByPractice = new Map<string, string | null>();
+
   const daily: DailyRow[] = practicesInRange.map((p) => {
     const sqs = squadsByPractice.get(p.id) ?? [];
     const roster = input.roster.filter((r) => r.practice_id === p.id);
@@ -168,6 +179,7 @@ export function buildWeekly(input: SeasonInput, startDate: string, endDate: stri
       winnerName = win?.name ?? null;
       winnerColor = win?.color ?? null;
       reason = w.reasonLabel;
+      winnerSquadByPractice.set(p.id, w.winnerId ?? null);
     }
     return {
       practiceId: p.id,
@@ -176,6 +188,7 @@ export function buildWeekly(input: SeasonInput, startDate: string, endDate: stri
       winnerName,
       winnerColor,
       reason,
+      playerOfDayName: p.player_of_day ? info.get(p.player_of_day)?.name ?? null : null,
       present: roster.filter((r) => r.present && r.squad_id != null).length,
       total: roster.length,
       teams: sqs.map((s) => ({ name: s.name, color: s.color, w: s.wins ?? 0, l: s.losses ?? 0, t: s.ties ?? 0 })),
@@ -183,8 +196,6 @@ export function buildWeekly(input: SeasonInput, startDate: string, endDate: stri
   });
 
   // ---- per-player rows ----
-  const info = new Map<string, { name: string; jersey: string }>();
-  input.roster.forEach((r) => { if (!info.has(r.player_id)) info.set(r.player_id, { name: r.name, jersey: r.jersey }); });
   const attended = new Map<string, Set<string>>();
   input.roster.forEach((r) => {
     if (rangeIds.has(r.practice_id) && r.present && r.squad_id != null) {
@@ -233,17 +244,30 @@ export function buildWeekly(input: SeasonInput, startDate: string, endDate: stri
       const pers = [...set].map((prid) => compute(perPP.get(`${pid}|${prid}`) ?? emptyTally()).per);
       const perAvg = pers.length ? pers.reduce((a, b) => a + b, 0) / pers.length : 0;
       const meta = info.get(pid) ?? { name: "—", jersey: "" };
+      // overall practice W-L: did this player's squad win each practice it played?
+      let w = 0;
+      let l = 0;
+      set.forEach((prid) => {
+        const winner = winnerSquadByPractice.get(prid);
+        const mySquad = playerSquadAt.get(`${pid}|${prid}`);
+        if (winner == null || mySquad == null) return;
+        if (winner === mySquad) w++;
+        else l++;
+      });
       return {
         playerId: pid,
         name: meta.name,
         jersey: meta.jersey,
-        gp: set.size,
-        pts: c.pts,
+        record: { w, l },
+        pps: c.pps,
         efg: c.efg,
         ts: c.ts,
         fg3Pct: t.fg3A ? t.fg3M / t.fg3A : 0,
+        ftPct: t.ftA ? t.ftM / t.ftA : 0,
         clutch: { m: t.vftM, a: t.vftA, pct: t.vftA ? t.vftM / t.vftA : 0 },
+        ast: t.ast,
         reb: t.or + t.dr,
+        def: t.def,
         to: t.to + (drillTOByPlayer.get(pid) ?? 0),
         casper: c.casper,
         per: perAvg,
