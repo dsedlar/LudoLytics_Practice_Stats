@@ -147,16 +147,17 @@ export interface ProfileRow {
   role: "admin" | "coach" | "manager" | "player";
   display_name: string | null;
   player_id: string | null;
-  players: { name: string } | null;
 }
 
 export async function getProfiles(): Promise<ProfileRow[]> {
+  // No players(...) embed — the player name is resolved from getPlayers() in the
+  // UI, so this doesn't depend on PostgREST detecting the FK relationship.
   const { data, error } = await client()
     .from("profiles")
-    .select("id, email, role, display_name, player_id, players(name)")
+    .select("id, email, role, display_name, player_id")
     .order("email");
   if (error) throw error;
-  return data as unknown as ProfileRow[];
+  return data as ProfileRow[];
 }
 
 export async function setProfileRole(id: string, role: ProfileRow["role"]) {
