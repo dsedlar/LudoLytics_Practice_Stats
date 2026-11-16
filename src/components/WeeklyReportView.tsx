@@ -149,9 +149,12 @@ export default function WeeklyReportView({ m }: { m: WeeklyModel }) {
         </>
       )}
 
-      <div style={{ marginTop: 10, fontSize: 7.5, color: "#9ca3af", lineHeight: 1.4 }}>
-        W-L is the overall practice result (tiebreaker-aware). eFG/TS/PPS/FT%/AST/DEF/PER from live scrimmage only (FT% includes validation FTs); TO includes transition/thespian turnovers. Clutch FT = validation free throws; DEF = deflections; PPS = points per shot.
-        Shooting-drill cells are shooting % (Baylor /{DRILL_DENOMS.baylor}, 90s /{DRILL_DENOMS.ninety}, FT /{DRILL_DENOMS.ft}); Trans/Thes are made/attempted 3s with %. #BeLikeMitch
+      <div style={{ marginTop: 10, display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }}>
+        <div style={{ flex: 1, fontSize: 7.5, color: "#9ca3af", lineHeight: 1.4 }}>
+          W-L is the overall practice result (tiebreaker-aware). eFG/TS/PPS/FT%/AST/DEF/PER from live scrimmage only (FT% includes validation FTs); TO includes transition/thespian turnovers. Clutch FT = validation free throws; DEF = deflections; PPS = points per shot.
+          Shooting-drill cells are shooting % (Baylor /{DRILL_DENOMS.baylor}, 90s /{DRILL_DENOMS.ninety}, FT /{DRILL_DENOMS.ft}); Trans/Thes are made/attempted 3s with %. #BeLikeMitch
+        </div>
+        <img src="/ludolytics-logo.svg" alt="Ludolytics" style={{ height: 28, width: "auto", flexShrink: 0 }} />
       </div>
     </div>
   );
