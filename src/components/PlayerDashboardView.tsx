@@ -163,8 +163,8 @@ export default function PlayerDashboardView({ p, backHref }: { p: PlayerSeason; 
               return (
                 <tr key={hp.practiceId} className="border-b last:border-0 whitespace-nowrap">
                   <td className="p-2">{hp.date}</td>
-                  <td className="p-2 font-bold" style={{ color: hp.wl.w > hp.wl.l ? "#16a34a" : "#dc2626" }}>
-                    {hp.wl.w > hp.wl.l ? "W" : "L"}
+                  <td className="p-2 font-bold" style={{ color: hp.won === true ? "#16a34a" : hp.won === false ? "#dc2626" : "#9ca3af" }}>
+                    {hp.won === true ? "W" : hp.won === false ? "L" : "–"}
                   </td>
                   <td className="p-2 font-semibold">{hp.pts}</td>
                   <td className="p-2">{ma(t.atrM, t.atrA)}</td>

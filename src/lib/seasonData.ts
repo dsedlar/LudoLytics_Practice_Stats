@@ -5,7 +5,7 @@ import { compute, emptyTally, type RawTally, type Computed } from "./stats";
 import { applyEvent, type EventRow } from "./aggregate";
 import { playerZoneFor, PLAYER_ZONES, type PlayerZone } from "./court";
 import { isShootSegment } from "./config";
-import { practiceWinner, teamShootPcts } from "./practiceOutcome";
+import { practiceWinners } from "./practiceOutcome";
 
 export type ZoneSplit = { m: number; a: number };
 export type PlayerZones = Record<PlayerZone, ZoneSplit>;
@@ -70,7 +70,7 @@ export interface HistoryPoint {
   toCount: number; // live TO + transition/thespian drill turnovers
   trans: { m: number; a: number };
   drills: { baylor: number | null; ninety: number | null; ft: number | null };
-  wl: { w: number; l: number };
+  won: boolean | null; // did the player's squad win the practice (via tiebreaker)? null = undecided
 }
 export interface PlayerSeason {
   playerId: string; name: string; jersey: string;
@@ -149,9 +149,11 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     dByPlayer.get(d.player_id)!.push(d);
   }
 
-  // per-practice lookups: squad W-L, which squad a player was on, drill makes, transition 3s
-  const squadWL = new Map<string, { w: number; l: number }>();
-  input.squads.forEach((s) => squadWL.set(s.id, { w: s.wins ?? 0, l: s.losses ?? 0 }));
+  // Who won each practice (the tiebreaker cascade). Drives per-player W-L so a
+  // player's record reflects whether their squad won the practice overall.
+  const winnersByPractice = practiceWinners(input.practices, input.squads, input.events, input.drills, input.roster);
+
+  // per-practice lookups: which squad a player was on, drill makes, transition 3s
   const playerSquadAt = new Map<string, string | null>();
   input.roster.forEach((r) => playerSquadAt.set(`${r.player_id}|${r.practice_id}`, r.squad_id));
   const drillAt = new Map<string, number>();
@@ -193,14 +195,15 @@ export function buildSeason(input: SeasonInput): SeasonResult {
         const t = perPP.get(`${playerId}|${pid}`) ?? emptyTally();
         const c = compute(t);
         const sid = playerSquadAt.get(`${playerId}|${pid}`) ?? null;
-        const sw = sid ? squadWL.get(sid) : undefined;
+        const winnerId = winnersByPractice.get(pid)?.winnerId ?? null;
+        const won = winnerId == null || sid == null ? null : winnerId === sid;
         return {
           practiceId: pid, date: dateById.get(pid) ?? "",
           pts: c.pts, ts: c.ts, efg: c.efg, per: c.per, cp: c.casper, tally: t,
           toCount: t.to + (drillTOByPP.get(`${playerId}|${pid}`) ?? 0),
           trans: transAt.get(`${playerId}|${pid}`) ?? { m: 0, a: 0 },
           drills: { baylor: drillVal(playerId, pid, "baylor"), ninety: drillVal(playerId, pid, "ninetys"), ft: drillVal(playerId, pid, "ft") },
-          wl: { w: sw?.w ?? 0, l: sw?.l ?? 0 },
+          won,
         };
       })
       .sort((a, b) => (a.date < b.date ? -1 : 1));
@@ -211,8 +214,8 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     const trA = history.reduce((s, h) => s + h.trans.a, 0);
     // overall practice record: count only decided days (squad won or lost);
     // a 0-0 / undecided practice counts as neither a win nor a loss.
-    const wonDays = history.filter((h) => h.wl.w > h.wl.l).length;
-    const lostDays = history.filter((h) => h.wl.l > h.wl.w).length;
+    const wonDays = history.filter((h) => h.won === true).length;
+    const lostDays = history.filter((h) => h.won === false).length;
     const record = { w: wonDays, l: lostDays };
 
     out.push({
@@ -323,29 +326,17 @@ export function buildSeason(input: SeasonInput): SeasonResult {
   // (more wins → Transition% → Thespian% → Baylor% → FT% → coach override), so
   // there are no "undecided" days unless a practice is genuinely dead-even with
   // no coach pick (then it counts for neither team).
-  const overrideByPractice = new Map(input.practices.map((p) => [p.id, p.tiebreak_winner_squad_id ?? null]));
   const squadsByPractice = new Map<string, SeasonInput["squads"]>();
   input.squads.forEach((s) => {
     if (!squadsByPractice.has(s.practice_id)) squadsByPractice.set(s.practice_id, []);
     squadsByPractice.get(s.practice_id)!.push(s);
   });
-  const sideFor = (s: SeasonInput["squads"][number]) => {
-    const sqEvents = input.events.filter((e) => e.practice_id === s.practice_id && e.squad_id === s.id);
-    const sqDrills = input.drills
-      .filter((d) => d.practice_id === s.practice_id && playerSquadAt.get(`${d.player_id}|${s.practice_id}`) === s.id)
-      .map((d) => ({ drill: d.drill, makes: Number(d.makes) }));
-    return { id: s.id, wins: s.wins ?? 0, pcts: teamShootPcts(sqEvents, sqDrills) };
-  };
   const byName = new Map<string, { color: string; days: { date: string; result: "W" | "L" | null }[] }>();
   const ensure = (name: string, color: string) => { if (!byName.has(name)) byName.set(name, { color, days: [] }); };
   for (const [pid, sqs] of squadsByPractice) {
     const date = dateById.get(pid) ?? "";
     sqs.forEach((s) => ensure(s.name, s.color));
-    if (sqs.length < 2) {
-      sqs.forEach((s) => byName.get(s.name)!.days.push({ date, result: (s.wins ?? 0) > (s.losses ?? 0) ? "W" : (s.losses ?? 0) > (s.wins ?? 0) ? "L" : null }));
-      continue;
-    }
-    const { winnerId } = practiceWinner(sideFor(sqs[0]), sideFor(sqs[1]), overrideByPractice.get(pid));
+    const winnerId = winnersByPractice.get(pid)?.winnerId ?? null;
     sqs.forEach((s) => byName.get(s.name)!.days.push({ date, result: winnerId == null ? null : s.id === winnerId ? "W" : "L" }));
   }
   const teams: TeamRecord[] = [...byName.entries()]
