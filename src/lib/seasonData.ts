@@ -97,12 +97,14 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     if (p.player_of_day) podCount.set(p.player_of_day, (podCount.get(p.player_of_day) ?? 0) + 1);
   });
 
-  // player -> set of attended practice ids, and display info
+  // player -> set of practiced practice ids, and display info. "Practiced" =
+  // present AND assigned to a squad; a player on the not-practicing list (no
+  // squad) doesn't count toward their season profile, matching attendance.
   const attended = new Map<string, Set<string>>();
   const info = new Map<string, { name: string; jersey: string }>();
   for (const r of input.roster) {
     if (!info.has(r.player_id)) info.set(r.player_id, { name: r.name, jersey: r.jersey });
-    if (r.present) {
+    if (r.present && r.squad_id != null) {
       if (!attended.has(r.player_id)) attended.set(r.player_id, new Set());
       attended.get(r.player_id)!.add(r.practice_id);
     }
