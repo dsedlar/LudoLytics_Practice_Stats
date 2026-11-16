@@ -96,7 +96,7 @@ export default function WeeklyReportView({ m }: { m: WeeklyModel }) {
           <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 2 }}>
             <thead>
               <tr>
-                {["Date", "Winner", "Player of the Day", "Tiebreak", "Grade", "Attendance", "Records (W-L-T)"].map((h, i, arr) => (
+                {["Date", "Winner", "Tiebreak", "Player of the Day", "Practice Grade", "Attendance", "Live Drill Records"].map((h, i, arr) => (
                   <th key={h} style={{ ...th, textAlign: i === 0 || i === arr.length - 1 ? "left" : "center" }}>{h}</th>
                 ))}
               </tr>
@@ -106,8 +106,8 @@ export default function WeeklyReportView({ m }: { m: WeeklyModel }) {
                 <tr key={d.practiceId}>
                   <td style={{ ...td, textAlign: "left", fontWeight: 600 }}>{formatLongDate(d.date)}</td>
                   <td style={{ ...td, fontWeight: 700, color: d.winnerColor ?? "#6b7280" }}>{d.winnerName ?? "—"}</td>
-                  <td style={{ ...td, fontWeight: 600 }}>{d.playerOfDayName ?? "–"}</td>
                   <td style={{ ...td, color: "#6b7280" }}>{d.reason === "Wins" ? "" : d.reason}</td>
+                  <td style={{ ...td, fontWeight: 600 }}>{d.playerOfDayName ?? "–"}</td>
                   <td style={td}>{d.grade ?? "–"}</td>
                   <td style={td}>{d.present}/{d.total}</td>
                   <td style={{ ...td, textAlign: "left" }}>
