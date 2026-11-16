@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../lib/auth";
 import { usePracticeData } from "../lib/usePracticeData";
 import { tallyByPlayer } from "../lib/aggregate";
 import { compute, emptyTally } from "../lib/stats";
@@ -14,6 +16,7 @@ import type { Tab } from "./LiveEntryView";
  */
 export default function SquadEntry({ practiceId, squadId, compact }: { practiceId: string; squadId: string; compact?: boolean }) {
   const { bundle, events, drills, error, loading } = usePracticeData(practiceId);
+  const { isManager, user } = useAuth();
   const [selected, setSelected] = useState("");
   const [tab, setTab] = useState<Tab>("live");
   const [undoStack, setUndoStack] = useState<number[]>([]);
@@ -28,6 +31,19 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
 
   const squad = bundle.squads.find((s) => s.id === squadId);
   if (!squad) return <p className="text-red-600">Squad not found.</p>;
+
+  // Managers may only enter the squad they claimed; coaches/admins aren't gated.
+  if (isManager && squad.claimed_by !== user?.id) {
+    return (
+      <div className="bg-white border rounded-lg p-5">
+        <p className="font-semibold">This isn't your team to take stats for.</p>
+        <p className="text-sm text-gray-600 mt-1">
+          {squad.claimed_by ? `${squad.name} is being taken by ${squad.claimed_label ?? "another manager"}.` : `Claim a team first.`}
+        </p>
+        <Link to="/" className="inline-block mt-3 bg-garnet text-white px-4 py-2 rounded-lg font-semibold text-sm">← Pick my team</Link>
+      </div>
+    );
+  }
 
   const wins = squad.wins ?? 0;
   const losses = squad.losses ?? 0;

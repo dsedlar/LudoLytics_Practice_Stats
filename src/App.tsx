@@ -2,6 +2,7 @@ import { Link, Route, Routes } from "react-router-dom";
 import { isSupabaseConfigured } from "./lib/supabase";
 import { useAuth } from "./lib/auth";
 import RequireAuth from "./components/RequireAuth";
+import RequireCoach from "./components/RequireCoach";
 import RequireAdmin from "./components/RequireAdmin";
 import Login from "./screens/Login";
 import Home from "./screens/Home";
@@ -76,9 +77,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
           <Route path="/login" element={<Login />} />
-          <Route path="/setup" element={<RequireAuth><Setup /></RequireAuth>} />
-          <Route path="/practice/:id/coach" element={<RequireAuth><Coach /></RequireAuth>} />
-          <Route path="/practice/:id/entry" element={<RequireAuth><CoachEntry /></RequireAuth>} />
+          <Route path="/setup" element={<RequireCoach><Setup /></RequireCoach>} />
+          <Route path="/practice/:id/coach" element={<RequireCoach><Coach /></RequireCoach>} />
+          <Route path="/practice/:id/entry" element={<RequireCoach><CoachEntry /></RequireCoach>} />
           <Route path="/practice/:id/squad/:squadId" element={<RequireAuth><LiveEntry /></RequireAuth>} />
           <Route path="/practice/:id/report" element={<RequireAuth><Report /></RequireAuth>} />
           <Route path="/report-demo" element={<ReportDemo />} />
@@ -91,12 +92,12 @@ export default function App() {
           <Route path="/court-demo" element={<CourtDemo />} />
           <Route path="/live-demo" element={<LiveEntryDemo />} />
           <Route path="/coach-entry-demo" element={<CoachEntryDemo />} />
-          <Route path="/history" element={<RequireAuth><History /></RequireAuth>} />
+          <Route path="/history" element={<RequireCoach><History /></RequireCoach>} />
           <Route path="/history-demo" element={<HistoryDemo />} />
           {/* Locker-room display is public (no login) so a TV/Pi can show it. */}
           <Route path="/display" element={<Signage />} />
           <Route path="/display-demo" element={<SignageDemo />} />
-          <Route path="/roster" element={<RequireAuth><Roster /></RequireAuth>} />
+          <Route path="/roster" element={<RequireCoach><Roster /></RequireCoach>} />
           <Route path="/roster-demo" element={<RosterDemo />} />
           <Route path="/settings" element={<RequireAdmin><Settings /></RequireAdmin>} />
           <Route path="/users" element={<RequireAdmin><Users /></RequireAdmin>} />

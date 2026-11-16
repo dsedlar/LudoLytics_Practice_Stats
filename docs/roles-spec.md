@@ -1,6 +1,6 @@
 # Spec: User Roles (Admin / Coach / Manager / Player)
 
-Status: **Phase 1 implementing** · Owner: Coach Sedlar · Last updated: 2026-11-16
+Status: **Phases 1–2 built** · Owner: Coach Sedlar · Last updated: 2026-11-16
 
 ## Summary
 Replace today's single hardcoded-email admin check with a real four-role system

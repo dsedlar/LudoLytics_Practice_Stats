@@ -197,6 +197,8 @@ export interface SquadRow {
   wins: number;
   losses: number;
   ties?: number; // added in migration 008; undefined until then
+  claimed_by?: string | null; // manager who claimed this squad (migration 011)
+  claimed_label?: string | null; // their email, for display
 }
 export interface RosterRow {
   id: string;
@@ -373,6 +375,35 @@ export async function setSquadLosses(squadId: string, losses: number) {
 // Tied runs (missed validation FT). Column added in migration 008.
 export async function setSquadTies(squadId: string, ties: number) {
   const { error } = await client().from("squads").update({ ties: Math.max(0, ties) }).eq("id", squadId);
+  if (error) throw error;
+}
+
+// A manager claims a squad for the current live practice (first-come). Returns
+// false if another manager already holds it. Column added in migration 011.
+export async function claimSquad(squadId: string, label: string): Promise<boolean> {
+  const sb = client();
+  const { data: auth } = await sb.auth.getUser();
+  const uid = auth.user?.id;
+  if (!uid) throw new Error("Not signed in.");
+  // Only succeeds when the squad is unclaimed or already mine (atomic: a
+  // concurrent claim leaves claimed_by set, so this WHERE no longer matches).
+  const { data, error } = await sb
+    .from("squads")
+    .update({ claimed_by: uid, claimed_label: label })
+    .eq("id", squadId)
+    .or(`claimed_by.is.null,claimed_by.eq.${uid}`)
+    .select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+// Release my claim on a squad (lets a manager switch while the other team is open).
+export async function releaseSquad(squadId: string): Promise<void> {
+  const sb = client();
+  const { data: auth } = await sb.auth.getUser();
+  const uid = auth.user?.id;
+  if (!uid) return;
+  const { error } = await sb.from("squads").update({ claimed_by: null, claimed_label: null }).eq("id", squadId).eq("claimed_by", uid);
   if (error) throw error;
 }
 
