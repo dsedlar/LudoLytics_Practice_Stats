@@ -10,6 +10,28 @@ function client() {
   return supabase;
 }
 
+// PostgREST caps a single response at 1000 rows. Season-wide reads (events,
+// roster, drills) blow past that over a season, so fetch every page and stitch
+// them together. We order by a unique key (id) so paging is a stable total
+// order — without it, rows can be skipped or repeated across page boundaries.
+const PAGE_SIZE = 1000;
+async function selectAll<T>(table: string, columns: string): Promise<T[]> {
+  const sb = client();
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await sb
+      .from(table)
+      .select(columns)
+      .order("id", { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as unknown as T[];
+    out.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+  }
+  return out;
+}
+
 export interface PlayerRow {
   id: string;
   name: string;
@@ -480,25 +502,31 @@ export interface PracticeSummary {
 /** All practices with squad records + attendance + winner, newest first. */
 export async function getHistory(): Promise<PracticeSummary[]> {
   const sb = client();
+  // events/roster/drills can exceed PostgREST's 1000-row cap over a season, so
+  // page through them (a truncated read would drop whole practices and skew the
+  // winner computation).
   const [pr, sq, ro, ev, dr] = await Promise.all([
     sb.from("practices").select("*").order("practice_date", { ascending: false }),
     sb.from("squads").select("*").order("sort_order"),
-    sb.from("roster_entries").select("practice_id, present, player_id, squad_id"),
-    sb.from("events").select("practice_id, squad_id, segment, type, made"),
-    sb.from("drill_results").select("practice_id, player_id, drill, makes"),
+    selectAll<{ practice_id: string; present: boolean; player_id: string; squad_id: string | null }>(
+      "roster_entries", "id, practice_id, present, player_id, squad_id",
+    ),
+    selectAll<{ practice_id: string; squad_id: string; segment: string; type: string; made: boolean | null }>(
+      "events", "id, practice_id, squad_id, segment, type, made",
+    ),
+    selectAll<{ practice_id: string; player_id: string; drill: string; makes: number }>(
+      "drill_results", "id, practice_id, player_id, drill, makes",
+    ),
   ]);
   if (pr.error) throw pr.error;
   if (sq.error) throw sq.error;
-  if (ro.error) throw ro.error;
-  if (ev.error) throw ev.error;
-  if (dr.error) throw dr.error;
 
   const winners = practiceWinners(
     pr.data as { id: string; tiebreak_winner_squad_id?: string | null }[],
     sq.data as { id: string; practice_id: string; name: string; color: string; wins: number }[],
-    ev.data as { practice_id: string; squad_id: string; segment: string; type: string; made: boolean | null }[],
-    dr.data as { practice_id: string; player_id: string; drill: string; makes: number }[],
-    ro.data as { practice_id: string; player_id: string; squad_id: string | null }[],
+    ev,
+    dr,
+    ro,
   );
 
   const squadsByPractice = new Map<string, { name: string; color: string; wins: number; losses: number; ties: number }[]>();
@@ -507,7 +535,7 @@ export async function getHistory(): Promise<PracticeSummary[]> {
     squadsByPractice.get(s.practice_id)!.push({ name: s.name, color: s.color, wins: s.wins ?? 0, losses: s.losses ?? 0, ties: s.ties ?? 0 });
   });
   const att = new Map<string, { present: number; total: number }>();
-  (ro.data as { practice_id: string; present: boolean }[]).forEach((r) => {
+  ro.forEach((r) => {
     const a = att.get(r.practice_id) ?? { present: 0, total: 0 };
     a.total += 1;
     if (r.present) a.present += 1;
@@ -550,19 +578,22 @@ export async function getSeasonData(): Promise<SeasonInput> {
     // select("*") so new columns (ties, tiebreak_winner_squad_id from migration
     // 008) are included once present, without erroring before the migration runs.
     sb.from("practices").select("*").order("practice_date"),
-    sb.from("roster_entries").select("practice_id, player_id, squad_id, present, jersey, players(name)"),
+    // events/roster/drills grow past PostgREST's 1000-row cap over a season, so
+    // page through them; a truncated read silently drops whole practices.
+    selectAll<{ practice_id: string; player_id: string; squad_id: string | null; present: boolean; jersey: string | null; players: { name: string } | null }>(
+      "roster_entries", "id, practice_id, player_id, squad_id, present, jersey, players(name)",
+    ),
     sb.from("squads").select("*"),
-    sb.from("events").select("id, practice_id, squad_id, player_id, segment, type, made, shot_x, shot_y"),
-    sb.from("drill_results").select("practice_id, player_id, drill, makes, attempts"),
+    selectAll<EventRow>("events", "id, practice_id, squad_id, player_id, segment, type, made, shot_x, shot_y"),
+    selectAll<{ practice_id: string; player_id: string; drill: string; makes: number; attempts: number | null }>(
+      "drill_results", "id, practice_id, player_id, drill, makes, attempts",
+    ),
   ]);
   if (pr.error) throw pr.error;
-  if (ro.error) throw ro.error;
   if (sq.error) throw sq.error;
-  if (ev.error) throw ev.error;
-  if (dr.error) throw dr.error;
   return {
     practices: pr.data as { id: string; practice_date: string; player_of_day: string | null; grade: number | null; tiebreak_winner_squad_id?: string | null }[],
-    roster: (ro.data as unknown as { practice_id: string; player_id: string; squad_id: string | null; present: boolean; jersey: string | null; players: { name: string } | null }[]).map((r) => ({
+    roster: ro.map((r) => ({
       practice_id: r.practice_id,
       player_id: r.player_id,
       squad_id: r.squad_id,
@@ -571,8 +602,8 @@ export async function getSeasonData(): Promise<SeasonInput> {
       jersey: r.jersey ?? "",
     })),
     squads: sq.data as { id: string; practice_id: string; name: string; color: string; wins: number; losses: number; ties?: number }[],
-    events: ev.data as EventRow[],
-    drills: dr.data as { practice_id: string; player_id: string; drill: string; makes: number; attempts: number | null }[],
+    events: ev,
+    drills: dr,
   };
 }
 
