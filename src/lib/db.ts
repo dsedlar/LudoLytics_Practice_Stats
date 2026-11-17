@@ -292,13 +292,16 @@ export async function getEventsForExport(practiceId?: string) {
 // Full dump of every table — for a restorable backup.
 export async function getBackup(): Promise<Record<string, unknown[]>> {
   const sb = client();
-  const tables = ["players", "practices", "squads", "roster_entries", "events", "drill_results", "settings"];
   const out: Record<string, unknown[]> = {};
-  for (const t of tables) {
-    const { data, error } = await sb.from(t).select("*");
-    if (error) throw error;
-    out[t] = data ?? [];
+  // Page through every table that has an id so a backup can never silently
+  // truncate at PostgREST's 1000-row cap (events especially grows past it).
+  for (const t of ["players", "practices", "squads", "roster_entries", "events", "drill_results"]) {
+    out[t] = await selectAll<unknown>(t, "*");
   }
+  // settings is a tiny key/value table with no id to page by.
+  const { data, error } = await sb.from("settings").select("*");
+  if (error) throw error;
+  out["settings"] = data ?? [];
   return out;
 }
 
