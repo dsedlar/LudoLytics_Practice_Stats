@@ -89,6 +89,17 @@ function ShootingSlide({ s }: { s: SeasonResult }) {
   );
 }
 
+// Current win/loss streak from a player's date-ordered history (most recent
+// decided practice backwards). Ties / undecided days are skipped.
+function playerStreak(p: PlayerSeason): { type: "W" | "L" | null; count: number } {
+  const decided = p.history.filter((h) => h.won !== null);
+  if (!decided.length) return { type: null, count: 0 };
+  const last = decided[decided.length - 1].won;
+  let count = 0;
+  for (let i = decided.length - 1; i >= 0 && decided[i].won === last; i--) count++;
+  return { type: last ? "W" : "L", count };
+}
+
 function RecordsSlide({ s }: { s: SeasonResult }) {
   const ranked = [...s.players].sort((a, b) => {
     const wa = a.record.w + a.record.l ? a.record.w / (a.record.w + a.record.l) : 0;
@@ -107,13 +118,19 @@ function RecordsSlide({ s }: { s: SeasonResult }) {
         {cols.map((col, ci) => (
           <table key={ci} style={{ flex: 1, borderCollapse: "collapse" }}>
             <tbody>
-              {col.map((p, i) => (
-                <tr key={p.playerId} style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                  <td style={{ fontFamily: C, fontSize: 22, color: "#B20000", padding: "6px 10px", width: 44 }}>{ci * half + i + 1}</td>
-                  <td style={{ fontSize: 22, padding: "6px 10px" }}>{p.name}</td>
-                  <td style={{ fontFamily: C, fontSize: 26, padding: "6px 10px", textAlign: "right" }}>{p.record.w}-{p.record.l}</td>
-                </tr>
-              ))}
+              {col.map((p, i) => {
+                const st = playerStreak(p);
+                return (
+                  <tr key={p.playerId} style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                    <td style={{ fontFamily: C, fontSize: 22, color: "#B20000", padding: "6px 10px", width: 44 }}>{ci * half + i + 1}</td>
+                    <td style={{ fontSize: 22, padding: "6px 10px" }}>{p.name}</td>
+                    <td style={{ fontFamily: C, fontSize: 26, padding: "6px 10px", textAlign: "right" }}>{p.record.w}-{p.record.l}</td>
+                    <td style={{ fontFamily: C, fontSize: 20, padding: "6px 10px", textAlign: "right", width: 52, color: st.type === "W" ? "#4ade80" : st.type === "L" ? "#f87171" : "#64748b" }}>
+                      {st.type ? `${st.type}${st.count}` : "–"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         ))}
