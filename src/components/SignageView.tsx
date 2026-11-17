@@ -142,16 +142,74 @@ function LeaderSlide({ title, players, fmt, note }: { title: string; players: Pl
   );
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function weekLabel(start: string, end: string): string {
+  const s = new Date(start + "T00:00:00Z");
+  const e = new Date(end + "T00:00:00Z");
+  const sM = MONTHS[s.getUTCMonth()];
+  const eM = MONTHS[e.getUTCMonth()];
+  return sM === eM ? `${sM} ${s.getUTCDate()}–${e.getUTCDate()}` : `${sM} ${s.getUTCDate()} – ${eM} ${e.getUTCDate()}`;
+}
+
+// Casper points each player earned in the current week (Mon–Sun of the most
+// recent practice), ranked. Using the latest practice's week means the board
+// always shows a populated week during the season and advances on its own.
+function currentWeekCasper(season: SeasonResult): { rows: { p: PlayerSeason; v: number }[]; label: string } {
+  const dates = season.players.flatMap((p) => p.history.map((h) => h.date)).filter(Boolean);
+  if (!dates.length) return { rows: [], label: "" };
+  const latest = dates.reduce((a, b) => (a > b ? a : b));
+  const d = new Date(latest + "T00:00:00Z");
+  const dow = d.getUTCDay(); // 0=Sun … 6=Sat
+  const mon = new Date(d);
+  mon.setUTCDate(d.getUTCDate() + (dow === 0 ? -6 : 1 - dow));
+  const sun = new Date(mon);
+  sun.setUTCDate(mon.getUTCDate() + 6);
+  const start = mon.toISOString().slice(0, 10);
+  const end = sun.toISOString().slice(0, 10);
+  const rows = season.players
+    .map((p) => ({ p, v: p.history.filter((h) => h.date >= start && h.date <= end).reduce((s, h) => s + h.cp, 0) }))
+    .filter((r) => r.v > 0)
+    .sort((a, b) => b.v - a.v)
+    .slice(0, 6);
+  return { rows, label: weekLabel(start, end) };
+}
+
+function WeeklyCasperSlide({ rows, label }: { rows: { p: PlayerSeason; v: number }[]; label: string }) {
+  return (
+    <div style={{ width: "min(900px, 90vw)" }}>
+      <div style={{ textAlign: "center", marginBottom: 24 }}>
+        <Eyebrow>This Week{label ? ` · ${label}` : ""}</Eyebrow>
+        <div style={{ fontFamily: C, textTransform: "uppercase", letterSpacing: "0.06em", fontSize: 52 }}>Casper Points Leaders</div>
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ textAlign: "center", fontSize: 26, color: "#94a3b8", padding: "40px 0" }}>No practices logged this week yet.</div>
+      ) : (
+        rows.map(({ p, v }, i) => (
+          <div key={p.playerId} style={{ display: "flex", alignItems: "center", gap: 20, padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+            <div style={{ fontFamily: C, fontSize: 32, color: "#B20000", width: 48 }}>{i + 1}</div>
+            <div style={{ fontFamily: C, fontSize: 22, color: "#94a3b8", width: 44 }}>#{p.jersey}</div>
+            <div style={{ flex: 1, fontSize: 28, fontWeight: 600 }}>{p.name}</div>
+            <div style={{ fontFamily: C, fontSize: 38 }}>{v.toFixed(1)}</div>
+          </div>
+        ))
+      )}
+      <div style={{ textAlign: "center", marginTop: 18, fontFamily: G, letterSpacing: "0.2em", fontSize: 14, color: "#94a3b8" }}>#BeLikeMitch</div>
+    </div>
+  );
+}
+
 export default function SignageView({ season, start = 0 }: { season: SeasonResult; start?: number }) {
   const top = (key: (p: PlayerSeason) => number, n = 6) => [...season.players].sort((a, b) => key(b) - key(a)).slice(0, n);
+  const week = currentWeekCasper(season);
   const slides = [
     <TeamSlide key="team" s={season} />,
     <ShootingSlide key="shoot" s={season} />,
     <RecordsSlide key="rec" s={season} />,
-    <LeaderSlide key="cp" title="Casper Points" players={top((p) => p.total.casper)} fmt={(p) => p.total.casper.toFixed(1)} note="#BeLikeMitch" />,
+    <WeeklyCasperSlide key="wcp" rows={week.rows} label={week.label} />,
+    <LeaderSlide key="cp" title="Casper Points" players={top((p) => p.total.casper)} fmt={(p) => p.total.casper.toFixed(1)} note="Season · #BeLikeMitch" />,
     <LeaderSlide key="per" title="Efficiency (PER)" players={top((p) => p.perAvg)} fmt={(p) => p.perAvg.toFixed(1)} />,
   ];
-  const [i, setI] = useState(start % 5);
+  const [i, setI] = useState(start % slides.length);
   useEffect(() => {
     const t = setInterval(() => setI((x) => (x + 1) % slides.length), 12000);
     return () => clearInterval(t);
