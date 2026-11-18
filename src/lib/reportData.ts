@@ -14,7 +14,7 @@ export interface StatBlock {
   fd: number;
   play: { pot: number; second: number; ast: number; to: number; toPct: number; ato: number };
   reb: { tip: number; or: number; dr: number; orPct: number; drPct: number; tot: number };
-  def: { stl: number; blk: number; def: number; foul: number; dive: number; chg: number };
+  def: { stl: number; blk: number; def: number; sld: number; foul: number; dive: number; chg: number };
   casper: number;
   per: number;
 }
@@ -41,7 +41,7 @@ export function statBlock(t: RawTally, opponentDR = 0, opponentOR = 0): StatBloc
       orPct: t.or + opponentDR ? t.or / (t.or + opponentDR) : 0,
       drPct: t.dr + opponentOR ? t.dr / (t.dr + opponentOR) : 0,
     },
-    def: { stl: t.stl, blk: t.blk, def: t.def, foul: t.foul, dive: t.dive, chg: t.chg },
+    def: { stl: t.stl, blk: t.blk, def: t.def, sld: t.sld, foul: t.foul, dive: t.dive, chg: t.chg },
     casper: c.casper, per: c.per,
   };
 }

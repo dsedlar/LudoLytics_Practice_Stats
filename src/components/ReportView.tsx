@@ -196,12 +196,12 @@ function BlockTable({ rows }: { rows: BlockRow[] }) {
           <th style={grp} colSpan={1}></th>
           <th style={grp} colSpan={6}>PLAYMAKING</th>
           <th style={grp} colSpan={5}>REBOUNDING</th>
-          <th style={grp} colSpan={6}>DEFENSE</th>
+          <th style={grp} colSpan={7}>DEFENSE</th>
           <th style={grp} colSpan={1}>CASPER</th>
         </tr>
         <tr>
           {["TEAM", "POSS", "PPP", "PPS", "eFG%", "TS%", "FGM-A", "FG%", "Fr%", "FGM-A", "FG%", "Fr%", "FGM-A", "FG%", "Fr%", "FTM-A", "FT%", "FD",
-            "Pot", "2nd", "Ast", "TO", "TO%", "A/TO", "Tip", "OR", "DR", "OR%", "TOT", "STL", "BLK", "Def", "Foul", "Dive", "Chg", "PTS"].map((h, i) => (
+            "Pot", "2nd", "Ast", "TO", "TO%", "A/TO", "Tip", "OR", "DR", "OR%", "TOT", "STL", "BLK", "Def", "SLD", "Foul", "Dive", "Chg", "PTS"].map((h, i) => (
             <th key={i} style={{ ...th, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
           ))}
         </tr>
@@ -226,7 +226,7 @@ function BlockTable({ rows }: { rows: BlockRow[] }) {
               <td style={td}>{b.reb.tip}</td><td style={td}>{b.reb.or}</td><td style={td}>{b.reb.dr}</td>
               <td style={td}>{p(b.reb.orPct)}</td><td style={td}>{b.reb.tot}</td>
               <td style={td}>{b.def.stl}</td><td style={td}>{b.def.blk}</td><td style={td}>{b.def.def}</td>
-              <td style={td}>{b.def.foul}</td><td style={td}>{b.def.dive}</td><td style={td}>{b.def.chg}</td>
+              <td style={td}>{b.def.sld}</td><td style={td}>{b.def.foul}</td><td style={td}>{b.def.dive}</td><td style={td}>{b.def.chg}</td>
               <td style={{ ...td, fontWeight: 700 }}>{round1(b.casper)}</td>
             </tr>
           );
@@ -260,10 +260,10 @@ function LivePlayCompact({ rows }: { rows: BlockRow[] }) {
         <tr>
           <th style={grp}></th><th style={grp} colSpan={5}></th>
           <th style={grp} colSpan={2}>ATR</th><th style={grp} colSpan={2}>2FG</th><th style={grp} colSpan={2}>3FG</th>
-          <th style={grp} colSpan={6}></th><th style={grp}>CASPER</th>
+          <th style={grp} colSpan={7}></th><th style={grp}>CASPER</th>
         </tr>
         <tr>
-          {["TEAM", "POSS", "PPP", "PPS", "eFG%", "TS%", "M-A", "%", "M-A", "%", "M-A", "%", "FD", "Ast", "TO", "Foul", "OR", "DR%", "CP"].map((h, i) => (
+          {["TEAM", "POSS", "PPP", "PPS", "eFG%", "TS%", "M-A", "%", "M-A", "%", "M-A", "%", "FD", "Ast", "TO", "Foul", "SLD", "OR", "DR%", "CP"].map((h, i) => (
             <th key={i} style={{ ...th, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
           ))}
         </tr>
@@ -286,6 +286,7 @@ function LivePlayCompact({ rows }: { rows: BlockRow[] }) {
               <td style={td}>{b.play.ast}</td>
               <td style={td}>{b.play.to}</td>
               <td style={td}>{b.def.foul}</td>
+              <td style={td}>{b.def.sld}</td>
               <td style={td}>{b.reb.or}</td>
               <td style={{ ...td, ...bg(showDr ? pctTier(b.reb.drPct) : null) }}>{showDr ? p(b.reb.drPct) : "–"}</td>
               <td style={{ ...td, fontWeight: 700 }}>{round1(b.casper)}</td>
@@ -353,7 +354,7 @@ function DrillTable({ rows }: { rows: DrillLine[] }) {
 }
 
 const IND_HEAD = ["AT", "W-L", "PTS", "PPS", "eFG%", "TS%", "FGM-A", "FG%", "FGM-A", "FG%", "FGM-A", "FG%", "FTM-A", "FT%", "FD",
-  "Pot", "2nd", "Ast", "TO", "A/TO", "Tip", "OR", "DR", "TOT", "STL", "BLK", "Def", "Foul", "Dive", "Chg", "CP", "PER", "BAY", "90s", "Trans", "Thes", "FT"];
+  "Pot", "2nd", "Ast", "TO", "A/TO", "Tip", "OR", "DR", "TOT", "STL", "BLK", "Def", "SLD", "Foul", "Dive", "Chg", "CP", "PER", "BAY", "90s", "Trans", "Thes", "FT"];
 
 function IndividualTable({ m }: { m: ReportModel }) {
   return (
@@ -364,7 +365,7 @@ function IndividualTable({ m }: { m: ReportModel }) {
           <th style={grp} colSpan={2}>ATR</th><th style={grp} colSpan={2}>NON-ATR 2FG</th><th style={grp} colSpan={2}>3FG</th>
           <th style={grp} colSpan={2}>FT</th><th style={grp}></th>
           <th style={grp} colSpan={5}>PLAYMAKING</th><th style={grp} colSpan={4}>REBOUNDING</th>
-          <th style={grp} colSpan={6}>DEFENSE</th><th style={grp} colSpan={2}></th><th style={grp} colSpan={4}>SHOOTING DRILLS</th>
+          <th style={grp} colSpan={7}>DEFENSE</th><th style={grp} colSpan={2}></th><th style={grp} colSpan={4}>SHOOTING DRILLS</th>
         </tr>
         <tr>
           <th style={{ ...th, textAlign: "left" }}>#</th>
@@ -432,7 +433,7 @@ function BlockCells({ b, drills, wl, bold, present = true }: { b: StatBlock; dri
       <td style={td}>{b.fd}</td>
       <td style={td}>{b.play.pot}</td><td style={td}>{b.play.second}</td><td style={td}>{b.play.ast}</td><td style={td}>{b.play.to}</td><td style={td}>{f2(b.play.ato)}</td>
       <td style={td}>{b.reb.tip}</td><td style={td}>{b.reb.or}</td><td style={td}>{b.reb.dr}</td><td style={td}>{b.reb.tot}</td>
-      <td style={td}>{b.def.stl}</td><td style={td}>{b.def.blk}</td><td style={td}>{b.def.def}</td><td style={td}>{b.def.foul}</td><td style={td}>{b.def.dive}</td><td style={td}>{b.def.chg}</td>
+      <td style={td}>{b.def.stl}</td><td style={td}>{b.def.blk}</td><td style={td}>{b.def.def}</td><td style={td}>{b.def.sld}</td><td style={td}>{b.def.foul}</td><td style={td}>{b.def.dive}</td><td style={td}>{b.def.chg}</td>
       <td style={{ ...td, fontWeight: 700, ...bg(cpTier(b.casper)) }}>{round1(b.casper)}</td>
       <td style={{ ...td, ...bg(perTier(b.per)) }}>{f1(b.per)}</td>
       <td style={td}>{drills.baylor != null ? p(drills.baylor / BAY_D) : "–"}</td>

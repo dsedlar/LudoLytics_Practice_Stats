@@ -38,6 +38,7 @@ export interface BoxScoreRow {
   foul: number;
   to: number; // live + transition/thespian turnovers
   live3: { m: number; a: number }; // live-play 3FG
+  trans3: { m: number; a: number }; // Transition 3FG
   thes3: { m: number; a: number }; // Thespian 3FG
   baylorMakes: number | null; // Baylor (3PT) drill makes, or null if not entered
   ft: { m: number; a: number }; // live FT (validation FTs included)
@@ -126,7 +127,7 @@ const BAYLOR_DENOM = SHOOTING_DRILLS.find((d) => d.key === "baylor")?.denominato
 function SquadBoxScore({ rows, name, color }: { rows: BoxScoreRow[]; name: string; color: string }) {
   const p3 = (s: { m: number; a: number }) => (s.a ? `${Math.round((s.m / s.a) * 100)}%` : "–");
   const bay = (m: number | null) => (m == null ? "–" : `${Math.round((m / BAYLOR_DENOM) * 100)}%`);
-  const headers = ["#", "Player", "Foul", "TO", "3FG% Live", "3FG% Thes", "Baylor%", "FT%"];
+  const headers = ["#", "Player", "Foul", "TO", "3FG% Live", "3FG% Trans", "3FG% Thes", "Baylor%", "FT%"];
   return (
     <div className="mt-5 bg-white border rounded-lg overflow-hidden">
       <div className="px-3 py-2 font-bold text-white text-sm uppercase flex items-center justify-between" style={{ background: color }}>
@@ -150,6 +151,7 @@ function SquadBoxScore({ rows, name, color }: { rows: BoxScoreRow[]; name: strin
                 <td className="p-2 text-center">{r.foul}</td>
                 <td className="p-2 text-center">{r.to}</td>
                 <td className="p-2 text-center">{p3(r.live3)}</td>
+                <td className="p-2 text-center">{p3(r.trans3)}</td>
                 <td className="p-2 text-center">{p3(r.thes3)}</td>
                 <td className="p-2 text-center">{bay(r.baylorMakes)}</td>
                 <td className="p-2 text-center">{p3(r.ft)}</td>

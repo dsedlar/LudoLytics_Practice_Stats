@@ -101,6 +101,7 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
       foul: t.foul,
       to: t.to + (trans?.to ?? 0) + (thes?.to ?? 0),
       live3: { m: t.fg3M, a: t.fg3A },
+      trans3: { m: trans?.made ?? 0, a: trans?.att ?? 0 },
       thes3: { m: thes?.made ?? 0, a: thes?.att ?? 0 },
       baylorMakes: baylor ? Number(baylor.makes) : null,
       ft: { m: t.ftM, a: t.ftA },
