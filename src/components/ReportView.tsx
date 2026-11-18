@@ -297,12 +297,12 @@ function LivePlayCompact({ rows }: { rows: BlockRow[] }) {
   );
 }
 
-function Seg3Summary({ rows, label, get }: { rows: DrillLine[]; label: string; get: (r: DrillLine) => { m: number; a: number; pct: number } }) {
+function Seg3Summary({ rows, label, get }: { rows: DrillLine[]; label: string; get: (r: DrillLine) => { m: number; a: number; pct: number; to: number } }) {
   return (
     <table style={{ width: "100%", borderCollapse: "collapse" }}>
       <thead>
         <tr>
-          {["TEAM", label, "%"].map((h, i) => (
+          {["TEAM", label, "%", "TO"].map((h, i) => (
             <th key={i} style={{ ...th, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
           ))}
         </tr>
@@ -315,6 +315,7 @@ function Seg3Summary({ rows, label, get }: { rows: DrillLine[]; label: string; g
               <td style={{ ...td, textAlign: "left", fontWeight: 700, color: r.color }}>{r.name}</td>
               <td style={td}>{ma(v.m, v.a)}</td>
               <td style={{ ...td, ...bg(v.a ? pctTier(v.pct) : null) }}>{dash(p(v.pct), v.a > 0)}</td>
+              <td style={td}>{v.to}</td>
             </tr>
           );
         })}

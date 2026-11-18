@@ -94,6 +94,7 @@ export const COUNTING_TYPES = [
   "stl",
   "blk",
   "def", // deflection
+  "sld", // straight-line drive allowed (defensive lapse; -1 PER, no Casper)
   "foul", // foul committed
   "dive",
   "chg",
@@ -115,6 +116,7 @@ export const COUNTING_LABELS: Record<CountingType, string> = {
   stl: "Steal",
   blk: "Block",
   def: "Deflection",
+  sld: "SLD",
   foul: "Foul",
   dive: "Dive",
   chg: "Charge",

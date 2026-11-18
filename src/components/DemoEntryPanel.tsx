@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import LiveEntryView, { type TilePlayer, type TransitionRow, type Tab } from "./LiveEntryView";
+import LiveEntryView, { type TilePlayer, type TransitionRow, type BoxScoreRow, type Tab } from "./LiveEntryView";
 import { tallyByPlayer, type EventRow } from "../lib/aggregate";
 import { compute, emptyTally } from "../lib/stats";
 import { SHOT_LABELS, COUNTING_LABELS, type ShotType, type CountingType } from "../lib/config";
@@ -53,6 +53,23 @@ export default function DemoEntryPanel({
     });
   const transitionRows = segRows("transition");
   const thespianRows = segRows("thespian");
+
+  const liveTallies = useMemo(() => tallyByPlayer(events.filter((e) => e.segment === "live")), [events]);
+  const boxScore: BoxScoreRow[] = roster.map((r) => {
+    const t = liveTallies.get(r.player_id) ?? emptyTally();
+    const trans = transitionRows.find((x) => x.player_id === r.player_id);
+    const thes = thespianRows.find((x) => x.player_id === r.player_id);
+    const baylor = drills.find((d) => d.player_id === r.player_id && d.drill === "baylor");
+    return {
+      playerId: r.player_id, jersey: r.jersey, name: r.name,
+      foul: t.foul,
+      to: t.to + (trans?.to ?? 0) + (thes?.to ?? 0),
+      live3: { m: t.fg3M, a: t.fg3A },
+      thes3: { m: thes?.made ?? 0, a: thes?.att ?? 0 },
+      baylorMakes: baylor ? Number(baylor.makes) : null,
+      ft: { m: t.ftM, a: t.ftA },
+    };
+  });
 
   function add(playerId: string, type: string, made: boolean | undefined, segment: string, x?: number, y?: number) {
     const newId = (events[events.length - 1]?.id ?? 0) + 1 + Math.floor(Math.random() * 1000);
@@ -131,6 +148,7 @@ export default function DemoEntryPanel({
       drillPlayers={roster}
       drills={drills}
       onDrillSave={drillSave}
+      boxScore={boxScore}
     />
   );
 }

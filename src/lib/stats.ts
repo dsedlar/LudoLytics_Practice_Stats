@@ -14,7 +14,7 @@ export interface RawTally {
   // counting
   pot: number; second: number; ast: number; to: number;
   tip: number; or: number; dr: number;
-  stl: number; blk: number; def: number; foul: number; dive: number; chg: number;
+  stl: number; blk: number; def: number; sld: number; foul: number; dive: number; chg: number;
   fd: number; gs: number; ta: number; misc: number;
   // validation ("win it at the line") free throws — a subset of the FT totals
   // above, tracked separately for Clutch FT%.
@@ -26,7 +26,7 @@ export function emptyTally(): RawTally {
     atrM: 0, atrA: 0, nonatr2M: 0, nonatr2A: 0, fg3M: 0, fg3A: 0, ftM: 0, ftA: 0,
     pot: 0, second: 0, ast: 0, to: 0,
     tip: 0, or: 0, dr: 0,
-    stl: 0, blk: 0, def: 0, foul: 0, dive: 0, chg: 0,
+    stl: 0, blk: 0, def: 0, sld: 0, foul: 0, dive: 0, chg: 0,
     fd: 0, gs: 0, ta: 0, misc: 0,
     vftM: 0, vftA: 0,
   };
@@ -59,7 +59,8 @@ export interface Computed {
 // eFG% = (FGM + 0.5*3PM) / FGA
 // TS% = PTS / 2 / (FGA + 0.44*FTA)
 // A/TO = Ast / TO (turnovers count as at least 1)
-// PER = PTS + 4*FGM - 0.7*FGA - 0.4*(missed FT) + 0.7*OR + 0.3*DR + Ast + 0.7*STL + 0.7*BLK - TO
+// PER = PTS + 4*FGM - 0.7*FGA - 0.4*(missed FT) + 0.7*OR + 0.3*DR + Ast + 0.7*STL + 0.7*BLK - TO - SLD
+// (SLD = straight-line drive allowed: a defensive lapse, -1 each, no Casper value)
 export function compute(t: RawTally, casperValues: Record<string, number> = CASPER_VALUES): Computed {
   const fgm = t.atrM + t.nonatr2M + t.fg3M;
   const fga = t.atrA + t.nonatr2A + t.fg3A;
@@ -105,7 +106,8 @@ export function compute(t: RawTally, casperValues: Record<string, number> = CASP
       t.ast +
       0.7 * t.stl +
       0.7 * t.blk -
-      t.to,
+      t.to -
+      t.sld,
     casper,
   };
 }

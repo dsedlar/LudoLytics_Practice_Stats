@@ -6,7 +6,7 @@ import { tallyByPlayer } from "../lib/aggregate";
 import { compute, emptyTally } from "../lib/stats";
 import { SHOT_LABELS, COUNTING_LABELS, type ShotType, type CountingType } from "../lib/config";
 import { logEvent, deleteEvent, upsertDrillResult, deleteDrillResult, setSquadWins, setSquadLosses, setSquadTies } from "../lib/db";
-import LiveEntryView, { type TilePlayer, type TransitionRow } from "./LiveEntryView";
+import LiveEntryView, { type TilePlayer, type TransitionRow, type BoxScoreRow } from "./LiveEntryView";
 import type { CourtShot } from "./Court";
 import type { Tab } from "./LiveEntryView";
 
@@ -86,6 +86,26 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
     });
   const transitionRows = segRows("transition");
   const thespianRows = segRows("thespian");
+
+  // Own-team box score: Fouls, total TO (live + drill), live & Thespian 3FG%,
+  // Baylor% and FT% per player — shown under the entry tabs for the manager.
+  const boxScore: BoxScoreRow[] = roster.map((r) => {
+    const t = tallies.get(r.player_id) ?? emptyTally();
+    const trans = transitionRows.find((x) => x.player_id === r.player_id);
+    const thes = thespianRows.find((x) => x.player_id === r.player_id);
+    const baylor = drills.find((d) => d.player_id === r.player_id && d.drill === "baylor");
+    return {
+      playerId: r.player_id,
+      jersey: r.jersey ?? "",
+      name: r.players?.name ?? "—",
+      foul: t.foul,
+      to: t.to + (trans?.to ?? 0) + (thes?.to ?? 0),
+      live3: { m: t.fg3M, a: t.fg3A },
+      thes3: { m: thes?.made ?? 0, a: thes?.att ?? 0 },
+      baylorMakes: baylor ? Number(baylor.makes) : null,
+      ft: { m: t.ftM, a: t.ftA },
+    };
+  });
 
   async function pushEvent(playerId: string, type: string, made: boolean | undefined, segment: string, shotX?: number, shotY?: number) {
     try {
@@ -185,6 +205,7 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
           ? deleteDrillResult(practiceId, playerId, drill)
           : upsertDrillResult({ practice_id: practiceId, squad_id: squadId, player_id: playerId, drill, makes, attempts })
       }
+      boxScore={boxScore}
     />
   );
 }

@@ -66,8 +66,8 @@ export interface DrillLine {
   name: string; color: string;
   baylor: { avg: number; pct: number };
   ninetys: { avg: number; pct: number };
-  transition: { m: number; a: number; pct: number };
-  thespian: { m: number; a: number; pct: number };
+  transition: { m: number; a: number; pct: number; to: number };
+  thespian: { m: number; a: number; pct: number; to: number };
   ft: { avg: number; pct: number };
 }
 export interface PlayerLine {
@@ -103,7 +103,7 @@ export function formatLongDate(d: string): string {
   return dt.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 }
 
-function drillLine(name: string, color: string, rows: DrillRow[], trans: { m: number; a: number }, thes: { m: number; a: number }): DrillLine {
+function drillLine(name: string, color: string, rows: DrillRow[], trans: { m: number; a: number }, thes: { m: number; a: number }, transTO: number, thesTO: number): DrillLine {
   const pick = (d: string) => rows.filter((r) => r.drill === d);
   const avg = (d: string) => {
     const rs = pick(d);
@@ -114,11 +114,14 @@ function drillLine(name: string, color: string, rows: DrillRow[], trans: { m: nu
     name, color,
     baylor: { avg: avg("baylor"), pct: avg("baylor") / denom("baylor") },
     ninetys: { avg: avg("ninetys"), pct: avg("ninetys") / denom("ninetys") },
-    transition: { m: trans.m, a: trans.a, pct: trans.a ? trans.m / trans.a : 0 },
-    thespian: { m: thes.m, a: thes.a, pct: thes.a ? thes.m / thes.a : 0 },
+    transition: { m: trans.m, a: trans.a, pct: trans.a ? trans.m / trans.a : 0, to: transTO },
+    thespian: { m: thes.m, a: thes.a, pct: thes.a ? thes.m / thes.a : 0, to: thesTO },
     ft: { avg: avg("ft"), pct: avg("ft") / denom("ft") },
   };
 }
+
+// Turnovers logged in a single shooting segment (transition OR thespian).
+const segTOof = (events: EventRow[], seg: string) => events.filter((e) => e.segment === seg && e.type === "to").length;
 
 // 3-point makes/attempts for a shooting segment, from events.
 function seg3s(events: EventRow[], seg: string): { m: number; a: number } {
@@ -209,9 +212,9 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
 
   const drillLines: DrillLine[] = bundle.squads.map((s) => {
     const sqEv = events.filter((e) => e.squad_id === s.id);
-    return drillLine(s.name, s.color, drills.filter((d) => d.squad_id === s.id), transOf(sqEv), thesOf(sqEv));
+    return drillLine(s.name, s.color, drills.filter((d) => d.squad_id === s.id), transOf(sqEv), thesOf(sqEv), segTOof(sqEv, "transition"), segTOof(sqEv, "thespian"));
   });
-  drillLines.push(drillLine("Combined", "#00142D", drills, transOf(events), thesOf(events)));
+  drillLines.push(drillLine("Combined", "#00142D", drills, transOf(events), thesOf(events), segTOof(events, "transition"), segTOof(events, "thespian")));
 
   // "Practicing" = assigned to a squad AND present. Players left in the
   // "not practicing" bucket (no squad) are not counted toward attendance.
