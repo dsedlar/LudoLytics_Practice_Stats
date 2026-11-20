@@ -26,7 +26,7 @@ export function makeDemoData(): { bundle: PracticeBundle; events: EventRow[]; dr
     ...NAMES_B.map((n, i) => ({ id: "rB" + i, squad_id: "sB", player_id: "pB" + i, jersey: JERS_B[i], present: i < 5, players: { name: n } })),
   ];
   const bundle: PracticeBundle = {
-    practice: { id: "demo", practice_date: "Friday, October 9, 2026", start_time: "7:00 PM", finish_time: "9:00 PM", grade: 4, status: "finished", player_of_day: "pA2" },
+    practice: { id: "demo", practice_date: "Friday, October 9, 2026", start_time: "7:00 PM", finish_time: "9:00 PM", grade: 4, lift_grade: 3, status: "finished", player_of_day: "pA2" },
     squads,
     roster,
   };
@@ -87,7 +87,8 @@ export function makeSeasonDemo(): SeasonInput {
   const players = names.map((n, i) => ({ id: "p" + i, name: n, jersey: jers[i] }));
   const dates = ["2025-11-04", "2025-11-06", "2025-11-08", "2025-11-11", "2025-11-13", "2025-11-14"];
   const gradeSeq = [4, 3, 2, 4, 3, 4];
-  const practices = dates.map((d, i) => ({ id: "pr" + i, practice_date: d, player_of_day: players[(i * 2) % players.length].id, grade: gradeSeq[i] }));
+  const liftSeq = [3, 4, 3, 5, 4, 4];
+  const practices = dates.map((d, i) => ({ id: "pr" + i, practice_date: d, player_of_day: players[(i * 2) % players.length].id, grade: gradeSeq[i], lift_grade: liftSeq[i] }));
 
   const roster: SeasonInput["roster"] = [];
   const squads: SeasonInput["squads"] = [];

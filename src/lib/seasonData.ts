@@ -51,12 +51,13 @@ export interface SeasonResult {
   players: PlayerSeason[];
   team: TeamSeason;
   grades: GradePoint[];
+  liftGrades: GradePoint[]; // strength-training grade trend (separate line)
   teams: TeamRecord[]; // per-squad-name season record + current streak
   shots: Shot[]; // all players' located FG attempts (team hexbin chart)
 }
 
 export interface SeasonInput {
-  practices: { id: string; practice_date: string; player_of_day?: string | null; grade?: number | null; tiebreak_winner_squad_id?: string | null }[];
+  practices: { id: string; practice_date: string; player_of_day?: string | null; grade?: number | null; lift_grade?: number | null; tiebreak_winner_squad_id?: string | null }[];
   roster: { practice_id: string; player_id: string; squad_id: string | null; present: boolean; name: string; jersey: string }[];
   squads: { id: string; practice_id: string; name: string; color: string; wins: number; losses: number; ties?: number }[];
   events: EventRow[];
@@ -320,6 +321,10 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     .filter((p) => p.grade != null)
     .map((p) => ({ date: p.practice_date, grade: p.grade as number }))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
+  const liftGrades: GradePoint[] = input.practices
+    .filter((p) => p.lift_grade != null)
+    .map((p) => ({ date: p.practice_date, grade: p.lift_grade as number }))
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
 
   // per-team (by squad name) season record + current W/L streak.
   // Every practice resolves to exactly one winner via the tiebreaker cascade
@@ -356,5 +361,5 @@ export function buildSeason(input: SeasonInput): SeasonResult {
     })
     .sort((a, b) => b.w + b.l - (a.w + a.l) || b.w - a.w);
 
-  return { players, team, grades, teams, shots: allShots };
+  return { players, team, grades, liftGrades, teams, shots: allShots };
 }

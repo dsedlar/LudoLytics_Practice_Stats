@@ -45,6 +45,10 @@ export const SHOOTING_DRILLS: DrillDef[] = [
   { key: "ft", label: "Free Throws", short: "FT", mode: "fixed", denominator: 20 },
 ];
 
+// Strength-training ("lift") accent color — used wherever the lift grade is
+// shown (Coach entry, report card, grade charts) so it reads as one thing.
+export const STRENGTH_COLOR = "#2563eb";
+
 // ---- Practice grade scale (1-5) -------------------------------------------
 export const GRADE_SCALE: Record<number, { label: string; blurb: string }> = {
   5: { label: "Elite", blurb: "Championship Standard" },

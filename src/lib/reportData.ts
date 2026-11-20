@@ -86,7 +86,7 @@ export interface BlockRow {
   block: StatBlock;
 }
 export interface ReportModel {
-  date: string; startTime: string | null; finishTime: string | null; grade: number | null;
+  date: string; startTime: string | null; finishTime: string | null; grade: number | null; liftGrade: number | null;
   attPresent: number; attTotal: number; attPct: number;
   squads: SquadReport[]; combined: StatBlock;
   liveTeam: BlockRow[]; // Live-play rich stat line per squad + combined
@@ -227,6 +227,7 @@ export function buildReport(bundle: PracticeBundle, events: EventRow[], drills: 
     startTime: bundle.practice.start_time,
     finishTime: bundle.practice.finish_time,
     grade: bundle.practice.grade,
+    liftGrade: bundle.practice.lift_grade ?? null,
     attPresent: present, attTotal: total, attPct: total ? present / total : 0,
     squads, combined: addDrillTO(addDrill3s(statBlock(combinedTally), drill3sOf(events)), drillTOof(events)),
     liveTeam, drills: drillLines,

@@ -3,8 +3,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { usePracticeData } from "../lib/usePracticeData";
 import { tallyByPlayer, tallyBySquad } from "../lib/aggregate";
 import { compute, emptyTally, addTally, pct, type RawTally } from "../lib/stats";
-import { GRADE_SCALE } from "../lib/config";
-import { setGrade, finishPractice, setSquadWins, setSquadLosses, setSquadTies, setTiebreakWinner, updateSquad, setPlayerSquad, updatePractice } from "../lib/db";
+import { GRADE_SCALE, STRENGTH_COLOR } from "../lib/config";
+import { setGrade, setLiftGrade, finishPractice, setSquadWins, setSquadLosses, setSquadTies, setTiebreakWinner, updateSquad, setPlayerSquad, updatePractice } from "../lib/db";
 import { practiceWinner, teamShootPcts } from "../lib/practiceOutcome";
 
 export default function Coach() {
@@ -225,6 +225,24 @@ export default function Coach() {
                 <b>{g}</b> {GRADE_SCALE[g].label}
               </button>
             ))}
+          </div>
+        </div>
+        <div>
+          <h2 className="font-semibold text-sm text-gray-600 mb-2">Strength / Lift grade</h2>
+          <div className="flex flex-wrap gap-2">
+            {[5, 4, 3, 2, 1].map((g) => {
+              const on = bundle.practice.lift_grade === g;
+              return (
+                <button
+                  key={g}
+                  onClick={() => run(() => setLiftGrade(id, on ? null : g))}
+                  className={`px-3 py-2 rounded border text-sm ${on ? "text-white" : "bg-white"}`}
+                  style={on ? { background: STRENGTH_COLOR, borderColor: STRENGTH_COLOR } : undefined}
+                >
+                  <b>{g}</b> {GRADE_SCALE[g].label}
+                </button>
+              );
+            })}
           </div>
         </div>
         <div>

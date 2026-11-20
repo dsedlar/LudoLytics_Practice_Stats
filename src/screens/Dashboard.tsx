@@ -40,7 +40,7 @@ export default function Dashboard() {
         Every practice, totaled for the season. Click a player to see their growth. Tap a column to sort.
       </p>
       <div className="mt-4 grid lg:grid-cols-2 gap-4 items-start">
-        <PracticeLevel grades={season.grades} teams={season.teams} team={season.team} />
+        <PracticeLevel grades={season.grades} liftGrades={season.liftGrades} teams={season.teams} team={season.team} />
         <div className="bg-white border rounded-lg p-4">
           <div className="max-w-sm mx-auto">
             <div className="flex items-center justify-between mb-1">

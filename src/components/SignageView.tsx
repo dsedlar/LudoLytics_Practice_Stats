@@ -14,13 +14,20 @@ function Arrow({ t }: { t: "better" | "worse" | "same" }) {
   return <span style={{ color: "#9ca3af" }}>–</span>;
 }
 
-function GradeChart({ grades }: { grades: GradePoint[] }) {
+const LIFT_LINE = "#60a5fa"; // lighter strength blue, legible on the dark board
+function GradeChart({ grades, liftGrades }: { grades: GradePoint[]; liftGrades: GradePoint[] }) {
   const W = 560, H = 300, L = 34, R = 14, T = 16, B = 16;
   const plotH = H - T - B, plotW = W - L - R;
   const yFor = (g: number) => T + ((5 - g) / 4) * plotH;
-  const n = grades.length;
-  const xFor = (i: number) => (n <= 1 ? L + plotW / 2 : L + (i / (n - 1)) * plotW);
-  const pts = grades.map((g, i) => `${xFor(i).toFixed(1)},${yFor(g.grade).toFixed(1)}`).join(" ");
+  const dates = Array.from(new Set([...grades, ...liftGrades].map((d) => d.date))).sort((a, b) => (a < b ? -1 : 1));
+  const n = dates.length;
+  const xForDate = (date: string) => (n <= 1 ? L + plotW / 2 : L + (dates.indexOf(date) / (n - 1)) * plotW);
+  const Series = ({ pts, color }: { pts: GradePoint[]; color: string }) => (
+    <>
+      {pts.length >= 2 && <polyline points={pts.map((g) => `${xForDate(g.date).toFixed(1)},${yFor(g.grade).toFixed(1)}`).join(" ")} fill="none" stroke={color} strokeWidth={4} strokeLinejoin="round" />}
+      {pts.map((g, i) => <circle key={i} cx={xForDate(g.date)} cy={yFor(g.grade)} r={5} fill={color} />)}
+    </>
+  );
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%" }}>
       {[1, 2, 3, 4, 5].map((g) => (
@@ -29,8 +36,8 @@ function GradeChart({ grades }: { grades: GradePoint[] }) {
           <text x={L - 8} y={yFor(g) + 5} textAnchor="end" fontSize={14} fill="#94a3b8">{g}</text>
         </g>
       ))}
-      {n >= 2 && <polyline points={pts} fill="none" stroke="#B20000" strokeWidth={4} strokeLinejoin="round" />}
-      {grades.map((g, i) => <circle key={i} cx={xFor(i)} cy={yFor(g.grade)} r={5} fill="#B20000" />)}
+      <Series pts={grades} color="#B20000" />
+      <Series pts={liftGrades} color={LIFT_LINE} />
       {n === 0 && <text x={W / 2} y={H / 2} textAnchor="middle" fontSize={16} fill="#64748b">No graded practices yet</text>}
     </svg>
   );
@@ -59,8 +66,14 @@ function TeamSlide({ s }: { s: SeasonResult }) {
   return (
     <div style={{ display: "flex", gap: 56, alignItems: "center", width: "100%", justifyContent: "center", flexWrap: "wrap" }}>
       <div style={{ flex: "0 0 46%", minWidth: 420 }}>
-        <div style={{ fontFamily: G, letterSpacing: "0.25em", textTransform: "uppercase", fontSize: 17, color: "#fff" }}>Varsity Practice Level</div>
-        <GradeChart grades={s.grades} />
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+          <div style={{ fontFamily: G, letterSpacing: "0.25em", textTransform: "uppercase", fontSize: 17, color: "#fff" }}>Varsity Practice Level</div>
+          <div style={{ display: "flex", gap: 14, fontSize: 12, color: "#cbd5e1" }}>
+            <span><span style={{ color: "#B20000" }}>●</span> Practice</span>
+            <span><span style={{ color: LIFT_LINE }}>●</span> Strength</span>
+          </div>
+        </div>
+        <GradeChart grades={s.grades} liftGrades={s.liftGrades} />
       </div>
       <div style={{ flex: "0 0 44%", minWidth: 380, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "32px 48px" }}>
         <Kpi label="TO / P" value={s.team.toPerPractice.toFixed(1)} t={s.team.trends.to} size={56} />

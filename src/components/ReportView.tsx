@@ -6,7 +6,7 @@ import {
   type DrillLine,
   type PlayerLine,
 } from "../lib/reportData";
-import { GRADE_SCALE, SHOOTING_DRILLS } from "../lib/config";
+import { GRADE_SCALE, SHOOTING_DRILLS, STRENGTH_COLOR } from "../lib/config";
 
 // ---- formatting ----
 const p = (x: number) => `${Math.round(x * 100)}%`;
@@ -64,6 +64,7 @@ const grp: React.CSSProperties = { fontSize: 7, fontWeight: 800, color: "#999", 
 
 export default function ReportView({ m }: { m: ReportModel }) {
   const g = m.grade ?? 0;
+  const lg = m.liftGrade ?? 0;
   return (
     <div style={{ width: 1120, background: "#fff", color: "#000", fontFamily: F_BODY, padding: 16 }}>
       {/* header */}
@@ -96,6 +97,16 @@ export default function ReportView({ m }: { m: ReportModel }) {
             <div style={{ fontSize: 9 }}>
               <div style={{ fontWeight: 700 }}>{g ? GRADE_SCALE[g].label : ""}</div>
               <div style={{ color: "#3C0019" }}>{g ? GRADE_SCALE[g].blurb : ""}</div>
+            </div>
+          </div>
+        </div>
+        <div style={{ flex: "0 0 150px", border: "1px solid #ddd", borderRadius: 4, padding: 8 }}>
+          <div style={{ fontFamily: F_GOTHIC, fontSize: 8, letterSpacing: "0.18em", color: STRENGTH_COLOR }}>STRENGTH GRADE</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+            <div style={{ fontFamily: F_COMPRESSED, fontSize: 32, fontWeight: 700, color: lg ? STRENGTH_COLOR : undefined }}>{lg || "–"}</div>
+            <div style={{ fontSize: 9 }}>
+              <div style={{ fontWeight: 700 }}>{lg ? GRADE_SCALE[lg].label : ""}</div>
+              <div style={{ color: "#3C0019" }}>{lg ? GRADE_SCALE[lg].blurb : ""}</div>
             </div>
           </div>
         </div>

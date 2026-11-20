@@ -207,6 +207,7 @@ export interface PracticeRow {
   start_time: string | null;
   finish_time: string | null;
   grade: number | null;
+  lift_grade?: number | null; // strength-training grade (1-5); separate from practice grade
   status: string;
   player_of_day: string | null;
   tiebreak_winner_squad_id?: string | null; // migration 008; dead-even coach pick
@@ -385,6 +386,11 @@ export async function deleteDrillResult(practiceId: string, playerId: string, dr
 
 export async function setGrade(practiceId: string, grade: number | null) {
   const { error } = await client().from("practices").update({ grade }).eq("id", practiceId);
+  if (error) throw error;
+}
+
+export async function setLiftGrade(practiceId: string, liftGrade: number | null) {
+  const { error } = await client().from("practices").update({ lift_grade: liftGrade }).eq("id", practiceId);
   if (error) throw error;
 }
 
@@ -595,7 +601,7 @@ export async function getSeasonData(): Promise<SeasonInput> {
   if (pr.error) throw pr.error;
   if (sq.error) throw sq.error;
   return {
-    practices: pr.data as { id: string; practice_date: string; player_of_day: string | null; grade: number | null; tiebreak_winner_squad_id?: string | null }[],
+    practices: pr.data as { id: string; practice_date: string; player_of_day: string | null; grade: number | null; lift_grade?: number | null; tiebreak_winner_squad_id?: string | null }[],
     roster: ro.map((r) => ({
       practice_id: r.practice_id,
       player_id: r.player_id,
