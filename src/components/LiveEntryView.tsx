@@ -135,6 +135,18 @@ function SquadBoxScore({ rows, name, color, shootaround }: { rows: BoxScoreRow[]
   const headers = shootaround
     ? ["#", "Player", "3FG% Trans", "3FG% Thes", "Baylor%", "90s%", "FT%"]
     : ["#", "Player", "Foul", "TO", "3FG% Live", "3FG% Trans", "3FG% Thes", "Baylor%", "FT%"];
+  // team totals: segment %s pool makes/attempts; fixed drills average the makes.
+  const sum = (f: (r: BoxScoreRow) => number) => rows.reduce((a, r) => a + f(r), 0);
+  const seg = (f: (r: BoxScoreRow) => { m: number; a: number }) => ({ m: sum((r) => f(r).m), a: sum((r) => f(r).a) });
+  const avgMakes = (f: (r: BoxScoreRow) => number | null) => {
+    const xs = rows.map(f).filter((v): v is number => v != null);
+    return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+  };
+  const tot = {
+    foul: sum((r) => r.foul), to: sum((r) => r.to),
+    live3: seg((r) => r.live3), trans3: seg((r) => r.trans3), thes3: seg((r) => r.thes3),
+    baylor: avgMakes((r) => r.baylorMakes), ninety: avgMakes((r) => r.ninetyMakes), ft: seg((r) => r.ft),
+  };
   return (
     <div className="mt-5 bg-white border rounded-lg overflow-hidden">
       <div className="px-3 py-2 font-bold text-white text-sm uppercase flex items-center justify-between" style={{ background: color }}>
@@ -167,6 +179,22 @@ function SquadBoxScore({ rows, name, color, shootaround }: { rows: BoxScoreRow[]
             ))}
             {rows.length === 0 && <tr><td colSpan={headers.length} className="p-3 text-gray-400">No players on this roster.</td></tr>}
           </tbody>
+          {rows.length > 0 && (
+            <tfoot>
+              <tr className="border-t-2 font-bold bg-gray-50">
+                <td className="p-2" />
+                <td className="p-2">TEAM</td>
+                {!shootaround && <td className="p-2 text-center">{tot.foul}</td>}
+                {!shootaround && <td className="p-2 text-center">{tot.to}</td>}
+                {!shootaround && <td className="p-2 text-center">{p3(tot.live3)}</td>}
+                <td className="p-2 text-center">{p3(tot.trans3)}</td>
+                <td className="p-2 text-center">{p3(tot.thes3)}</td>
+                <td className="p-2 text-center">{fixed(tot.baylor, BAYLOR_DENOM)}</td>
+                {shootaround && <td className="p-2 text-center">{fixed(tot.ninety, NINETY_DENOM)}</td>}
+                <td className="p-2 text-center">{p3(tot.ft)}</td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>
