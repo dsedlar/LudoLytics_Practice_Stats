@@ -30,6 +30,8 @@ import Roster from "./screens/Roster";
 import RosterDemo from "./screens/RosterDemo";
 import Settings from "./screens/Settings";
 import Users from "./screens/Users";
+import Shootaround from "./screens/Shootaround";
+import Shootarounds from "./screens/Shootarounds";
 
 export default function App() {
   const { user, isAdmin, signOut } = useAuth();
@@ -79,6 +81,8 @@ export default function App() {
           <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
           <Route path="/login" element={<Login />} />
           <Route path="/setup" element={<RequireCoach><Setup /></RequireCoach>} />
+          <Route path="/shootarounds" element={<RequireCoach><Shootarounds /></RequireCoach>} />
+          <Route path="/shootaround/:id" element={<RequireCoach><Shootaround /></RequireCoach>} />
           <Route path="/practice/:id/coach" element={<RequireCoach><Coach /></RequireCoach>} />
           <Route path="/practice/:id/entry" element={<RequireCoach><CoachEntry /></RequireCoach>} />
           <Route path="/practice/:id/squad/:squadId" element={<RequireNotPlayer><LiveEntry /></RequireNotPlayer>} />

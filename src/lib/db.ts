@@ -4,6 +4,7 @@
 import { supabase } from "./supabase";
 import type { PracticeDraft } from "./types";
 import { practiceWinners } from "./practiceOutcome";
+import { SHOOTING_DRILLS } from "./config";
 
 function client() {
   if (!supabase) throw new Error("Supabase is not configured. Add your keys to .env.");
@@ -161,6 +162,44 @@ export async function createPracticeFromDraft(draft: PracticeDraft): Promise<str
   return practiceId;
 }
 
+/**
+ * Create a Shootaround session: a shooting-only session with the whole active
+ * roster on ONE team (no scrimmage, no win/loss). Returns the new practice id.
+ */
+export async function createShootaround(): Promise<string> {
+  const sb = client();
+  const players = (await getPlayers()).filter((p) => p.active);
+
+  const { data: practice, error: pErr } = await sb
+    .from("practices")
+    .insert({ practice_date: new Date().toISOString().slice(0, 10), status: "live", session_type: "shootaround" })
+    .select()
+    .single();
+  if (pErr) throw pErr;
+  const practiceId = practice.id as string;
+
+  const { data: squad, error: sErr } = await sb
+    .from("squads")
+    .insert({ practice_id: practiceId, name: "Shootaround", color: "#00142D", sort_order: 0 })
+    .select()
+    .single();
+  if (sErr) throw sErr;
+  const squadId = squad.id as string;
+
+  const entries = players.map((p) => ({
+    practice_id: practiceId,
+    squad_id: squadId,
+    player_id: p.id,
+    jersey: p.jersey || null,
+    present: true,
+  }));
+  if (entries.length) {
+    const { error: rErr } = await sb.from("roster_entries").insert(entries as object[]);
+    if (rErr) throw rErr;
+  }
+  return practiceId;
+}
+
 // ---------------------------------------------------------------------------
 // User roles / profiles (migration 009) — admin only
 // ---------------------------------------------------------------------------
@@ -210,6 +249,7 @@ export interface PracticeRow {
   lift_grade?: number | null; // strength-training grade (1-5); separate from practice grade
   status: string;
   player_of_day: string | null;
+  session_type?: string; // 'practice' (default) | 'shootaround'
   tiebreak_winner_squad_id?: string | null; // migration 008; dead-even coach pick
 }
 export interface SquadRow {
@@ -551,7 +591,9 @@ export async function getHistory(): Promise<PracticeSummary[]> {
     att.set(r.practice_id, a);
   });
 
-  return (pr.data as { id: string; practice_date: string; grade: number | null; status: string; finish_time: string | null }[]).map((p) => {
+  return (pr.data as { id: string; practice_date: string; grade: number | null; status: string; finish_time: string | null; session_type?: string }[])
+    .filter((p) => p.session_type !== "shootaround") // shootarounds have no W-L; shown on their own page
+    .map((p) => {
     const w = winners.get(p.id);
     return {
       id: p.id,
@@ -600,9 +642,14 @@ export async function getSeasonData(): Promise<SeasonInput> {
   ]);
   if (pr.error) throw pr.error;
   if (sq.error) throw sq.error;
+  // Shootaround sessions are shooting-only — keep them out of the scrimmage-based
+  // season stats (W-L, eFG, Casper, grades, winners) entirely.
+  const allPractices = pr.data as { id: string; session_type?: string }[];
+  const shootIds = new Set(allPractices.filter((p) => p.session_type === "shootaround").map((p) => p.id));
+  const keep = <T extends { practice_id: string }>(rows: T[]) => rows.filter((r) => !shootIds.has(r.practice_id));
   return {
-    practices: pr.data as { id: string; practice_date: string; player_of_day: string | null; grade: number | null; lift_grade?: number | null; tiebreak_winner_squad_id?: string | null }[],
-    roster: ro.map((r) => ({
+    practices: (pr.data as { id: string; practice_date: string; player_of_day: string | null; grade: number | null; lift_grade?: number | null; session_type?: string; tiebreak_winner_squad_id?: string | null }[]).filter((p) => !shootIds.has(p.id)),
+    roster: keep(ro).map((r) => ({
       practice_id: r.practice_id,
       player_id: r.player_id,
       squad_id: r.squad_id,
@@ -610,10 +657,60 @@ export async function getSeasonData(): Promise<SeasonInput> {
       name: r.players?.name ?? "—",
       jersey: r.jersey ?? "",
     })),
-    squads: sq.data as { id: string; practice_id: string; name: string; color: string; wins: number; losses: number; ties?: number }[],
-    events: ev,
-    drills: dr,
+    squads: (sq.data as { id: string; practice_id: string; name: string; color: string; wins: number; losses: number; ties?: number }[]).filter((s) => !shootIds.has(s.practice_id)),
+    events: keep(ev),
+    drills: keep(dr),
   };
+}
+
+export interface ShootaroundSummary {
+  id: string;
+  date: string;
+  players: number;
+  trans: { m: number; a: number };
+  thes: { m: number; a: number };
+  baylorPct: number | null; // team avg makes / denominator
+  ninetyPct: number | null;
+  ftPct: number | null;
+}
+
+/** All shootaround sessions, newest first, with the team's shooting line each. */
+export async function getShootaroundHistory(): Promise<ShootaroundSummary[]> {
+  const sb = client();
+  const { data: prs, error } = await sb.from("practices").select("id, practice_date, session_type").order("practice_date", { ascending: false });
+  if (error) throw error;
+  const shoot = (prs as { id: string; practice_date: string; session_type?: string }[]).filter((p) => p.session_type === "shootaround");
+  if (!shoot.length) return [];
+  const ids = new Set(shoot.map((p) => p.id));
+  const [ev, dr, ro] = await Promise.all([
+    selectAll<{ practice_id: string; segment: string; type: string; made: boolean | null }>("events", "id, practice_id, segment, type, made"),
+    selectAll<{ practice_id: string; drill: string; makes: number }>("drill_results", "id, practice_id, drill, makes"),
+    selectAll<{ practice_id: string; present: boolean }>("roster_entries", "id, practice_id, present"),
+  ]);
+  const evS = ev.filter((e) => ids.has(e.practice_id));
+  const drS = dr.filter((d) => ids.has(d.practice_id));
+  const roS = ro.filter((r) => ids.has(r.practice_id));
+  const denom = (k: string) => SHOOTING_DRILLS.find((d) => d.key === k)?.denominator ?? 1;
+  return shoot.map((p) => {
+    const seg = (s: string) => {
+      const e = evS.filter((x) => x.practice_id === p.id && x.segment === s && x.type === "fg3");
+      return { m: e.filter((x) => x.made).length, a: e.length };
+    };
+    const drillPct = (k: string) => {
+      const rs = drS.filter((x) => x.practice_id === p.id && x.drill === k);
+      return rs.length ? rs.reduce((a, b) => a + Number(b.makes), 0) / rs.length / denom(k) : null;
+    };
+    return {
+      id: p.id,
+      date: p.practice_date,
+      players: roS.filter((r) => r.practice_id === p.id && r.present).length,
+      trans: seg("transition"),
+      thes: seg("thespian"),
+      baylorPct: drillPct("baylor"),
+      ninetyPct: drillPct("ninetys"),
+      ftPct: drillPct("ft"),
+    };
+  });
 }
 
 /** Subscribe to realtime changes for a practice. Returns an unsubscribe fn. */

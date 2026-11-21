@@ -22,12 +22,13 @@ const SEED: EventRow[] = [
 ];
 
 export default function LiveEntryDemo() {
+  const shootaround = new URLSearchParams(window.location.search).get("mode") === "shootaround";
   return (
     <div>
       <div className="mb-2 text-xs bg-cream text-deep-garnet rounded px-3 py-1 inline-block">
         Interactive demo — Live (court), Transition (made/miss 3s), Shooting Drills. Try "End drill &amp; record result".
       </div>
-      <DemoEntryPanel squadName="Garnet" squadColor="#B20000" roster={ROSTER} seedEvents={SEED} />
+      <DemoEntryPanel squadName={shootaround ? "Shootaround" : "Garnet"} squadColor={shootaround ? "#00142D" : "#B20000"} roster={ROSTER} seedEvents={SEED} shootaround={shootaround} />
     </div>
   );
 }

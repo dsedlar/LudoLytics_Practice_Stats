@@ -19,17 +19,19 @@ export default function DemoEntryPanel({
   roster,
   compact,
   seedEvents,
+  shootaround,
 }: {
   squadName: string;
   squadColor: string;
   roster: DemoRoster[];
   compact?: boolean;
   seedEvents?: EventRow[];
+  shootaround?: boolean;
 }) {
   const [events, setEvents] = useState<EventRow[]>(seedEvents ?? []);
   const [drills, setDrills] = useState<DrillRow[]>([]);
   const [selected, setSelected] = useState(roster[0]?.player_id ?? "");
-  const [tab, setTab] = useState<Tab>("live");
+  const [tab, setTab] = useState<Tab>(shootaround ? "transition" : "live");
   const [undoStack, setUndoStack] = useState<number[]>([]);
   const [flash, setFlash] = useState("");
   const [wins, setWins] = useState(0);
@@ -60,6 +62,7 @@ export default function DemoEntryPanel({
     const trans = transitionRows.find((x) => x.player_id === r.player_id);
     const thes = thespianRows.find((x) => x.player_id === r.player_id);
     const baylor = drills.find((d) => d.player_id === r.player_id && d.drill === "baylor");
+    const ninety = drills.find((d) => d.player_id === r.player_id && d.drill === "ninetys");
     return {
       playerId: r.player_id, jersey: r.jersey, name: r.name,
       foul: t.foul,
@@ -68,6 +71,7 @@ export default function DemoEntryPanel({
       trans3: { m: trans?.made ?? 0, a: trans?.att ?? 0 },
       thes3: { m: thes?.made ?? 0, a: thes?.att ?? 0 },
       baylorMakes: baylor ? Number(baylor.makes) : null,
+      ninetyMakes: ninety ? Number(ninety.makes) : null,
       ft: { m: t.ftM, a: t.ftA },
     };
   });
@@ -150,6 +154,7 @@ export default function DemoEntryPanel({
       drills={drills}
       onDrillSave={drillSave}
       boxScore={boxScore}
+      shootaround={shootaround}
     />
   );
 }

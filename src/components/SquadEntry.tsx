@@ -14,11 +14,11 @@ import type { Tab } from "./LiveEntryView";
  * All the live-entry wiring for ONE squad of a practice. Used by the analyst
  * screen (squad from URL) and the coach "take stats" mode (squad from a toggle).
  */
-export default function SquadEntry({ practiceId, squadId, compact }: { practiceId: string; squadId: string; compact?: boolean }) {
+export default function SquadEntry({ practiceId, squadId, compact, shootaround }: { practiceId: string; squadId: string; compact?: boolean; shootaround?: boolean }) {
   const { bundle, events, drills, error, loading } = usePracticeData(practiceId);
   const { isManager, user } = useAuth();
   const [selected, setSelected] = useState("");
-  const [tab, setTab] = useState<Tab>("live");
+  const [tab, setTab] = useState<Tab>(shootaround ? "transition" : "live");
   const [undoStack, setUndoStack] = useState<number[]>([]);
   const [flash, setFlash] = useState("");
 
@@ -33,7 +33,8 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
   if (!squad) return <p className="text-red-600">Squad not found.</p>;
 
   // Managers may only enter the squad they claimed; coaches/admins aren't gated.
-  if (isManager && squad.claimed_by !== user?.id) {
+  // Shootarounds are coach-run on one team, so there's no claim to check.
+  if (isManager && !shootaround && squad.claimed_by !== user?.id) {
     return (
       <div className="bg-white border rounded-lg p-5">
         <p className="font-semibold">This isn't your team to take stats for.</p>
@@ -94,6 +95,7 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
     const trans = transitionRows.find((x) => x.player_id === r.player_id);
     const thes = thespianRows.find((x) => x.player_id === r.player_id);
     const baylor = drills.find((d) => d.player_id === r.player_id && d.drill === "baylor");
+    const ninety = drills.find((d) => d.player_id === r.player_id && d.drill === "ninetys");
     return {
       playerId: r.player_id,
       jersey: r.jersey ?? "",
@@ -104,6 +106,7 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
       trans3: { m: trans?.made ?? 0, a: trans?.att ?? 0 },
       thes3: { m: thes?.made ?? 0, a: thes?.att ?? 0 },
       baylorMakes: baylor ? Number(baylor.makes) : null,
+      ninetyMakes: ninety ? Number(ninety.makes) : null,
       ft: { m: t.ftM, a: t.ftA },
     };
   });
@@ -207,6 +210,7 @@ export default function SquadEntry({ practiceId, squadId, compact }: { practiceI
           : upsertDrillResult({ practice_id: practiceId, squad_id: squadId, player_id: playerId, drill, makes, attempts })
       }
       boxScore={boxScore}
+      shootaround={shootaround}
     />
   );
 }

@@ -41,6 +41,7 @@ export interface BoxScoreRow {
   trans3: { m: number; a: number }; // Transition 3FG
   thes3: { m: number; a: number }; // Thespian 3FG
   baylorMakes: number | null; // Baylor (3PT) drill makes, or null if not entered
+  ninetyMakes: number | null; // 90 Seconds drill makes
   ft: { m: number; a: number }; // live FT (validation FTs included)
 }
 
@@ -82,6 +83,8 @@ export interface LiveEntryViewProps {
   onDrillSave: (playerId: string, drill: string, makes: number | null, attempts?: number | null) => void;
   // own-team box score (summary shown under the entry tabs)
   boxScore: BoxScoreRow[];
+  // shootaround mode: shooting-only (no Live scrimmage tab / win validation)
+  shootaround?: boolean;
 }
 
 const TABS: { key: Tab; label: string }[] = [
@@ -92,14 +95,15 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 export default function LiveEntryView(p: LiveEntryViewProps) {
+  const tabs = p.shootaround ? TABS.filter((t) => t.key !== "live") : TABS;
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className={`${p.compact ? "text-xl" : "text-2xl"} headline-bold`} style={{ color: p.squadColor }}>
-          {p.squadName}
+          {p.squadName}{p.shootaround ? <span className="text-sm font-normal text-gray-500 ml-2">· shooting only</span> : null}
         </h1>
         <div className="flex items-center gap-1 text-sm bg-white border rounded-lg p-1">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => p.setTab(t.key)}
@@ -116,7 +120,7 @@ export default function LiveEntryView(p: LiveEntryViewProps) {
       {p.tab === "thespian" && <ShootSegmentTab rows={p.thespianRows} onShot={p.onThespian} onTO={p.onThespianTO} color={p.squadColor} label="Thespian" />}
       {p.tab === "drills" && <DrillsTab players={p.drillPlayers} drills={p.drills} onSave={p.onDrillSave} />}
 
-      <SquadBoxScore rows={p.boxScore} name={p.squadName} color={p.squadColor} />
+      <SquadBoxScore rows={p.boxScore} name={p.squadName} color={p.squadColor} shootaround={p.shootaround} />
     </div>
   );
 }
@@ -124,15 +128,18 @@ export default function LiveEntryView(p: LiveEntryViewProps) {
 // A live, read-only box score for the manager's own team, so they can glance at
 // what they've logged. Shooting cells show "–" until there's an attempt/entry.
 const BAYLOR_DENOM = SHOOTING_DRILLS.find((d) => d.key === "baylor")?.denominator ?? 75;
-function SquadBoxScore({ rows, name, color }: { rows: BoxScoreRow[]; name: string; color: string }) {
+const NINETY_DENOM = SHOOTING_DRILLS.find((d) => d.key === "ninetys")?.denominator ?? 20;
+function SquadBoxScore({ rows, name, color, shootaround }: { rows: BoxScoreRow[]; name: string; color: string; shootaround?: boolean }) {
   const p3 = (s: { m: number; a: number }) => (s.a ? `${Math.round((s.m / s.a) * 100)}%` : "–");
-  const bay = (m: number | null) => (m == null ? "–" : `${Math.round((m / BAYLOR_DENOM) * 100)}%`);
-  const headers = ["#", "Player", "Foul", "TO", "3FG% Live", "3FG% Trans", "3FG% Thes", "Baylor%", "FT%"];
+  const fixed = (m: number | null, d: number) => (m == null ? "–" : `${Math.round((m / d) * 100)}%`);
+  const headers = shootaround
+    ? ["#", "Player", "3FG% Trans", "3FG% Thes", "Baylor%", "90s%", "FT%"]
+    : ["#", "Player", "Foul", "TO", "3FG% Live", "3FG% Trans", "3FG% Thes", "Baylor%", "FT%"];
   return (
     <div className="mt-5 bg-white border rounded-lg overflow-hidden">
       <div className="px-3 py-2 font-bold text-white text-sm uppercase flex items-center justify-between" style={{ background: color }}>
-        <span>Box Score — {name}</span>
-        <span className="text-xs font-medium opacity-80">your team</span>
+        <span>{shootaround ? "Shooting" : "Box Score"} — {name}</span>
+        <span className="text-xs font-medium opacity-80">{shootaround ? "whole team" : "your team"}</span>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
@@ -148,16 +155,17 @@ function SquadBoxScore({ rows, name, color }: { rows: BoxScoreRow[]; name: strin
               <tr key={r.playerId} className="border-b last:border-0">
                 <td className="p-2 text-gray-500">{r.jersey}</td>
                 <td className="p-2 font-medium whitespace-nowrap">{r.name}</td>
-                <td className="p-2 text-center">{r.foul}</td>
-                <td className="p-2 text-center">{r.to}</td>
-                <td className="p-2 text-center">{p3(r.live3)}</td>
+                {!shootaround && <td className="p-2 text-center">{r.foul}</td>}
+                {!shootaround && <td className="p-2 text-center">{r.to}</td>}
+                {!shootaround && <td className="p-2 text-center">{p3(r.live3)}</td>}
                 <td className="p-2 text-center">{p3(r.trans3)}</td>
                 <td className="p-2 text-center">{p3(r.thes3)}</td>
-                <td className="p-2 text-center">{bay(r.baylorMakes)}</td>
+                <td className="p-2 text-center">{fixed(r.baylorMakes, BAYLOR_DENOM)}</td>
+                {shootaround && <td className="p-2 text-center">{fixed(r.ninetyMakes, NINETY_DENOM)}</td>}
                 <td className="p-2 text-center">{p3(r.ft)}</td>
               </tr>
             ))}
-            {rows.length === 0 && <tr><td colSpan={headers.length} className="p-3 text-gray-400">No players assigned to this squad.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={headers.length} className="p-3 text-gray-400">No players on this roster.</td></tr>}
           </tbody>
         </table>
       </div>
