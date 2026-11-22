@@ -63,6 +63,7 @@ export default function DemoEntryPanel({
     const thes = thespianRows.find((x) => x.player_id === r.player_id);
     const baylor = drills.find((d) => d.player_id === r.player_id && d.drill === "baylor");
     const ninety = drills.find((d) => d.player_id === r.player_id && d.drill === "ninetys");
+    const ftDrill = drills.find((d) => d.player_id === r.player_id && d.drill === "ft");
     return {
       playerId: r.player_id, jersey: r.jersey, name: r.name,
       foul: t.foul,
@@ -72,6 +73,7 @@ export default function DemoEntryPanel({
       thes3: { m: thes?.made ?? 0, a: thes?.att ?? 0 },
       baylorMakes: baylor ? Number(baylor.makes) : null,
       ninetyMakes: ninety ? Number(ninety.makes) : null,
+      ftDrillMakes: ftDrill ? Number(ftDrill.makes) : null,
       ft: { m: t.ftM, a: t.ftA },
     };
   });

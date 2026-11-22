@@ -42,6 +42,7 @@ export interface BoxScoreRow {
   thes3: { m: number; a: number }; // Thespian 3FG
   baylorMakes: number | null; // Baylor (3PT) drill makes, or null if not entered
   ninetyMakes: number | null; // 90 Seconds drill makes
+  ftDrillMakes: number | null; // Free-throw drill makes (/20) — used in shootaround FT%
   ft: { m: number; a: number }; // live FT (validation FTs included)
 }
 
@@ -129,6 +130,7 @@ export default function LiveEntryView(p: LiveEntryViewProps) {
 // what they've logged. Shooting cells show "–" until there's an attempt/entry.
 const BAYLOR_DENOM = SHOOTING_DRILLS.find((d) => d.key === "baylor")?.denominator ?? 75;
 const NINETY_DENOM = SHOOTING_DRILLS.find((d) => d.key === "ninetys")?.denominator ?? 20;
+const FT_DENOM = SHOOTING_DRILLS.find((d) => d.key === "ft")?.denominator ?? 20;
 function SquadBoxScore({ rows, name, color, shootaround }: { rows: BoxScoreRow[]; name: string; color: string; shootaround?: boolean }) {
   const p3 = (s: { m: number; a: number }) => (s.a ? `${Math.round((s.m / s.a) * 100)}%` : "–");
   const fixed = (m: number | null, d: number) => (m == null ? "–" : `${Math.round((m / d) * 100)}%`);
@@ -145,7 +147,8 @@ function SquadBoxScore({ rows, name, color, shootaround }: { rows: BoxScoreRow[]
   const tot = {
     foul: sum((r) => r.foul), to: sum((r) => r.to),
     live3: seg((r) => r.live3), trans3: seg((r) => r.trans3), thes3: seg((r) => r.thes3),
-    baylor: avgMakes((r) => r.baylorMakes), ninety: avgMakes((r) => r.ninetyMakes), ft: seg((r) => r.ft),
+    baylor: avgMakes((r) => r.baylorMakes), ninety: avgMakes((r) => r.ninetyMakes),
+    ft: seg((r) => r.ft), ftDrill: avgMakes((r) => r.ftDrillMakes),
   };
   return (
     <div className="mt-5 bg-white border rounded-lg overflow-hidden">
@@ -174,7 +177,7 @@ function SquadBoxScore({ rows, name, color, shootaround }: { rows: BoxScoreRow[]
                 <td className="p-2 text-center">{p3(r.thes3)}</td>
                 <td className="p-2 text-center">{fixed(r.baylorMakes, BAYLOR_DENOM)}</td>
                 {shootaround && <td className="p-2 text-center">{fixed(r.ninetyMakes, NINETY_DENOM)}</td>}
-                <td className="p-2 text-center">{p3(r.ft)}</td>
+                <td className="p-2 text-center">{shootaround ? fixed(r.ftDrillMakes, FT_DENOM) : p3(r.ft)}</td>
               </tr>
             ))}
             {rows.length === 0 && <tr><td colSpan={headers.length} className="p-3 text-gray-400">No players on this roster.</td></tr>}
@@ -191,7 +194,7 @@ function SquadBoxScore({ rows, name, color, shootaround }: { rows: BoxScoreRow[]
                 <td className="p-2 text-center">{p3(tot.thes3)}</td>
                 <td className="p-2 text-center">{fixed(tot.baylor, BAYLOR_DENOM)}</td>
                 {shootaround && <td className="p-2 text-center">{fixed(tot.ninety, NINETY_DENOM)}</td>}
-                <td className="p-2 text-center">{p3(tot.ft)}</td>
+                <td className="p-2 text-center">{shootaround ? fixed(tot.ftDrill, FT_DENOM) : p3(tot.ft)}</td>
               </tr>
             </tfoot>
           )}

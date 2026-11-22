@@ -96,6 +96,7 @@ export default function SquadEntry({ practiceId, squadId, compact, shootaround }
     const thes = thespianRows.find((x) => x.player_id === r.player_id);
     const baylor = drills.find((d) => d.player_id === r.player_id && d.drill === "baylor");
     const ninety = drills.find((d) => d.player_id === r.player_id && d.drill === "ninetys");
+    const ftDrill = drills.find((d) => d.player_id === r.player_id && d.drill === "ft");
     return {
       playerId: r.player_id,
       jersey: r.jersey ?? "",
@@ -107,6 +108,7 @@ export default function SquadEntry({ practiceId, squadId, compact, shootaround }
       thes3: { m: thes?.made ?? 0, a: thes?.att ?? 0 },
       baylorMakes: baylor ? Number(baylor.makes) : null,
       ninetyMakes: ninety ? Number(ninety.makes) : null,
+      ftDrillMakes: ftDrill ? Number(ftDrill.makes) : null,
       ft: { m: t.ftM, a: t.ftA },
     };
   });
