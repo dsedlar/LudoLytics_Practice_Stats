@@ -4,7 +4,7 @@ import { usePracticeData } from "../lib/usePracticeData";
 import { tallyByPlayer, tallyBySquad } from "../lib/aggregate";
 import { compute, emptyTally, addTally, pct, type RawTally } from "../lib/stats";
 import { GRADE_SCALE, STRENGTH_COLOR, SHOOTING_DRILLS } from "../lib/config";
-import { setGrade, setLiftGrade, finishPractice, setSquadWins, setSquadLosses, setSquadTies, setTiebreakWinner, updateSquad, setPlayerSquad, updatePractice } from "../lib/db";
+import { setGrade, setLiftGrade, finishPractice, setSquadWins, setSquadLosses, setSquadTies, setTiebreakWinner, updateSquad, setPlayerSquad, setPlayerPresent, updatePractice } from "../lib/db";
 import { practiceWinner, teamShootPcts } from "../lib/practiceOutcome";
 
 // Shootaround shooting: team "elite / strong / below" thresholds per drill, used
@@ -124,6 +124,29 @@ export default function Coach() {
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ background: TIER_BG.elite }} /> Elite</span>
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ background: TIER_BG.strong }} /> Strong</span>
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ background: TIER_BG.below }} /> Below</span>
+          </div>
+        </div>
+
+        {/* attendance — choose who's here */}
+        <div className="mt-5 bg-white border rounded-lg p-3">
+          <h2 className="font-semibold text-sm text-gray-600 mb-2">Who's here — tap to toggle ({shooters.length} shooting)</h2>
+          <div className="flex flex-wrap gap-2">
+            {bundle.roster
+              .slice()
+              .sort((a, b) => Number(a.jersey ?? 999) - Number(b.jersey ?? 999))
+              .map((r) => {
+                const on = r.present;
+                return (
+                  <button
+                    key={r.player_id}
+                    onClick={() => run(() => setPlayerPresent(id, r.player_id, !on))}
+                    className={`rounded-full border px-3 py-1.5 text-sm font-medium ${on ? "bg-garnet text-white border-garnet" : "bg-white text-gray-400 border-gray-300 line-through"}`}
+                    title={on ? "Here — tap to mark out" : "Out — tap to mark here"}
+                  >
+                    <span className="opacity-70">#{r.jersey}</span> {r.players?.name ?? "—"}
+                  </button>
+                );
+              })}
           </div>
         </div>
 

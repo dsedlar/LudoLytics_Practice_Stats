@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { getSquads, type SquadRow } from "../lib/db";
 import { isSupabaseConfigured } from "../lib/supabase";
 import SquadEntry from "../components/SquadEntry";
@@ -21,6 +21,9 @@ export default function CoachEntry() {
 
   if (error) return <p className="text-red-600">{error}</p>;
   if (!squads) return <p className="text-gray-500">Loading…</p>;
+  // A shootaround has a single squad and no scrimmage — send it to the
+  // shooting-only entry (no Live tab, no shot chart).
+  if (squads.length < 2) return <Navigate to={`/shootaround/${id}`} replace />;
 
   return (
     <div>

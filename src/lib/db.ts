@@ -434,6 +434,12 @@ export async function setLiftGrade(practiceId: string, liftGrade: number | null)
   if (error) throw error;
 }
 
+/** Toggle a player's attendance for a practice/shootaround. */
+export async function setPlayerPresent(practiceId: string, playerId: string, present: boolean) {
+  const { error } = await client().from("roster_entries").update({ present }).eq("practice_id", practiceId).eq("player_id", playerId);
+  if (error) throw error;
+}
+
 export async function setSquadWins(squadId: string, wins: number) {
   const { error } = await client().from("squads").update({ wins: Math.max(0, wins) }).eq("id", squadId);
   if (error) throw error;
