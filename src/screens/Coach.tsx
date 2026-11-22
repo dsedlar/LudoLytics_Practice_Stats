@@ -3,9 +3,30 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { usePracticeData } from "../lib/usePracticeData";
 import { tallyByPlayer, tallyBySquad } from "../lib/aggregate";
 import { compute, emptyTally, addTally, pct, type RawTally } from "../lib/stats";
-import { GRADE_SCALE, STRENGTH_COLOR } from "../lib/config";
+import { GRADE_SCALE, STRENGTH_COLOR, SHOOTING_DRILLS } from "../lib/config";
 import { setGrade, setLiftGrade, finishPractice, setSquadWins, setSquadLosses, setSquadTies, setTiebreakWinner, updateSquad, setPlayerSquad, updatePractice } from "../lib/db";
 import { practiceWinner, teamShootPcts } from "../lib/practiceOutcome";
+
+// Shootaround shooting: team "elite / strong / below" thresholds per drill, used
+// to color-code how we're shooting (see the coach's shooting-goal discussion).
+const SHOOT_TARGETS: Record<string, { elite: number; strong: number; label: string }> = {
+  trans: { elite: 0.4, strong: 0.35, label: "Transition 3s" },
+  thes: { elite: 0.4, strong: 0.35, label: "Thespian 3s" },
+  baylor: { elite: 0.65, strong: 0.6, label: "Baylor" },
+  ninety: { elite: 0.74, strong: 0.66, label: "90 Seconds" },
+  ft: { elite: 0.8, strong: 0.73, label: "Free Throws" },
+};
+type ShootTier = "elite" | "strong" | "below" | "none";
+function shootTier(key: string, v: number | null): ShootTier {
+  if (v == null) return "none";
+  const t = SHOOT_TARGETS[key];
+  if (!t) return "none";
+  return v >= t.elite ? "elite" : v >= t.strong ? "strong" : "below";
+}
+const TIER_BG: Record<ShootTier, string> = { elite: "#dcfce7", strong: "#fef9c3", below: "#fee2e2", none: "#f8fafc" };
+const TIER_FG: Record<ShootTier, string> = { elite: "#15803d", strong: "#a16207", below: "#b91c1c", none: "#9ca3af" };
+const pctStr = (v: number | null) => (v == null ? "–" : `${Math.round(v * 100)}%`);
+const DRILL_DENOM = (k: string) => SHOOTING_DRILLS.find((d) => d.key === k)?.denominator ?? 1;
 
 export default function Coach() {
   const { id = "" } = useParams();
@@ -46,6 +67,118 @@ export default function Coach() {
   if (loading) return <p className="text-gray-500">Loading practice…</p>;
   if (error) return <p className="text-red-600">Error: {error}</p>;
   if (!bundle) return <p className="text-red-600">Practice not found.</p>;
+
+  // ---- Shootaround: shooting-only coach view (no scrimmage / Casper / W-L) ----
+  if (bundle.practice.session_type === "shootaround") {
+    const squadId = bundle.squads[0]?.id;
+    const shooters = bundle.roster.filter((r) => r.present);
+    const seg = (pid: string | null, s: string) => {
+      const e = events.filter((x) => (pid == null || x.player_id === pid) && x.segment === s && x.type === "fg3");
+      return { m: e.filter((x) => x.made).length, a: e.length };
+    };
+    const segPct = (x: { m: number; a: number }) => (x.a ? x.m / x.a : null);
+    const drillTeam = (k: string) => {
+      const rs = drills.filter((d) => d.drill === k);
+      if (!rs.length) return { pct: null as number | null, sub: "—" };
+      const avg = rs.reduce((a, d) => a + Number(d.makes), 0) / rs.length;
+      return { pct: avg / DRILL_DENOM(k), sub: `avg ${avg.toFixed(1)} / ${DRILL_DENOM(k)}` };
+    };
+    const drillPlayer = (pid: string, k: string) => {
+      const d = drills.find((x) => x.player_id === pid && x.drill === k);
+      return d ? Number(d.makes) / DRILL_DENOM(k) : null;
+    };
+    const trans = seg(null, "transition");
+    const thes = seg(null, "thespian");
+    const bay = drillTeam("baylor");
+    const nin = drillTeam("ninetys");
+    const ft = drillTeam("ft");
+    const copyShootLink = async () => {
+      try { await navigator.clipboard.writeText(`${window.location.origin}/shootaround/${id}`); } catch { /* blocked */ }
+      setCopied("sa");
+      setTimeout(() => setCopied(""), 1500);
+    };
+    const finishShootaround = () =>
+      run(async () => {
+        await finishPractice(id, new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+        navigate("/shootarounds");
+      });
+
+    return (
+      <div>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h1 className="text-2xl headline-bold text-garnet">Shootaround · {bundle.practice.practice_date}</h1>
+          <span className="text-sm text-gray-500">{shooters.length} shooting</span>
+        </div>
+
+        {/* team shooting — color-coded by how we're shooting as a team */}
+        <div className="mt-4 bg-white border rounded-lg p-4">
+          <h2 className="font-bold text-garnet mb-3">Team Shooting</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <ShootTile label="Transition 3s" pct={segPct(trans)} sub={`${trans.m}-${trans.a}`} tierKey="trans" />
+            <ShootTile label="Thespian 3s" pct={segPct(thes)} sub={`${thes.m}-${thes.a}`} tierKey="thes" />
+            <ShootTile label="Baylor" pct={bay.pct} sub={bay.sub} tierKey="baylor" />
+            <ShootTile label="90 Seconds" pct={nin.pct} sub={nin.sub} tierKey="ninety" />
+            <ShootTile label="Free Throws" pct={ft.pct} sub={ft.sub} tierKey="ft" />
+          </div>
+          <div className="mt-3 flex items-center gap-3 text-xs text-gray-500">
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ background: TIER_BG.elite }} /> Elite</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ background: TIER_BG.strong }} /> Strong</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ background: TIER_BG.below }} /> Below</span>
+          </div>
+        </div>
+
+        {/* take-stats link */}
+        <div className="mt-5 bg-white border rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap">
+          <h2 className="font-semibold text-sm text-gray-600">Shooting entry (one screen, whole team)</h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            {squadId && <code className="text-xs bg-gray-100 rounded px-2 py-1 truncate max-w-xs">/shootaround/{id}</code>}
+            <button onClick={copyShootLink} className="text-sm border rounded px-3 py-1.5 font-medium">{copied === "sa" ? "Copied!" : "Copy link"}</button>
+            <Link to={`/shootaround/${id}`} className="bg-navy text-white px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap">Take shooting stats →</Link>
+          </div>
+        </div>
+        {actErr && <p className="mt-2 text-red-600 text-sm">Could not save: {actErr}</p>}
+
+        {/* per-player shooting */}
+        <div className="mt-5 bg-white border rounded-lg overflow-hidden">
+          <div className="px-3 py-2 font-bold text-white text-sm uppercase bg-navy">Player Shooting</div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b">
+                  <th className="p-2">#</th><th className="p-2">Player</th>
+                  <th className="p-2 text-center">Trans 3s</th><th className="p-2 text-center">Thes 3s</th>
+                  <th className="p-2 text-center">Baylor</th><th className="p-2 text-center">90s</th><th className="p-2 text-center">FT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shooters
+                  .sort((a, b) => Number(a.jersey ?? 999) - Number(b.jersey ?? 999))
+                  .map((r) => (
+                    <tr key={r.player_id} className="border-b last:border-0">
+                      <td className="p-2 text-gray-500">{r.jersey}</td>
+                      <td className="p-2 font-medium whitespace-nowrap">{r.players?.name ?? "—"}</td>
+                      <ShootCell pct={segPct(seg(r.player_id, "transition"))} tierKey="trans" />
+                      <ShootCell pct={segPct(seg(r.player_id, "thespian"))} tierKey="thes" />
+                      <ShootCell pct={drillPlayer(r.player_id, "baylor")} tierKey="baylor" />
+                      <ShootCell pct={drillPlayer(r.player_id, "ninetys")} tierKey="ninety" />
+                      <ShootCell pct={drillPlayer(r.player_id, "ft")} tierKey="ft" />
+                    </tr>
+                  ))}
+                {shooters.length === 0 && <tr><td colSpan={7} className="p-3 text-gray-400">No players.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <button onClick={finishShootaround} className="bg-navy text-white px-5 py-3 rounded-lg font-semibold">
+            {bundle.practice.status === "finished" ? "Done" : "Finish shootaround"}
+          </button>
+          <Link to="/shootarounds" className="ml-3 text-sm text-garnet font-medium">All shootarounds →</Link>
+        </div>
+      </div>
+    );
+  }
 
   // Team totals follow where each stat was earned (the event's squad), so a
   // player moved mid-practice splits correctly between both teams.
@@ -352,6 +485,28 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div className="text-lg font-black leading-none">{value}</div>
       <div className="text-[10px] uppercase opacity-80">{label}</div>
     </div>
+  );
+}
+
+// A color-coded team shooting tile for the shootaround coach view.
+function ShootTile({ label, pct, sub, tierKey }: { label: string; pct: number | null; sub: string; tierKey: string }) {
+  const tier = shootTier(tierKey, pct);
+  return (
+    <div className="rounded-lg p-3 text-center border" style={{ background: TIER_BG[tier], borderColor: `${TIER_FG[tier]}33` }}>
+      <div className="text-[11px] uppercase tracking-wide text-gray-500">{label}</div>
+      <div className="text-3xl font-black mt-0.5" style={{ color: TIER_FG[tier] }}>{pctStr(pct)}</div>
+      <div className="text-[11px] text-gray-500 mt-0.5">{sub}</div>
+    </div>
+  );
+}
+
+// A color-coded per-player shooting cell.
+function ShootCell({ pct, tierKey }: { pct: number | null; tierKey: string }) {
+  const tier = shootTier(tierKey, pct);
+  return (
+    <td className="p-2 text-center font-semibold" style={{ color: TIER_FG[tier], background: pct == null ? undefined : TIER_BG[tier] }}>
+      {pctStr(pct)}
+    </td>
   );
 }
 
