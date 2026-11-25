@@ -2,6 +2,7 @@
 import { getBackup, getPracticeBundle, getEvents, getDrillResults, getSeasonData, type DrillRow } from "./db";
 import { buildReport, buildBoxScore, buildSeasonBoxScore } from "./reportData";
 import { buildSeason } from "./seasonData";
+import { filterSeasonInput } from "./season";
 import type { EventRow } from "./aggregate";
 
 export function downloadText(filename: string, text: string, mime = "text/plain") {
@@ -41,9 +42,11 @@ export async function exportPracticeCSV(practiceId: string, dateLabel?: string) 
 }
 
 // Season box score: every player's season totals + team totals.
-export async function exportSeasonCSV() {
-  const season = buildSeason(await getSeasonData());
-  downloadText("ludolytics-season-boxscore.csv", toCSV(buildSeasonBoxScore(season)), "text/csv");
+// Pass a season (e.g. "2026-27") to export just that one; omit for all seasons.
+export async function exportSeasonCSV(season?: string) {
+  const data = await getSeasonData();
+  const result = buildSeason(season ? filterSeasonInput(data, season) : data);
+  downloadText(`ludolytics-season-boxscore-${season ?? "all"}.csv`, toCSV(buildSeasonBoxScore(result)), "text/csv");
 }
 
 export async function exportBackupJSON() {

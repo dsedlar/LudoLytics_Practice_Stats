@@ -5,6 +5,7 @@ import { supabase } from "./supabase";
 import type { PracticeDraft } from "./types";
 import { practiceWinners } from "./practiceOutcome";
 import { SHOOTING_DRILLS } from "./config";
+import { seasonsIn } from "./season";
 
 function client() {
   if (!supabase) throw new Error("Supabase is not configured. Add your keys to .env.");
@@ -555,6 +556,13 @@ export async function finishPractice(practiceId: string, finishTime: string) {
     .update({ status: "finished", finish_time: finishTime })
     .eq("id", practiceId);
   if (error) throw error;
+}
+
+/** Distinct seasons that have any practice, newest first (for season pickers). */
+export async function getSeasons(): Promise<string[]> {
+  const { data, error } = await client().from("practices").select("practice_date");
+  if (error) throw error;
+  return seasonsIn((data as { practice_date: string }[]).map((p) => p.practice_date));
 }
 
 export async function getLivePractice(): Promise<PracticeRow | null> {

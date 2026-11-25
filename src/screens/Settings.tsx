@@ -1,12 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { exportSeasonCSV, exportBackupJSON } from "../lib/exporters";
+import { getSeasons } from "../lib/db";
+import { isSupabaseConfigured } from "../lib/supabase";
 
 export default function Settings() {
   const { user, signOut } = useAuth();
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const [seasons, setSeasons] = useState<string[]>([]);
+  const [csvSeason, setCsvSeason] = useState("");
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    getSeasons().then((s) => { setSeasons(s); setCsvSeason(s[0] ?? "ALL"); }).catch(() => {});
+  }, []);
 
   async function runExport(key: string, fn: () => Promise<void>) {
     setErr("");
@@ -71,9 +80,18 @@ export default function Settings() {
         <p className="text-sm text-gray-600 mb-3">
           Download the whole season as a spreadsheet, or a full JSON backup of every record.
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={csvSeason}
+            onChange={(e) => setCsvSeason(e.target.value)}
+            className="text-sm border rounded px-2 py-2 font-medium"
+            title="Which season to export"
+          >
+            {seasons.map((s) => <option key={s} value={s}>{s} season</option>)}
+            <option value="ALL">All seasons</option>
+          </select>
           <button
-            onClick={() => runExport("csv", exportSeasonCSV)}
+            onClick={() => runExport("csv", () => exportSeasonCSV(csvSeason === "ALL" ? undefined : csvSeason))}
             disabled={busy === "csv"}
             className="text-sm border rounded px-4 py-2 font-medium disabled:opacity-50"
           >
