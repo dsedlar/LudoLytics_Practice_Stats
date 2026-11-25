@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getSeasonData } from "../lib/db";
 import { buildSeason, type SeasonResult } from "../lib/seasonData";
+import { seasonsIn, filterSeasonInput, currentSeason } from "../lib/season";
 import { isSupabaseConfigured } from "../lib/supabase";
 import SignageView from "../components/SignageView";
 
@@ -13,7 +14,13 @@ export default function Signage() {
       setError("Connect Supabase for the locker-room display.");
       return;
     }
-    const load = () => getSeasonData().then((d) => setSeason(buildSeason(d))).catch((e) => setError((e as Error).message));
+    const load = () =>
+      getSeasonData()
+        .then((d) => {
+          const latest = seasonsIn(d.practices.map((p) => p.practice_date))[0] ?? currentSeason();
+          setSeason(buildSeason(filterSeasonInput(d, latest)));
+        })
+        .catch((e) => setError((e as Error).message));
     load();
     const t = setInterval(load, 60000); // refresh for new practices
     return () => clearInterval(t);

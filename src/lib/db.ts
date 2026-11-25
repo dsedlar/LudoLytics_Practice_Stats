@@ -466,8 +466,8 @@ export async function deleteCoachShot(id: string) {
 }
 
 /** Every coach shot across all sessions (for the Coaches leaderboard). */
-export async function getAllCoachShots(): Promise<{ coach_key: string; segment: string; made: boolean }[]> {
-  return selectAll<{ coach_key: string; segment: string; made: boolean }>("coach_shots", "id, coach_key, segment, made");
+export async function getAllCoachShots(): Promise<{ coach_key: string; practice_id: string | null; segment: string; made: boolean }[]> {
+  return selectAll<{ coach_key: string; practice_id: string | null; segment: string; made: boolean }>("coach_shots", "id, coach_key, practice_id, segment, made");
 }
 
 /** Toggle a player's attendance for a practice/shootaround. */

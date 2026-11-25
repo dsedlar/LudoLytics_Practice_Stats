@@ -1,26 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getSeasonData } from "../lib/db";
-import { buildSeason, type SeasonResult } from "../lib/seasonData";
+import { buildSeason, type SeasonInput } from "../lib/seasonData";
+import { seasonsIn, filterSeasonInput, currentSeason } from "../lib/season";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { exportSeasonCSV, exportBackupJSON } from "../lib/exporters";
 import DashboardView from "../components/DashboardView";
 import { PracticeLevel } from "../components/DashboardSummary";
 import HexShotChart from "../components/HexShotChart";
+import SeasonPicker from "../components/SeasonPicker";
 
 export default function Dashboard() {
-  const [season, setSeason] = useState<SeasonResult | null>(null);
+  const [data, setData] = useState<SeasonInput | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [picked, setPicked] = useState("");
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
       setError("Connect Supabase to see the season dashboard.");
       return;
     }
-    getSeasonData()
-      .then((d) => setSeason(buildSeason(d)))
-      .catch((e) => setError((e as Error).message));
+    getSeasonData().then(setData).catch((e) => setError((e as Error).message));
   }, []);
+
+  const seasons = useMemo(() => (data ? seasonsIn(data.practices.map((p) => p.practice_date)) : []), [data]);
+  const selected = picked || seasons[0] || currentSeason();
+  const season = useMemo(() => (data ? buildSeason(filterSeasonInput(data, selected)) : null), [data, selected]);
 
   if (error) return <p className="text-red-600">{error}</p>;
   if (!season) return <p className="text-gray-500">Loading season…</p>;
@@ -28,7 +33,10 @@ export default function Dashboard() {
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-3xl headline-bold text-garnet">Season Dashboard</h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-3xl headline-bold text-garnet">Season Dashboard</h1>
+          <SeasonPicker seasons={seasons} value={selected} onChange={setPicked} />
+        </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Link to="/weekly" className="text-sm bg-garnet text-white rounded px-3 py-2 font-semibold">📄 Weekly Report</Link>
           <Link to="/display" className="text-sm border rounded px-3 py-2 font-medium">Locker-room display</Link>
