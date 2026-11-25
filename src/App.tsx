@@ -36,6 +36,18 @@ import EditStats from "./screens/EditStats";
 
 export default function App() {
   const { user, isAdmin, signOut } = useAuth();
+
+  // "Hard refresh": drop any cached app assets and reload so the newest deploy
+  // loads without the user needing Cmd/Ctrl+Shift+R.
+  async function hardRefresh() {
+    try {
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch { /* ignore — reload still picks up a fresh index.html */ }
+    window.location.reload();
+  }
   return (
     <div className="min-h-screen">
       <header className="bg-deep-garnet text-ivory no-print">
@@ -50,6 +62,18 @@ export default function App() {
             {user ? (
               <>
                 <span className="eyebrow text-[10px] text-ivory/70 hidden sm:inline">{user.email}</span>
+                <button
+                  onClick={hardRefresh}
+                  title="Refresh — load the latest version"
+                  aria-label="Refresh"
+                  className="text-ivory/80 hover:text-white rounded p-1.5 hover:bg-white/15"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                  </svg>
+                </button>
                 {isAdmin && <Link
                   to="/settings"
                   title="Settings"
