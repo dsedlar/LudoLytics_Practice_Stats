@@ -59,7 +59,8 @@ export default function HistoryView({ rows, onChangeDate, onDelete }: HistoryVie
 
           <div className="flex-1 min-w-2" />
           <div className="flex items-center gap-1.5">
-            <Link to={`/practice/${r.id}/coach`} className="text-sm bg-garnet text-white rounded px-2.5 py-1.5 font-medium">Open / Edit</Link>
+            <Link to={`/practice/${r.id}/coach`} className="text-sm bg-garnet text-white rounded px-2.5 py-1.5 font-medium">Open</Link>
+            <Link to={`/practice/${r.id}/edit`} className="text-sm border border-garnet text-garnet rounded px-2.5 py-1.5 font-medium">✎ Edit stats</Link>
             <Link to={`/practice/${r.id}/report`} className="text-sm border rounded px-2.5 py-1.5 font-medium">Report</Link>
             <button onClick={() => exportPracticeCSV(r.id, r.date).catch((e) => alert((e as Error).message))} className="text-sm border rounded px-2.5 py-1.5 font-medium">CSV</button>
             {confirmId === r.id ? (
