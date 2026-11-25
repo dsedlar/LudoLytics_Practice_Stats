@@ -4,7 +4,6 @@ import { getSeasonData } from "../lib/db";
 import { buildSeason, type SeasonInput } from "../lib/seasonData";
 import { seasonsIn, filterSeasonInput, currentSeason } from "../lib/season";
 import { isSupabaseConfigured } from "../lib/supabase";
-import { exportSeasonCSV, exportBackupJSON } from "../lib/exporters";
 import DashboardView from "../components/DashboardView";
 import { PracticeLevel } from "../components/DashboardSummary";
 import HexShotChart from "../components/HexShotChart";
@@ -40,8 +39,6 @@ export default function Dashboard() {
         <div className="flex items-center gap-2 flex-wrap">
           <Link to="/weekly" className="text-sm bg-garnet text-white rounded px-3 py-2 font-semibold">📄 Weekly Report</Link>
           <Link to="/display" className="text-sm border rounded px-3 py-2 font-medium">Locker-room display</Link>
-          <button onClick={() => exportSeasonCSV().catch((e) => alert(e.message))} className="text-sm border rounded px-3 py-2 font-medium">Season CSV</button>
-          <button onClick={() => exportBackupJSON().catch((e) => alert(e.message))} className="text-sm border rounded px-3 py-2 font-medium">Backup (JSON)</button>
         </div>
       </div>
       <p className="mt-1 text-gray-600 text-sm">
