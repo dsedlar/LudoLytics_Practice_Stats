@@ -71,6 +71,7 @@ export default function Home() {
         <Link to="/dashboard" className="inline-block border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">Season dashboard →</Link>
         <Link to="/roster" className="inline-block border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">Roster →</Link>
         <Link to="/history" className="inline-block border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">Practice history →</Link>
+        <Link to="/coaches" className="inline-block border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">Coaches →</Link>
       </div>
       <ul className="mt-6 space-y-2">
         {FEATURES.map((f) => (

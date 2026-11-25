@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import LiveEntryView, { type TilePlayer, type TransitionRow, type BoxScoreRow, type Tab } from "./LiveEntryView";
 import { tallyByPlayer, type EventRow } from "../lib/aggregate";
 import { compute, emptyTally } from "../lib/stats";
-import { SHOT_LABELS, COUNTING_LABELS, type ShotType, type CountingType } from "../lib/config";
+import { SHOT_LABELS, COUNTING_LABELS, COACHES, type ShotType, type CountingType } from "../lib/config";
 import type { CourtShot } from "./Court";
 import type { DrillRow } from "../lib/db";
 
@@ -55,6 +55,13 @@ export default function DemoEntryPanel({
     });
   const transitionRows = segRows("transition");
   const thespianRows = segRows("thespian");
+
+  // demo coaches (Grey/Garnet by name; all in a shootaround) + local shot counts
+  const demoCoaches = squadName === "Grey" || squadName === "Garnet" ? COACHES.filter((c) => c.team === squadName) : COACHES;
+  const [coachShots, setCoachShots] = useState<Record<string, { made: number; att: number }>>({});
+  const coachRows = demoCoaches.map((c) => ({ key: c.key, name: c.name, made: coachShots[c.key]?.made ?? 0, att: coachShots[c.key]?.att ?? 0 }));
+  const onCoachShot = (key: string, made: boolean) =>
+    setCoachShots((s) => ({ ...s, [key]: { made: (s[key]?.made ?? 0) + (made ? 1 : 0), att: (s[key]?.att ?? 0) + 1 } }));
 
   const liveTallies = useMemo(() => tallyByPlayer(events.filter((e) => e.segment === "live")), [events]);
   const boxScore: BoxScoreRow[] = roster.map((r) => {
@@ -157,6 +164,8 @@ export default function DemoEntryPanel({
       onDrillSave={drillSave}
       boxScore={boxScore}
       shootaround={shootaround}
+      coachRows={coachRows}
+      onCoachShot={onCoachShot}
     />
   );
 }

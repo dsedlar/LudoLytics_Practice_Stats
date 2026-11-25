@@ -49,6 +49,19 @@ export const SHOOTING_DRILLS: DrillDef[] = [
 // shown (Coach entry, report card, grade charts) so it reads as one thing.
 export const STRENGTH_COLOR = "#2563eb";
 
+// ---- Coaches (fixed list) --------------------------------------------------
+// Coaches shoot 3s during the Transition drill; their shooting is tracked in a
+// separate table (coach_shots) and shown only on the Coaches screen — never in
+// player/team/season stats. Each coach is tied to a team, so the team's season
+// record is that coach's win-loss.
+export interface CoachDef { key: string; name: string; team: "Grey" | "Garnet"; }
+export const COACHES: CoachDef[] = [
+  { key: "landis", name: "Coach Landis", team: "Grey" },
+  { key: "dexter", name: "Coach Dexter", team: "Grey" },
+  { key: "llewellyn", name: "Coach Llewellyn", team: "Garnet" },
+  { key: "darnell", name: "Coach Darnell", team: "Garnet" },
+];
+
 // ---- Practice grade scale (1-5) -------------------------------------------
 export const GRADE_SCALE: Record<number, { label: string; blurb: string }> = {
   5: { label: "Elite", blurb: "Championship Standard" },

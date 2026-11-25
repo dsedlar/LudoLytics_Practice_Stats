@@ -443,6 +443,33 @@ export async function setLiftGrade(practiceId: string, liftGrade: number | null)
   if (error) throw error;
 }
 
+// ---------------------------------------------------------------------------
+// Coach 3-point shooting (separate table; never touches player/team stats)
+// ---------------------------------------------------------------------------
+export interface CoachShotRow { id: string; coach_key: string; segment: string; made: boolean }
+
+export async function getCoachShots(practiceId: string): Promise<CoachShotRow[]> {
+  const { data, error } = await client().from("coach_shots").select("id, coach_key, segment, made").eq("practice_id", practiceId);
+  if (error) throw error;
+  return data as CoachShotRow[];
+}
+
+export async function logCoachShot(coachKey: string, practiceId: string, segment: string, made: boolean): Promise<string> {
+  const { data, error } = await client().from("coach_shots").insert({ coach_key: coachKey, practice_id: practiceId, segment, made }).select("id").single();
+  if (error) throw error;
+  return (data as { id: string }).id;
+}
+
+export async function deleteCoachShot(id: string) {
+  const { error } = await client().from("coach_shots").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/** Every coach shot across all sessions (for the Coaches leaderboard). */
+export async function getAllCoachShots(): Promise<{ coach_key: string; segment: string; made: boolean }[]> {
+  return selectAll<{ coach_key: string; segment: string; made: boolean }>("coach_shots", "id, coach_key, segment, made");
+}
+
 /** Toggle a player's attendance for a practice/shootaround. */
 export async function setPlayerPresent(practiceId: string, playerId: string, present: boolean) {
   const { error } = await client().from("roster_entries").update({ present }).eq("practice_id", practiceId).eq("player_id", playerId);

@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { usePracticeData } from "../lib/usePracticeData";
 import { tallyByPlayer } from "../lib/aggregate";
 import { compute, emptyTally } from "../lib/stats";
-import { SHOT_LABELS, COUNTING_LABELS, type ShotType, type CountingType } from "../lib/config";
-import { logEvent, deleteEvent, upsertDrillResult, deleteDrillResult, setSquadWins, setSquadLosses, setSquadTies } from "../lib/db";
+import { SHOT_LABELS, COUNTING_LABELS, COACHES, type ShotType, type CountingType } from "../lib/config";
+import { logEvent, deleteEvent, upsertDrillResult, deleteDrillResult, setSquadWins, setSquadLosses, setSquadTies, getCoachShots, logCoachShot, type CoachShotRow } from "../lib/db";
 import LiveEntryView, { type TilePlayer, type TransitionRow, type BoxScoreRow } from "./LiveEntryView";
 import type { CourtShot } from "./Court";
 import type { Tab } from "./LiveEntryView";
@@ -24,6 +24,14 @@ export default function SquadEntry({ practiceId, squadId, compact, shootaround }
 
   // Live tiles show scrimmage pts/CP only (transition/thespian don't count).
   const tallies = useMemo(() => tallyByPlayer(events.filter((e) => e.segment === "live")), [events]);
+
+  // Coaches' Transition 3s (separate table, never part of player/team stats).
+  const [coachShots, setCoachShots] = useState<CoachShotRow[]>([]);
+  useEffect(() => {
+    let on = true;
+    getCoachShots(practiceId).then((d) => on && setCoachShots(d)).catch(() => {});
+    return () => { on = false; };
+  }, [practiceId]);
 
   if (loading) return <p className="text-gray-500">Loading practice…</p>;
   if (error) return <p className="text-red-600">Error: {error}</p>;
@@ -112,6 +120,23 @@ export default function SquadEntry({ practiceId, squadId, compact, shootaround }
       ft: { m: t.ftM, a: t.ftA },
     };
   });
+
+  // This squad's coaches (Grey/Garnet by name; all coaches in a shootaround),
+  // with their Transition 3-pt line. Logged to the separate coach_shots table.
+  const squadCoaches = squad.name === "Grey" || squad.name === "Garnet" ? COACHES.filter((c) => c.team === squad.name) : COACHES;
+  const coachRows = squadCoaches.map((c) => {
+    const s = coachShots.filter((x) => x.coach_key === c.key && x.segment === "transition");
+    return { key: c.key, name: c.name, made: s.filter((x) => x.made).length, att: s.length };
+  });
+  async function onCoachShotHandler(coachKey: string, made: boolean) {
+    try {
+      await logCoachShot(coachKey, practiceId, "transition", made);
+      setCoachShots(await getCoachShots(practiceId));
+    } catch (e) {
+      setFlash(`Error: ${(e as Error).message}`);
+      setTimeout(() => setFlash(""), 1500);
+    }
+  }
 
   async function pushEvent(playerId: string, type: string, made: boolean | undefined, segment: string, shotX?: number, shotY?: number) {
     try {
@@ -213,6 +238,8 @@ export default function SquadEntry({ practiceId, squadId, compact, shootaround }
       }
       boxScore={boxScore}
       shootaround={shootaround}
+      coachRows={coachRows}
+      onCoachShot={onCoachShotHandler}
     />
   );
 }

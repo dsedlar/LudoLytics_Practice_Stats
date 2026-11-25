@@ -46,6 +46,14 @@ export interface BoxScoreRow {
   ft: { m: number; a: number }; // live FT (validation FTs included)
 }
 
+// One coach's Transition 3-pt line (tracked separately from players).
+export interface CoachShotRow {
+  key: string;
+  name: string;
+  made: number;
+  att: number;
+}
+
 export type Tab = "live" | "transition" | "thespian" | "drills";
 
 export interface LiveEntryViewProps {
@@ -86,6 +94,9 @@ export interface LiveEntryViewProps {
   boxScore: BoxScoreRow[];
   // shootaround mode: shooting-only (no Live scrimmage tab / win validation)
   shootaround?: boolean;
+  // coaches' Transition 3-pt tracker (this team's coaches), kept separate
+  coachRows: CoachShotRow[];
+  onCoachShot: (coachKey: string, made: boolean) => void;
 }
 
 const TABS: { key: Tab; label: string }[] = [
@@ -117,7 +128,7 @@ export default function LiveEntryView(p: LiveEntryViewProps) {
       </div>
 
       {p.tab === "live" && <LiveTab p={p} />}
-      {p.tab === "transition" && <ShootSegmentTab rows={p.transitionRows} onShot={p.onTransition} onTO={p.onTransitionTO} color={p.squadColor} label="Transition" />}
+      {p.tab === "transition" && <ShootSegmentTab rows={p.transitionRows} onShot={p.onTransition} onTO={p.onTransitionTO} color={p.squadColor} label="Transition" coachRows={p.coachRows} onCoachShot={p.onCoachShot} />}
       {p.tab === "thespian" && <ShootSegmentTab rows={p.thespianRows} onShot={p.onThespian} onTO={p.onThespianTO} color={p.squadColor} label="Thespian" />}
       {p.tab === "drills" && <DrillsTab players={p.drillPlayers} drills={p.drills} onSave={p.onDrillSave} />}
 
@@ -316,12 +327,14 @@ function LiveTab({ p }: { p: LiveEntryViewProps }) {
 }
 
 // Transition / Thespian: log 3-point makes/misses and turnovers per player.
-function ShootSegmentTab({ rows, onShot, onTO, color, label }: {
+function ShootSegmentTab({ rows, onShot, onTO, color, label, coachRows, onCoachShot }: {
   rows: TransitionRow[];
   onShot: (id: string, made: boolean) => void;
   onTO: (id: string) => void;
   color: string;
   label: string;
+  coachRows?: CoachShotRow[];
+  onCoachShot?: (coachKey: string, made: boolean) => void;
 }) {
   const tot = rows.reduce((a, r) => ({ made: a.made + r.made, att: a.att + r.att, to: a.to + r.to }), { made: 0, att: 0, to: 0 });
   return (
@@ -363,6 +376,30 @@ function ShootSegmentTab({ rows, onShot, onTO, color, label }: {
           </tfoot>
         </table>
       </div>
+
+      {/* Coaches — their own 3-pt tracker, NOT part of team/player stats */}
+      {coachRows && coachRows.length > 0 && onCoachShot && (
+        <div className="bg-white border rounded-lg overflow-hidden mt-3">
+          <div className="px-3 py-1.5 text-xs uppercase tracking-wide text-gray-500 bg-gray-50 border-b">Coaches · 3-pt tracker (separate from team stats)</div>
+          <table className="min-w-full text-sm">
+            <tbody>
+              {coachRows.map((c) => (
+                <tr key={c.key} className="border-b last:border-0">
+                  <td className="p-2 font-semibold">{c.name}</td>
+                  <td className="p-2 text-center">{c.made}-{c.att}</td>
+                  <td className="p-2 text-center">{c.att ? Math.round((c.made / c.att) * 100) : 0}%</td>
+                  <td className="p-2">
+                    <div className="flex gap-1 justify-end">
+                      <button onClick={() => onCoachShot(c.key, true)} className="bg-green-600 text-white rounded px-3 py-1.5 text-sm font-semibold">Make</button>
+                      <button onClick={() => onCoachShot(c.key, false)} className="bg-gray-200 rounded px-3 py-1.5 text-sm font-semibold">Miss</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
