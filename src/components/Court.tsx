@@ -13,9 +13,13 @@ interface Props {
   shots: CourtShot[];
   disabled?: boolean;
   onLog: (zone: ShotZone, made: boolean, x: number, y: number) => void;
+  // Edit mode: when set, tapping an existing dot calls this instead of placing
+  // a new shot, and `selectedShot` is drawn highlighted.
+  onShotClick?: (index: number) => void;
+  selectedShot?: number | null;
 }
 
-export default function Court({ color, shots, disabled, onLog }: Props) {
+export default function Court({ color, shots, disabled, onLog, onShotClick, selectedShot }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [pending, setPending] = useState<{ x: number; y: number; zone: ShotZone } | null>(null);
   const [hint, setHint] = useState("");
@@ -53,13 +57,21 @@ export default function Court({ color, shots, disabled, onLog }: Props) {
         <CourtBackdrop color={color} />
 
         {/* existing shots — filled dot = make, open ring = miss, in the contrasting brand color */}
-        {shots.map((s, i) =>
-          s.made ? (
-            <circle key={i} cx={s.x} cy={s.y} r={0.8} fill={mark} />
-          ) : (
-            <circle key={i} cx={s.x} cy={s.y} r={0.75} fill="#F3EED4" stroke={mark} strokeWidth={0.4} />
-          ),
-        )}
+        {shots.map((s, i) => {
+          const sel = selectedShot === i;
+          const clickable = !!onShotClick;
+          const onDot = clickable ? (e: React.MouseEvent) => { e.stopPropagation(); onShotClick!(i); } : undefined;
+          return (
+            <g key={i} onClick={onDot} style={clickable ? { cursor: "pointer" } : undefined}>
+              {sel && <circle cx={s.x} cy={s.y} r={1.6} fill="none" stroke="#000" strokeWidth={0.4} />}
+              {s.made ? (
+                <circle cx={s.x} cy={s.y} r={0.8} fill={mark} />
+              ) : (
+                <circle cx={s.x} cy={s.y} r={0.75} fill="#F3EED4" stroke={mark} strokeWidth={0.4} />
+              )}
+            </g>
+          );
+        })}
 
         {/* pending marker */}
         {pending && <circle cx={pending.x} cy={pending.y} r={1} fill="none" stroke="#000" strokeWidth={0.35} />}

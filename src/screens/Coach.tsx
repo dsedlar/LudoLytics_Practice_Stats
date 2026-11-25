@@ -107,7 +107,10 @@ export default function Coach() {
       <div>
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h1 className="text-2xl headline-bold text-garnet">Shootaround · {bundle.practice.practice_date}</h1>
-          <span className="text-sm text-gray-500">{shooters.length} shooting</span>
+          <div className="flex items-center gap-3">
+            <Link to={`/practice/${id}/edit`} className="text-sm border border-garnet text-garnet rounded px-3 py-1.5 font-semibold">✎ Edit stats</Link>
+            <span className="text-sm text-gray-500">{shooters.length} shooting</span>
+          </div>
         </div>
 
         {/* team shooting — color-coded by how we're shooting as a team */}
@@ -288,7 +291,10 @@ export default function Coach() {
     <div>
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl headline-bold text-garnet">Coach view · {bundle.practice.practice_date}</h1>
-        <span className="text-sm text-gray-500">{present}/{bundle.roster.length} present</span>
+        <div className="flex items-center gap-3">
+          <Link to={`/practice/${id}/edit`} className="text-sm border border-garnet text-garnet rounded px-3 py-1.5 font-semibold">✎ Edit stats</Link>
+          <span className="text-sm text-gray-500">{present}/{bundle.roster.length} present</span>
+        </div>
       </div>
 
       {/* summary cards */}

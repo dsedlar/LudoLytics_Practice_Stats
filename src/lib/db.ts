@@ -393,6 +393,15 @@ export async function deleteEvent(id: number) {
   if (error) throw error;
 }
 
+/** Edit a single event (used by the coach's Edit Stats screen). */
+export async function updateEvent(
+  id: number,
+  fields: Partial<{ player_id: string; squad_id: string; segment: string; type: string; made: boolean | null; shot_x: number | null; shot_y: number | null; game_index: number }>,
+) {
+  const { error } = await client().from("events").update(fields).eq("id", id);
+  if (error) throw error;
+}
+
 export async function getDrillResults(practiceId: string) {
   const { data, error } = await client().from("drill_results").select("*").eq("practice_id", practiceId);
   if (error) throw error;
