@@ -26,26 +26,30 @@ export default function Login() {
     }
   }
 
+  const labelCls = "block text-[11px] font-semibold tracking-[0.18em] uppercase text-gray-500 mb-1.5";
+  const inputCls = "w-full border rounded px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-navy/30";
+
   return (
-    <div className="max-w-sm mx-auto mt-10">
-      <div className="flex items-center gap-2 mb-4">
-        <img src="/ves-shield.png" alt="VES" className="h-9 w-auto" />
-        <h1 className="text-2xl headline-bold text-garnet">Coach / Manager sign in</h1>
-      </div>
-      <p className="text-sm text-gray-600 mb-4">Ludolytics is private — sign in to view, set up practices, and enter stats. Coaches and managers only.</p>
-      <form onSubmit={submit} className="bg-white border rounded-lg p-4 space-y-3">
-        <div>
-          <label className="block text-sm font-medium mb-1">Email</label>
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border rounded px-3 py-2" autoComplete="username" />
+    <div className="max-w-md mx-auto mt-12 sm:mt-16">
+      <form onSubmit={submit} className="bg-white border rounded-lg p-7 sm:p-9">
+        <img src="/ludolytics-logo.svg" alt="Ludolytics" className="h-9 w-auto mx-auto mb-6" />
+        <h1 className="headline-bold text-2xl uppercase tracking-wide" style={{ color: "#00142D" }}>Coaches / Managers Sign in</h1>
+        <p className="mt-2 text-sm text-gray-500">VES Basketball — private. Accounts are created by the program.</p>
+
+        <div className="mt-6 space-y-4">
+          <div>
+            <label className={labelCls}>Email</label>
+            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} autoComplete="username" />
+          </div>
+          <div>
+            <label className={labelCls}>Password</label>
+            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls} autoComplete="current-password" />
+          </div>
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+          <button type="submit" disabled={busy} className="w-full bg-navy text-white rounded-lg py-3 font-semibold tracking-[0.12em] uppercase disabled:opacity-50">
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Password</label>
-          <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border rounded px-3 py-2" autoComplete="current-password" />
-        </div>
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-        <button type="submit" disabled={busy} className="w-full bg-garnet text-white rounded-lg py-2.5 font-semibold disabled:opacity-50">
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
       </form>
     </div>
   );
