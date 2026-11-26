@@ -72,6 +72,7 @@ export default function Home() {
         <Link to="/roster" className="inline-block border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">Roster →</Link>
         <Link to="/history" className="inline-block border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">Practice history →</Link>
         <Link to="/coaches" className="inline-block border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">Coaches →</Link>
+        <Link to="/shot-cam" className="inline-block border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">📷 Shot Cam →</Link>
       </div>
       <ul className="mt-6 space-y-2">
         {FEATURES.map((f) => (
@@ -100,6 +101,11 @@ function PlayerReminder({ playerId }: { playerId: string | null }) {
       ) : (
         <p className="mt-3 text-sm text-gray-500">Your account isn't linked to a player yet — ask your coach.</p>
       )}
+      <div className="mt-5 pt-4 border-t">
+        <div className="eyebrow text-[11px] text-garnet mb-1">Shooting workouts</div>
+        <p className="text-gray-700">Baylor, 20 Free Throws or 90 Seconds — prop up your phone and let the camera count.</p>
+        <Link to="/shot-cam" className="inline-block mt-3 border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">📷 Open Shot Cam →</Link>
+      </div>
     </div>
   );
 }
@@ -191,6 +197,7 @@ function ManagerBoard({ live }: { live: PracticeRow | null }) {
       <div className="mt-5 flex flex-wrap gap-3">
         <Link to="/dashboard" className="inline-block border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">Season dashboard →</Link>
         <Link to="/weekly" className="inline-block border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">Weekly report →</Link>
+        <Link to="/shot-cam" className="inline-block border border-garnet text-garnet px-5 py-3 rounded-lg font-semibold">📷 Shot Cam →</Link>
       </div>
     </div>
   );
