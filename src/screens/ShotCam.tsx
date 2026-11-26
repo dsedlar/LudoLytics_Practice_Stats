@@ -6,7 +6,7 @@
 // misses, runs the drill clock, and the result is saved to shot_cam_sessions.
 // All video is processed on the phone — no footage is uploaded or stored.
 // ---------------------------------------------------------------------------
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { getPlayers, type PlayerRow } from "../lib/db";
@@ -14,10 +14,18 @@ import { isSupabaseConfigured } from "../lib/supabase";
 import { ShotDetector, ROI_W, ROI_H, RIM_PX, RIM_CX, RIM_CY, roiRect, type FrameDebug, type RimBox } from "../lib/shotcam/detector";
 import { CAM_DRILLS, camDrill, fmtClock, pctText, type CamDrill, type CamShot } from "../lib/shotcam/drills";
 import { listCamSessions, saveCamSession, deleteCamSession, type CamSessionRow } from "../lib/shotcam/store";
+import { FlightTracker } from "../lib/shotcam/flight";
+import { applyH, calibrateFromLane, courtOutline, invertH, type Homography, type Pt } from "../lib/shotcam/geometry";
+import { findFeet, loadPose } from "../lib/shotcam/pose";
+import ShotCamChart, { THREE_SPOTS, spotTotals } from "../components/ShotCamChart";
+import type { ShotEvent } from "../lib/shotcam/detector";
 
 type Stage = "pick" | "aim" | "countdown" | "live" | "review";
 const MIN_RIM_PX = 22; // below this the hoop is too small in the picture to track well
 const GRACE_MS = 1000; // a shot in the air at the buzzer still counts
+const LOW_W = 480; // width of the low-res picture used to follow the ball's flight
+const KEEP_W = 960; // width of the remembered frames used to find the shooter's feet
+const KEEP_N = 36, KEEP_EVERY_MS = 95; // ~3.4 seconds of history
 
 // ---- sound ----------------------------------------------------------------
 let audio: AudioContext | null = null;
@@ -66,6 +74,10 @@ export default function ShotCam() {
   const [finalMs, setFinalMs] = useState(0);
   const [saving, setSaving] = useState(false);
   const [showBoxes, setShowBoxes] = useState(false);
+  const [aimStep, setAimStep] = useState<"rim" | "court">("rim");
+  const [courtTaps, setCourtTaps] = useState<Pt[]>([]);
+  const [court, setCourt] = useState<{ toCourt: Homography; toImg: Homography } | null>(null);
+  const [openSession, setOpenSession] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -86,6 +98,15 @@ export default function ShotCam() {
   const autoRef = useRef({ makes: 0, attempts: 0 });
   const boxesRef = useRef(false);
   const isFileRef = useRef(false);
+  const courtRef = useRef<{ toCourt: Homography; toImg: Homography } | null>(null);
+  const courtTapsRef = useRef<Pt[]>([]);
+  const flightRef = useRef<FlightTracker | null>(null);
+  const lowCanvas = useRef<HTMLCanvasElement | null>(null);
+  const keepRef = useRef<{ t: number; canvas: HTMLCanvasElement }[]>([]);
+  const keepIdx = useRef(0);
+  const keepAt = useRef(-1e9);
+  const shotSeq = useRef(0);
+  courtRef.current = court; courtTapsRef.current = courtTaps;
 
   stageRef.current = stage; drillRef.current = drill; boxesRef.current = showBoxes; isFileRef.current = isFile;
 
@@ -154,6 +175,8 @@ export default function ShotCam() {
 
   function chooseDrill(d: CamDrill, file?: File) {
     setDrill(d); setNotice(""); setShots([]); shotsRef.current = [];
+    setAimStep("rim");
+    if (file) { setRim(null); setCourt(null); setCourtTaps([]); }
     setStage("aim");
     if (file) void startFile(file);
     else if (!streamRef.current) void startCamera();
@@ -177,16 +200,42 @@ export default function ShotCam() {
     if (d.seconds && t > d.seconds * 1000 + GRACE_MS) return;
     if (d.attempts && shotsRef.current.length >= d.attempts) return;
     if (src === "cam") { autoRef.current.attempts++; if (made) autoRef.current.makes++; }
-    pushShots([...shotsRef.current, { t, made, src }]);
+    const id = ++shotSeq.current;
+    pushShots([...shotsRef.current, { t, made, src, id }]);
     (made ? sound.make : sound.miss)();
     if (d.attempts && shotsRef.current.length >= d.attempts) { sound.buzzer(); endDrill(t); }
+    return id;
   }, [endDrill]);
+
+  // Work out where a shot was taken from: follow the ball back from the rim to
+  // the release, find that player's feet in a remembered frame, map to the court.
+  const locateShot = useCallback(async (ev: ShotEvent, id: number) => {
+    const c = courtRef.current, r = rimRef.current, fl = flightRef.current, v = videoRef.current;
+    if (!c || !r || !fl || !v || !v.videoWidth) return;
+    const K = v.videoWidth / LOW_W, q = roiRect(r), ballLow = (r.width * 0.52) / K;
+    const tail = ev.path.map((p) => ({ t: p.t, x: (q.x + (RIM_CX + p.x * RIM_PX) * q.scale) / K, y: (q.y + (RIM_CY + p.y * RIM_PX) * q.scale) / K }));
+    const track = fl.traceBack(tail, ballLow);
+    const rel = track[0];
+    if (!rel || ev.t - rel.t < 450 || Math.hypot(rel.x * K - r.cx, rel.y * K - r.cy) < r.width * 3) return; // couldn't follow the flight
+    const frames = keepRef.current.filter((f) => f.t > -1e8);
+    if (!frames.length) return;
+    const want = rel.t - 250; // just before the release, feet still on the floor
+    const fr = frames.reduce((a, b) => (Math.abs(b.t - want) < Math.abs(a.t - want) ? b : a));
+    const F = fr.canvas.width / v.videoWidth;
+    const feet = await findFeet(fr.canvas, { x: rel.x * K * F, y: rel.y * K * F });
+    if (!feet) return;
+    const pt = applyH(c.toCourt, { x: feet.x / F, y: feet.y / F });
+    if (!isFinite(pt.x) || !isFinite(pt.y) || pt.x < -4 || pt.x > 54 || pt.y < -4 || pt.y > 50) return;
+    pushShots(shotsRef.current.map((s) => (s.id === id ? { ...s, x: Math.round(pt.x * 10) / 10, y: Math.round(pt.y * 10) / 10 } : s)));
+  }, []);
 
   function undoLast() { pushShots(shotsRef.current.slice(0, -1)); }
 
   function beginCountdown() {
     unlockAudio();
     pushShots([]); autoRef.current = { makes: 0, attempts: 0 };
+    flightRef.current?.reset(); keepRef.current.forEach((f) => { f.t = -1e9; }); keepAt.current = -1e9;
+    setError("");
     buzzedRef.current = false; lastTickRef.current = -1;
     setElapsed(0);
     if (isFile) {
@@ -236,7 +285,11 @@ export default function ShotCam() {
           const img = ctx.getImageData(0, 0, ROI_W, ROI_H);
           const ev = det.current.process(img.data, now, dbg);
           if (dbg.drift) { r.cx += dbg.drift.dx * q.scale; r.cy += dbg.drift.dy * q.scale; }
-          if (ev && stageRef.current === "live") addShot(ev.result === "make", "cam", ev.t);
+          if (ev && stageRef.current === "live") {
+            const id = addShot(ev.result === "make", "cam", ev.t);
+            if (id) setTimeout(() => void locateShot(ev, id), 0); // after this frame's work is done
+          }
+          watchFlight(now, r);
         }
         drawZoom();
       }
@@ -267,6 +320,30 @@ export default function ShotCam() {
       schedule();
     }
 
+    // Low-res view of the whole picture (to follow the ball) + a short memory of
+    // frames (to find the shooter) — only when the court has been marked.
+    function watchFlight(now: number, r: RimBox) {
+      const st = stageRef.current;
+      if (!courtRef.current || (st !== "live" && st !== "countdown") || !v || !v.videoWidth) return;
+      const lowH = Math.round((LOW_W * v.videoHeight) / v.videoWidth);
+      if (!lowCanvas.current) lowCanvas.current = document.createElement("canvas");
+      const lc = lowCanvas.current;
+      if (lc.width !== LOW_W || lc.height !== lowH) { lc.width = LOW_W; lc.height = lowH; flightRef.current = null; }
+      if (!flightRef.current) flightRef.current = new FlightTracker(LOW_W, lowH);
+      const lctx = lc.getContext("2d", { willReadFrequently: true })!;
+      lctx.drawImage(v, 0, 0, LOW_W, lowH);
+      flightRef.current.process(lctx.getImageData(0, 0, LOW_W, lowH).data, now, (r.width * 0.52 * LOW_W) / v.videoWidth);
+      if (now - keepAt.current >= KEEP_EVERY_MS || now < keepAt.current) {
+        keepAt.current = now;
+        const kh = Math.round((KEEP_W * v.videoHeight) / v.videoWidth);
+        if (keepRef.current.length < KEEP_N) keepRef.current.push({ t: -1e9, canvas: document.createElement("canvas") });
+        const slot = keepRef.current[keepIdx.current++ % keepRef.current.length];
+        if (slot.canvas.width !== KEEP_W || slot.canvas.height !== kh) { slot.canvas.width = KEEP_W; slot.canvas.height = kh; }
+        slot.canvas.getContext("2d")!.drawImage(v, 0, 0, KEEP_W, kh);
+        slot.t = now;
+      }
+    }
+
     function drawZoom() {
       const z = zoomRef.current;
       if (!z || stageRef.current !== "aim") return;
@@ -292,6 +369,19 @@ export default function ShotCam() {
       const lw = Math.max(2, o.width / 320);
       const r = rimRef.current;
       for (const p of tapsRef.current) { c.fillStyle = "#22c55e"; c.beginPath(); c.arc(p.x, p.y, lw * 2.5, 0, Math.PI * 2); c.fill(); }
+      if (stageRef.current === "aim") {
+        // court marking: the taps, and the painted lines as we think they lie
+        for (const p of courtTapsRef.current) { c.fillStyle = "#facc15"; c.beginPath(); c.arc(p.x, p.y, lw * 2.5, 0, Math.PI * 2); c.fill(); }
+        const ct = courtRef.current;
+        if (ct) {
+          c.strokeStyle = "#facc15"; c.lineWidth = lw;
+          for (const line of courtOutline()) {
+            c.beginPath();
+            line.forEach((pt, i) => { const q2 = applyH(ct.toImg, pt); if (i) c.lineTo(q2.x, q2.y); else c.moveTo(q2.x, q2.y); });
+            c.stroke();
+          }
+        }
+      }
       if (!r) return;
       const q = roiRect(r);
       c.strokeStyle = "rgba(255,255,255,0.55)"; c.lineWidth = lw / 2; c.strokeRect(q.x, q.y, q.w, q.h);
@@ -305,7 +395,7 @@ export default function ShotCam() {
 
     schedule();
     return () => { stop = true; cancelAnimationFrame(raf); if (hasVfc && vfc) v.cancelVideoFrameCallback(vfc); };
-  }, [active, isFile, addShot, clock, endDrill]);
+  }, [active, isFile, addShot, locateShot, clock, endDrill]);
 
   const videoSizeRef = useRef<{ w: number; h: number } | null>(null);
   const tapsRef = useRef<{ x: number; y: number }[]>([]);
@@ -317,6 +407,17 @@ export default function ShotCam() {
     if (stage !== "aim" || !videoSize) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const p = { x: ((e.clientX - rect.left) / rect.width) * videoSize.w, y: ((e.clientY - rect.top) / rect.height) * videoSize.h };
+    if (aimStep === "court") {
+      if (!rim) return;
+      const next = courtTaps.length >= 4 ? [p] : [...courtTaps, p];
+      setCourtTaps(next);
+      if (next.length < 4) { setCourt(null); return; }
+      const toCourt = calibrateFromLane(next, { x: rim.cx, y: rim.cy });
+      const toImg = toCourt && invertH(toCourt);
+      if (toCourt && toImg) { setCourt({ toCourt, toImg }); void loadPose(); }
+      else { setCourt(null); setCourtTaps([]); setError("Those four points don't make a lane — tap its four corners again."); }
+      return;
+    }
     if (taps.length !== 1) { setTaps([p]); setRim(null); return; }
     const a = taps[0];
     const width = Math.hypot(p.x - a.x, p.y - a.y);
@@ -342,7 +443,8 @@ export default function ShotCam() {
     try {
       await saveCamSession({
         player_id: playerId, drill: drill.key, makes, attempts: shots.length, duration_ms: Math.round(finalMs),
-        auto_makes: autoRef.current.makes, auto_attempts: autoRef.current.attempts, shots,
+        auto_makes: autoRef.current.makes, auto_attempts: autoRef.current.attempts,
+        shots: shots.map(({ id: _id, ...rest }) => rest),
       });
       setNotice(`Saved — ${drill.label}: ${makes}/${shots.length} (${pctText(makes, shots.length)})`);
       loadHistory();
@@ -352,7 +454,7 @@ export default function ShotCam() {
     } finally { setSaving(false); }
   }
   function discard() { setStage("pick"); setNotice(""); }
-  function leave() { stopSource(); setRim(null); setTaps([]); setStage("pick"); }
+  function leave() { stopSource(); setRim(null); setTaps([]); setCourt(null); setCourtTaps([]); setAimStep("rim"); setStage("pick"); }
 
   async function removeSession(id: string) {
     if (!window.confirm("Delete this Shot Cam workout?")) return;
@@ -428,15 +530,23 @@ export default function ShotCam() {
                 </tr></thead>
                 <tbody>
                   {history.map((h) => (
-                    <tr key={h.id} className="border-b last:border-0">
+                    <Fragment key={h.id}>
+                    <tr className="border-b last:border-0">
                       <td className="p-2 whitespace-nowrap">{h.workout_date}</td>
                       {!isPlayer && <td className="p-2">{playerName(h.player_id)}</td>}
                       <td className="p-2">{camDrill(h.drill)?.label ?? h.drill}</td>
                       <td className="p-2 font-semibold">{h.makes}/{h.attempts}</td>
                       <td className="p-2">{pctText(h.makes, h.attempts)}</td>
                       <td className="p-2">{fmtClock(h.duration_ms)}</td>
-                      <td className="p-2 text-right"><button onClick={() => removeSession(h.id)} className="text-xs text-gray-400 hover:text-garnet">Delete</button></td>
+                      <td className="p-2 text-right whitespace-nowrap">
+                        {h.shots?.some((x) => x.x != null) && <button onClick={() => setOpenSession(openSession === h.id ? null : h.id)} className="text-xs text-garnet underline mr-3">{openSession === h.id ? "Hide chart" : "Shot chart"}</button>}
+                        <button onClick={() => removeSession(h.id)} className="text-xs text-gray-400 hover:text-garnet">Delete</button>
+                      </td>
                     </tr>
+                    {openSession === h.id && (
+                      <tr className="border-b last:border-0"><td colSpan={isPlayer ? 6 : 7} className="p-3"><div className="max-w-md mx-auto"><ShotCamChart shots={h.shots} showSpots /><SpotTable shots={h.shots} /></div></td></tr>
+                    )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -450,6 +560,12 @@ export default function ShotCam() {
         <div className="relative mx-auto bg-black rounded-lg overflow-hidden" style={frameStyle}>
           <video ref={videoRef} playsInline muted autoPlay className="absolute inset-0 w-full h-full" onEnded={() => { if (stageRef.current === "live") endDrill(clock() - startRef.current); }} />
           <canvas ref={overlayRef} onPointerDown={onTap} className="absolute inset-0 w-full h-full touch-none" style={{ cursor: stage === "aim" ? "crosshair" : "default" }} />
+          {/* mini shot chart */}
+          {court && (stage === "live" || stage === "countdown") && (
+            <div className="absolute top-0 right-[3%] w-[24%] min-w-[92px] pointer-events-none bg-black/55 rounded-b-lg px-1.5 pb-1.5 pt-1">
+              <ShotCamChart shots={shots} dark markSize={1.5} />
+            </div>
+          )}
           {/* on-video scoreboard + Ludo Arc badge */}
           {(stage === "live" || stage === "countdown") && (
             <div className="absolute inset-x-0 bottom-0 pointer-events-none text-white flex items-end justify-between gap-2 px-[3%] pb-[2.5%] pt-[9%] bg-gradient-to-t from-black/75 to-transparent">
@@ -480,12 +596,26 @@ export default function ShotCam() {
       {/* ---- 2. aim ---- */}
       {stage === "aim" && drill && (
         <div className="mt-3">
-          <h2 className="headline-bold text-xl text-garnet">{drill.label} — mark the rim</h2>
-          <p className="text-sm text-gray-700">
-            {!rim ? (taps.length === 0 ? "Tap the LEFT edge of the rim in the picture." : "Now tap the RIGHT edge of the rim.")
-              : "Check the close-up: the green line should sit on the rim, edge to edge, with the net inside the dashed box."}
-          </p>
-          {rim && (
+          <h2 className="headline-bold text-xl text-garnet">{drill.label} — {aimStep === "rim" ? "mark the rim" : "mark the court"}</h2>
+          {aimStep === "rim" ? (
+            <p className="text-sm text-gray-700">
+              {!rim ? (taps.length === 0 ? "Tap the LEFT edge of the rim in the picture." : "Now tap the RIGHT edge of the rim.")
+                : "Check the close-up: the green line should sit on the rim, edge to edge, with the net inside the dashed box."}
+            </p>
+          ) : (
+            <div className="text-sm text-gray-700">
+              {!court ? (
+                <p>Tap the <b>four corners of the lane</b> (the painted rectangle under the basket: two corners on the baseline, two at the ends of the free-throw line), in any order. <b>{courtTaps.length % 4} of 4</b> marked.</p>
+              ) : (
+                <p>The yellow lines show where the app thinks your 3-point arc and lane are. If they sit on the painted lines, you're set. If not, tap <b>Redo court</b>.</p>
+              )}
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button onClick={() => { setCourt(null); setCourtTaps([]); }} className="border rounded px-3 py-2 bg-white text-xs">Redo court</button>
+                <button onClick={() => { setCourt(null); setCourtTaps([]); setAimStep("rim"); }} className="border rounded px-3 py-2 bg-white text-xs">← Back to the rim</button>
+              </div>
+            </div>
+          )}
+          {rim && aimStep === "rim" && (
             <div className="mt-3 flex flex-wrap items-start gap-4">
               <canvas ref={zoomRef} width={ROI_W * 1.5} height={ROI_H * 1.5} className="rounded border bg-black" style={{ width: 224, height: 208 }} />
               <div className="text-sm">
@@ -506,9 +636,16 @@ export default function ShotCam() {
           )}
           {rimTooSmall && <p className="mt-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2">The hoop is very small in the picture — move the phone closer for better tracking.</p>}
           {rim && fps > 0 && fps < 14 && <p className="mt-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2">This phone is processing slowly ({fps} frames/sec). Counting may be less reliable — close other apps and try again.</p>}
-          <button disabled={!rim} onClick={beginCountdown} className="mt-4 w-full bg-garnet text-white rounded-lg px-5 py-4 font-semibold text-lg disabled:opacity-40">
-            Start {drill.label} {isFile ? "" : "(10-second countdown)"}
-          </button>
+          {aimStep === "rim" && !court ? (
+            <div className="mt-4 grid sm:grid-cols-2 gap-2">
+              <button disabled={!rim} onClick={() => { setError(""); setAimStep("court"); }} className="bg-garnet text-white rounded-lg px-5 py-4 font-semibold text-lg disabled:opacity-40">Next: mark the court →</button>
+              <button disabled={!rim} onClick={beginCountdown} className="border border-garnet text-garnet rounded-lg px-5 py-4 font-semibold disabled:opacity-40">Skip — just count makes</button>
+            </div>
+          ) : (
+            <button disabled={!rim || (aimStep === "court" && !court)} onClick={beginCountdown} className="mt-4 w-full bg-garnet text-white rounded-lg px-5 py-4 font-semibold text-lg disabled:opacity-40">
+              Start {drill.label} {isFile ? "" : "(10-second countdown)"}
+            </button>
+          )}
         </div>
       )}
 
@@ -546,6 +683,13 @@ export default function ShotCam() {
             <div className="bg-white border rounded-lg py-3"><div className="eyebrow text-[10px] text-gray-500">Percent</div><div className="data-bold text-5xl">{pctText(makes, shots.length)}</div></div>
             <div className="bg-white border rounded-lg py-3"><div className="eyebrow text-[10px] text-gray-500">Time</div><div className="data-bold text-5xl">{fmtClock(finalMs)}</div></div>
           </div>
+          {shots.some((s) => s.x != null) && (
+            <div className="mt-3 bg-white border rounded-lg p-3">
+              <div className="eyebrow text-[10px] text-gray-500 mb-1">Where the shots came from</div>
+              <ShotCamChart shots={shots} showSpots />
+              <SpotTable shots={shots} />
+            </div>
+          )}
           <p className="mt-3 text-sm text-gray-700">Did the camera get one wrong? Tap a shot to flip it between make and miss.</p>
           <ShotStrip shots={shots} onFlip={flip} />
           <div className="mt-3 flex flex-wrap gap-2 text-sm">
@@ -561,6 +705,29 @@ export default function ShotCam() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Makes / attempts / percent from each of the five spots behind the arc.
+function SpotTable({ shots }: { shots: CamShot[] }) {
+  const totals = spotTotals(shots);
+  const located = shots.filter((s) => s.x != null).length;
+  return (
+    <div className="mt-2">
+      <div className="grid grid-cols-5 gap-1 text-center text-xs">
+        {THREE_SPOTS.map((sp) => {
+          const t = totals.get(sp.key);
+          return (
+            <div key={sp.key} className="border rounded py-1.5">
+              <div className="text-gray-500 leading-tight">{sp.label}</div>
+              <div className="data-bold text-lg text-garnet leading-tight">{t ? pctText(t.m, t.a) : "–"}</div>
+              <div className="text-gray-600">{t ? `${t.m}/${t.a}` : "0/0"}</div>
+            </div>
+          );
+        })}
+      </div>
+      {located < shots.length && <p className="mt-1 text-xs text-gray-500">{shots.length - located} of {shots.length} shots couldn't be placed on the court; they still count in the totals above.</p>}
     </div>
   );
 }

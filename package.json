@@ -3,15 +3,18 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "VES Boys Basketball — live practice stat collection, Ludolytics report, and season dashboard.",
+  "description": "VES Boys Basketball \u2014 live practice stat collection, Ludolytics report, and season dashboard.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "test:parser": "tsx scripts/testParser.ts"
+    "test:parser": "tsx scripts/testParser.ts",
+    "predev": "node scripts/copyShotCamAssets.mjs",
+    "prebuild": "node scripts/copyShotCamAssets.mjs"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "0.10.14",
     "@supabase/supabase-js": "2.45.4",
     "jszip": "3.10.1",
     "pdfjs-dist": "^4.7.76",

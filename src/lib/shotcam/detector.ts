@@ -38,6 +38,8 @@ export interface ShotEvent {
   result: ShotResult;
   /** ms timestamp (caller's clock) at which the ball reached the rim. */
   t: number;
+  /** The ball's last sightings on its way down to the rim (rim widths, origin rim centre). */
+  path: BallSighting[];
 }
 
 export interface BallSighting { t: number; x: number; y: number; } // x,y in rim widths, origin rim centre, y down
@@ -87,6 +89,7 @@ export class ShotDetector {
   private rimT = 0; // time the ball reached the rim
   private nearT = 0; // last time the ball was seen near the hoop
   private cooldownUntil = 0;
+  private path: BallSighting[] = []; // the falling ball's sightings since arming
 
   reset() {
     this.bg = null; this.tpl = null; this.age.fill(0); this.frames = 0; this.quietFrames = 0;
@@ -202,9 +205,11 @@ export class ShotDetector {
       if (falling && cur && cur.y < 0 && cur.y > -2.4 && Math.abs(cur.x) < 2.6) {
         this.armedAt = t; this.lastAbove = cur; this.closest = Math.hypot(cur.x, cur.y); this.rimT = t; this.nearT = t;
         this.netMs = 0; this.netPeak = 0;
+        this.path = prev ? [prev, cur] : [cur];
       }
       return null;
     }
+    if (cur && cur.y < 0.1 && this.netMs === 0 && this.path.length && cur.y > this.path[this.path.length - 1].y) this.path.push(cur);
 
     // Armed: follow the ball to the rim.
     for (const p of pts) {
@@ -217,7 +222,8 @@ export class ShotDetector {
     if (netFill > this.netPeak) this.netPeak = netFill;
 
     const done = (result: ShotResult | null): ShotEvent | null => {
-      const ev = result ? { result, t: this.rimT } : null;
+      const ev = result ? { result, t: this.rimT, path: this.path } : null;
+      this.path = [];
       this.disarm();
       if (ev) this.cooldownUntil = t + 600;
       return ev;

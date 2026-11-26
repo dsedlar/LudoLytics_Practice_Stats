@@ -26,7 +26,13 @@ export const CAM_DRILLS: CamDrill[] = [
 export const camDrill = (key: string) => CAM_DRILLS.find((d) => d.key === key);
 
 /** One shot in a session. `t` is ms since the drill clock started. */
-export interface CamShot { t: number; made: boolean; src: "cam" | "manual"; edited?: boolean; }
+export interface CamShot {
+  t: number; made: boolean; src: "cam" | "manual"; edited?: boolean;
+  /** Where the shooter stood, in court feet (lib/court.ts system) — only when the court was marked and the shot could be traced. */
+  x?: number; y?: number;
+  /** Local key while the drill is running; not saved. */
+  id?: number;
+}
 
 export const fmtClock = (ms: number) => {
   const s = Math.max(0, Math.round(ms / 1000));
