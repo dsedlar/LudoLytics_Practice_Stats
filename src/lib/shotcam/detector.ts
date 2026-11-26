@@ -90,6 +90,7 @@ export class ShotDetector {
   private nearT = 0; // last time the ball was seen near the hoop
   private cooldownUntil = 0;
   private path: BallSighting[] = []; // the falling ball's sightings since arming
+  private pathDone = false;
 
   reset() {
     this.bg = null; this.tpl = null; this.age.fill(0); this.frames = 0; this.quietFrames = 0;
@@ -206,10 +207,16 @@ export class ShotDetector {
         this.armedAt = t; this.lastAbove = cur; this.closest = Math.hypot(cur.x, cur.y); this.rimT = t; this.nearT = t;
         this.netMs = 0; this.netPeak = 0;
         this.path = prev ? [prev, cur] : [cur];
+        this.pathDone = cur.y > -0.35;
       }
       return null;
     }
-    if (cur && cur.y < 0.1 && this.netMs === 0 && this.path.length && cur.y > this.path[this.path.length - 1].y) this.path.push(cur);
+    // Record the approach only until the ball first gets down to the rim — after
+    // that it may be bouncing around, which is not part of the shot's arc.
+    if (cur && !this.pathDone && this.netMs === 0 && this.path.length && cur.y > this.path[this.path.length - 1].y) {
+      if (cur.y < 0.1) this.path.push(cur);
+      if (cur.y > -0.35) this.pathDone = true;
+    }
 
     // Armed: follow the ball to the rim.
     for (const p of pts) {

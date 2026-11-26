@@ -44,9 +44,12 @@ export async function findFeet(frame: HTMLCanvasElement, release: Pt): Promise<P
   if (!pose) return null;
   crop ??= document.createElement("canvas");
   // Try a wide look first, then a tighter one (helps when the player is small in the picture).
-  for (const frac of [0.55, 0.32]) {
+  // Looks: [size as a fraction of picture height, how far above the release point the look starts].
+  // Wide first, then tighter (player small in the picture), then centred on the
+  // point (in case the trace ran down to the player's body instead of the hands).
+  for (const [frac, above] of [[0.55, 0.15], [0.32, 0.15], [0.55, 0.6]]) {
     const side = Math.round(frame.height * frac);
-    const x0 = Math.round(release.x - side / 2), y0 = Math.round(release.y - side * 0.15);
+    const x0 = Math.round(release.x - side / 2), y0 = Math.round(release.y - side * above);
     crop.width = crop.height = 384;
     const ctx = crop.getContext("2d")!;
     ctx.fillStyle = "#000"; ctx.fillRect(0, 0, 384, 384);
@@ -55,11 +58,13 @@ export async function findFeet(frame: HTMLCanvasElement, release: Pt): Promise<P
     let best: Pt | null = null, bestD = Infinity;
     for (const lm of res.landmarks) {
       const px = (i: number) => ({ x: x0 + lm[i].x * side, y: y0 + lm[i].y * side });
-      // closest of wrists / nose to the release point decides whose shot it was
-      const d = Math.min(...[0, 15, 16].map((i) => Math.hypot(px(i).x - release.x, px(i).y - release.y)));
+      // closest of nose / wrists / hips to the release point decides whose shot it was
+      const d = Math.min(...[0, 15, 16, 23, 24].map((i) => Math.hypot(px(i).x - release.x, px(i).y - release.y)));
       const feet = [29, 30, 31, 32].map(px); // heels and toes
       const f = { x: feet.reduce((s, p) => s + p.x, 0) / 4, y: feet.reduce((s, p) => s + p.y, 0) / 4 };
-      if (f.y <= release.y) continue; // feet must be below the ball
+      if (f.y <= release.y - side * 0.08) continue; // feet can't be above the ball
+      const tall = f.y - px(0).y; // nose to floor, in frame pixels
+      if (tall < side * 0.1 || d > tall * 1.2) continue; // not a real standing player, or too far from the ball to be the shooter
       if (d < bestD) { bestD = d; best = f; }
     }
     if (best && bestD < side * 0.45) return best;

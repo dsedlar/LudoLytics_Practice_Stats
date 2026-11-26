@@ -10,11 +10,12 @@
 
 export interface FlightPoint { t: number; x: number; y: number; } // low-res frame pixels
 
-interface Cand { x: number; y: number; w: number; h: number; crowded: boolean; }
+interface Cand { x: number; y: number; w: number; h: number; area: number; crowded: boolean; }
 interface Frame { t: number; cands: Cand[]; }
 
 const DIFF = 22; // per-channel change that counts as motion
 const HISTORY_MS = 3500;
+const TOL = 0.5; // how closely the flight must fit one arc, in ball diameters
 
 export class FlightTracker {
   readonly w: number;
@@ -81,7 +82,7 @@ export class FlightTracker {
       }
       const bw = maxX - minX + 1, bh = maxY - minY + 1;
       if (area < minArea || bw > maxSide || bh > maxSide) continue;
-      cands.push({ x: sx / area, y: sy / area, w: bw, h: bh, crowded: false });
+      cands.push({ x: sx / area, y: sy / area, w: bw, h: bh, area, crowded: false });
       areas.push(area);
     }
     // "Crowded" = lots of other motion right around the blob, i.e. the ball is
@@ -107,23 +108,66 @@ export class FlightTracker {
     if (tail.length < 2) return tail.slice();
     const track = tail.slice().sort((a, b) => b.t - a.t); // newest first; we append older points
     const gate = Math.max(4, ballPx * 1.6);
-    let misses = 0, lastCrowded = false;
+    let lastCrowded = false;
     const startT = track[track.length - 1].t;
     for (let f = this.frames.length - 1; f >= 0; f--) {
       const fr = this.frames[f];
       if (fr.t >= startT - 1) continue;
       const pred = predict(track, fr.t);
-      let best: Cand | null = null, bd = gate * (1 + 0.5 * misses);
+      // Tolerate dropped frames: allow a gap of up to ~a quarter second, widening the search as it grows.
+      const gap = track[track.length - 1].t - fr.t;
+      if (gap > 280) break;
+      let best: Cand | null = null, bd = gate * (1 + gap / 130);
       for (const c of fr.cands) { const d = Math.hypot(c.x - pred.x, c.y - pred.y); if (d < bd) { bd = d; best = c; } }
       if (best) {
         // Two crowded sightings in a row: we have followed the ball back into the shooter's hands.
         if (best.crowded && lastCrowded) { track.pop(); break; }
         lastCrowded = best.crowded;
-        track.push({ t: fr.t, x: best.x, y: best.y }); misses = 0;
-      } else if (++misses > 6) break;
+        track.push({ t: fr.t, x: best.x, y: best.y });
+      }
     }
-    return track.reverse();
+    return trimToFlight(track.reverse(), ballPx);
   }
+}
+
+/**
+ * Keep only the part of a trace that is really the ball in the air. A thrown
+ * ball follows one smooth arc: sideways at a steady rate, up and down as a
+ * parabola. Starting from the whole trace, drop the oldest points until what
+ * is left fits a single arc closely — that cuts off the stretch where the ball
+ * was still in the shooter's hands or the trace latched onto the shooter.
+ */
+function trimToFlight(track: FlightPoint[], ballPx: number): FlightPoint[] {
+  const tol = Math.max(1.2, ballPx * TOL);
+  for (let first = 0; first < track.length - 8; first++) {
+    const pts = track.slice(first);
+    const fit = fitArc(pts);
+    if (!fit) break;
+    let worst = 0, sum = 0;
+    for (const p of pts) { const q = fit(p.t); const d = Math.hypot(q.x - p.x, q.y - p.y); sum += d * d; if (d > worst) worst = d; }
+    if (Math.sqrt(sum / pts.length) <= tol && worst <= tol * 3) return pts;
+  }
+  return track.slice(Math.max(0, track.length - 8));
+}
+
+/** Least-squares arc through points: x(t) linear, y(t) quadratic. */
+function fitArc(pts: FlightPoint[]): ((t: number) => { x: number; y: number }) | null {
+  const t0 = pts[0].t, n = pts.length;
+  const S = [0, 0, 0, 0, 0], X = [0, 0], Y = [0, 0, 0];
+  for (const p of pts) { const v = (p.t - t0) / 1000; let pw = 1; for (let k = 0; k < 5; k++) { S[k] += pw; if (k < 2) X[k] += pw * p.x; if (k < 3) Y[k] += pw * p.y; pw *= v; } }
+  const den = n * S[2] - S[1] * S[1];
+  if (Math.abs(den) < 1e-9) return null;
+  const bx = (n * X[1] - S[1] * X[0]) / den, ax = (X[0] - bx * S[1]) / n;
+  const M = [[S[0], S[1], S[2], Y[0]], [S[1], S[2], S[3], Y[1]], [S[2], S[3], S[4], Y[2]]];
+  for (let c = 0; c < 3; c++) {
+    let piv = c;
+    for (let r = c + 1; r < 3; r++) if (Math.abs(M[r][c]) > Math.abs(M[piv][c])) piv = r;
+    if (Math.abs(M[piv][c]) < 1e-9) return null;
+    [M[c], M[piv]] = [M[piv], M[c]];
+    for (let r = 0; r < 3; r++) { if (r === c) continue; const f = M[r][c] / M[c][c]; for (let k = c; k < 4; k++) M[r][k] -= f * M[c][k]; }
+  }
+  const c0 = M[0][3] / M[0][0], c1 = M[1][3] / M[1][1], c2 = M[2][3] / M[2][2];
+  return (t: number) => { const u = (t - t0) / 1000; return { x: ax + bx * u, y: c0 + c1 * u + c2 * u * u }; };
 }
 
 /** Fit x(t) as a line and y(t) as a parabola through the oldest few track points; evaluate at t. */

@@ -23,6 +23,7 @@ import type { ShotEvent } from "../lib/shotcam/detector";
 type Stage = "pick" | "aim" | "countdown" | "live" | "review";
 const MIN_RIM_PX = 22; // below this the hoop is too small in the picture to track well
 const GRACE_MS = 1000; // a shot in the air at the buzzer still counts
+const DEBUG = typeof location !== "undefined" && location.search.includes("debug"); // add ?debug to the address for tracking logs
 const LOW_W = 480; // width of the low-res picture used to follow the ball's flight
 const KEEP_W = 960; // width of the remembered frames used to find the shooter's feet
 const KEEP_N = 36, KEEP_EVERY_MS = 95; // ~3.4 seconds of history
@@ -106,6 +107,7 @@ export default function ShotCam() {
   const keepIdx = useRef(0);
   const keepAt = useRef(-1e9);
   const shotSeq = useRef(0);
+  const arcsRef = useRef<{ id: number; made: boolean; pts: Pt[] }[]>([]); // traced flights, video pixels
   courtRef.current = court; courtTapsRef.current = courtTaps;
 
   stageRef.current = stage; drillRef.current = drill; boxesRef.current = showBoxes; isFileRef.current = isFile;
@@ -211,18 +213,24 @@ export default function ShotCam() {
   // the release, find that player's feet in a remembered frame, map to the court.
   const locateShot = useCallback(async (ev: ShotEvent, id: number) => {
     const c = courtRef.current, r = rimRef.current, fl = flightRef.current, v = videoRef.current;
-    if (!c || !r || !fl || !v || !v.videoWidth) return;
+    if (!r || !fl || !v || !v.videoWidth) return;
     const K = v.videoWidth / LOW_W, q = roiRect(r), ballLow = (r.width * 0.52) / K;
     const tail = ev.path.map((p) => ({ t: p.t, x: (q.x + (RIM_CX + p.x * RIM_PX) * q.scale) / K, y: (q.y + (RIM_CY + p.y * RIM_PX) * q.scale) / K }));
     const track = fl.traceBack(tail, ballLow);
     const rel = track[0];
     if (!rel || ev.t - rel.t < 450 || Math.hypot(rel.x * K - r.cx, rel.y * K - r.cy) < r.width * 3) return; // couldn't follow the flight
+    // The arc to draw: the traced flight, ending at the rim.
+    const pts = track.map((p) => ({ x: p.x * K, y: p.y * K }));
+    pts.push({ x: r.cx, y: r.cy });
+    arcsRef.current = [...arcsRef.current.slice(-11), { id, made: ev.result === "make", pts }];
+    if (!c) return; // court not marked: arcs only, no shot chart
     const frames = keepRef.current.filter((f) => f.t > -1e8);
     if (!frames.length) return;
     const want = rel.t - 250; // just before the release, feet still on the floor
     const fr = frames.reduce((a, b) => (Math.abs(b.t - want) < Math.abs(a.t - want) ? b : a));
     const F = fr.canvas.width / v.videoWidth;
     const feet = await findFeet(fr.canvas, { x: rel.x * K * F, y: rel.y * K * F });
+    if (DEBUG) console.info("shotcam locate", id, "release", Math.round(rel.x * K), Math.round(rel.y * K), "flight ms", Math.round(ev.t - rel.t), "feet", feet && Math.round(feet.x / F), feet && Math.round(feet.y / F));
     if (!feet) return;
     const pt = applyH(c.toCourt, { x: feet.x / F, y: feet.y / F });
     if (!isFinite(pt.x) || !isFinite(pt.y) || pt.x < -4 || pt.x > 54 || pt.y < -4 || pt.y > 50) return;
@@ -235,6 +243,7 @@ export default function ShotCam() {
     unlockAudio();
     pushShots([]); autoRef.current = { makes: 0, attempts: 0 };
     flightRef.current?.reset(); keepRef.current.forEach((f) => { f.t = -1e9; }); keepAt.current = -1e9;
+    arcsRef.current = [];
     setError("");
     buzzedRef.current = false; lastTickRef.current = -1;
     setElapsed(0);
@@ -258,38 +267,52 @@ export default function ShotCam() {
     if (!roiCanvas.current) { roiCanvas.current = document.createElement("canvas"); roiCanvas.current.width = ROI_W; roiCanvas.current.height = ROI_H; }
     const ctx = roiCanvas.current.getContext("2d", { willReadFrequently: true })!;
     const dbg: FrameDebug = { balls: [], netFill: 0, phase: "idle", drift: null };
-    let stop = false, frames = 0, fpsAt = performance.now(), raf = 0, vfc = 0;
-    // A recorded video sits paused while aiming, so drive it from the display clock instead.
-    const hasVfc = "requestVideoFrameCallback" in HTMLVideoElement.prototype && !isFileRef.current;
-    let lastMedia = -1;
+    let stop = false, frames = 0, fpsAt = performance.now(), raf = 0, vfc = 0, watchdog = 0;
+    const hasVfc = "requestVideoFrameCallback" in HTMLVideoElement.prototype;
+    let lastMedia = -1, camOffset: number | null = null;
+    // While the video is playing, run once per video frame and take that frame's
+    // exact timestamp (the ball's path is fitted against time, so jitter matters).
+    // A paused recording has no new frames, so fall back to the display clock —
+    // and a watchdog keeps the drill clock alive if frames stop arriving.
     const schedule = () => {
       if (stop) return;
-      if (hasVfc) vfc = v.requestVideoFrameCallback(step); else raf = requestAnimationFrame(step);
+      if (hasVfc && !v.paused) {
+        vfc = v.requestVideoFrameCallback((_n, meta) => step(meta.mediaTime));
+        watchdog = window.setTimeout(() => { v.cancelVideoFrameCallback(vfc); vfc = 0; step(); }, 700);
+      } else raf = requestAnimationFrame(() => step());
     };
 
-    function step() {
+    function step(mediaTime?: number) {
       if (stop || !v) return;
+      clearTimeout(watchdog);
       if (v.videoWidth && (!videoSizeRef.current || videoSizeRef.current.w !== v.videoWidth || videoSizeRef.current.h !== v.videoHeight)) {
         videoSizeRef.current = { w: v.videoWidth, h: v.videoHeight };
         setVideoSize(videoSizeRef.current);
       }
       const now = clock();
+      // this frame's own time, on the same timeline as the drill clock
+      let ft = now;
+      if (mediaTime != null) {
+        if (isFileRef.current) ft = mediaTime * 1000;
+        else { camOffset ??= now - mediaTime * 1000; ft = mediaTime * 1000 + camOffset; }
+      }
       const r = rimRef.current;
       if (r && v.readyState >= 2) {
         const q = roiRect(r);
         ctx.fillStyle = "#000"; ctx.fillRect(0, 0, ROI_W, ROI_H);
         ctx.drawImage(v, q.x, q.y, q.w, q.h, 0, 0, ROI_W, ROI_H);
         // Only feed the tracker new pictures (a paused or slow video repeats frames).
-        if (!isFileRef.current || v.currentTime !== lastMedia) {
-          lastMedia = v.currentTime;
+        const stamp = mediaTime ?? v.currentTime;
+        if (!isFileRef.current || stamp !== lastMedia) {
+          lastMedia = stamp;
           const img = ctx.getImageData(0, 0, ROI_W, ROI_H);
-          const ev = det.current.process(img.data, now, dbg);
+          const ev = det.current.process(img.data, ft, dbg);
           if (dbg.drift) { r.cx += dbg.drift.dx * q.scale; r.cy += dbg.drift.dy * q.scale; }
           if (ev && stageRef.current === "live") {
             const id = addShot(ev.result === "make", "cam", ev.t);
             if (id) setTimeout(() => void locateShot(ev, id), 0); // after this frame's work is done
           }
-          watchFlight(now, r);
+          watchFlight(ft, r);
         }
         drawZoom();
       }
@@ -324,7 +347,7 @@ export default function ShotCam() {
     // frames (to find the shooter) — only when the court has been marked.
     function watchFlight(now: number, r: RimBox) {
       const st = stageRef.current;
-      if (!courtRef.current || (st !== "live" && st !== "countdown") || !v || !v.videoWidth) return;
+      if ((st !== "live" && st !== "countdown") || !v || !v.videoWidth) return;
       const lowH = Math.round((LOW_W * v.videoHeight) / v.videoWidth);
       if (!lowCanvas.current) lowCanvas.current = document.createElement("canvas");
       const lc = lowCanvas.current;
@@ -333,7 +356,7 @@ export default function ShotCam() {
       const lctx = lc.getContext("2d", { willReadFrequently: true })!;
       lctx.drawImage(v, 0, 0, LOW_W, lowH);
       flightRef.current.process(lctx.getImageData(0, 0, LOW_W, lowH).data, now, (r.width * 0.52 * LOW_W) / v.videoWidth);
-      if (now - keepAt.current >= KEEP_EVERY_MS || now < keepAt.current) {
+      if (courtRef.current && (now - keepAt.current >= KEEP_EVERY_MS || now < keepAt.current)) {
         keepAt.current = now;
         const kh = Math.round((KEEP_W * v.videoHeight) / v.videoWidth);
         if (keepRef.current.length < KEEP_N) keepRef.current.push({ t: -1e9, canvas: document.createElement("canvas") });
@@ -384,6 +407,25 @@ export default function ShotCam() {
       }
       if (!r) return;
       const q = roiRect(r);
+      if (stageRef.current === "live") {
+        // shot arcs: green for makes, red for misses; older ones fade
+        const live = new Set(shotsRef.current.map((s2) => s2.id));
+        const arcs = arcsRef.current.filter((a) => live.has(a.id));
+        c.lineCap = "round"; c.lineJoin = "round";
+        arcs.forEach((a, i) => {
+          const age = arcs.length - 1 - i;
+          c.globalAlpha = Math.max(0.18, 0.9 - age * 0.14);
+          c.strokeStyle = a.made ? "#22c55e" : "#ef4444";
+          c.lineWidth = Math.max(3, r.width * 0.16);
+          c.beginPath();
+          c.moveTo(a.pts[0].x, a.pts[0].y);
+          for (let k = 1; k < a.pts.length - 1; k++) c.quadraticCurveTo(a.pts[k].x, a.pts[k].y, (a.pts[k].x + a.pts[k + 1].x) / 2, (a.pts[k].y + a.pts[k + 1].y) / 2);
+          c.lineTo(a.pts[a.pts.length - 1].x, a.pts[a.pts.length - 1].y);
+          c.stroke();
+        });
+        c.globalAlpha = 1;
+        return; // keep the picture clean during the drill (no rim box)
+      }
       c.strokeStyle = "rgba(255,255,255,0.55)"; c.lineWidth = lw / 2; c.strokeRect(q.x, q.y, q.w, q.h);
       c.strokeStyle = "#22c55e"; c.lineWidth = lw;
       c.beginPath(); c.moveTo(r.cx - r.width / 2, r.cy); c.lineTo(r.cx + r.width / 2, r.cy); c.stroke();
@@ -394,7 +436,7 @@ export default function ShotCam() {
     }
 
     schedule();
-    return () => { stop = true; cancelAnimationFrame(raf); if (hasVfc && vfc) v.cancelVideoFrameCallback(vfc); };
+    return () => { stop = true; clearTimeout(watchdog); cancelAnimationFrame(raf); if (hasVfc && vfc) v.cancelVideoFrameCallback(vfc); };
   }, [active, isFile, addShot, locateShot, clock, endDrill]);
 
   const videoSizeRef = useRef<{ w: number; h: number } | null>(null);
