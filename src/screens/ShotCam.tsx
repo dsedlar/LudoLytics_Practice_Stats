@@ -17,7 +17,7 @@ import { listCamSessions, saveCamSession, deleteCamSession, type CamSessionRow }
 import { FlightTracker } from "../lib/shotcam/flight";
 import { applyH, calibrateFromLane, courtOutline, invertH, type Homography, type Pt } from "../lib/shotcam/geometry";
 import { findFeet, loadPose } from "../lib/shotcam/pose";
-import ShotCamChart, { THREE_SPOTS, spotTotals } from "../components/ShotCamChart";
+import ShotCamChart, { ShotCamZones, HEAT, areaTotals } from "../components/ShotCamChart";
 import type { ShotEvent } from "../lib/shotcam/detector";
 
 type Stage = "pick" | "aim" | "countdown" | "live" | "review";
@@ -586,7 +586,7 @@ export default function ShotCam() {
                       </td>
                     </tr>
                     {openSession === h.id && (
-                      <tr className="border-b last:border-0"><td colSpan={isPlayer ? 6 : 7} className="p-3"><div className="max-w-md mx-auto"><ShotCamChart shots={h.shots} showSpots /><SpotTable shots={h.shots} /></div></td></tr>
+                      <tr className="border-b last:border-0"><td colSpan={isPlayer ? 6 : 7} className="p-3"><ZoneReport shots={h.shots} /></td></tr>
                     )}
                     </Fragment>
                   ))}
@@ -719,7 +719,7 @@ export default function ShotCam() {
               <div className="text-xs text-gray-600"><span className="font-bold text-green-700">O</span> make · <span className="font-bold text-garnet">X</span> miss</div>
             </div>
             {court ? (
-              <div className="max-w-xl mx-auto"><ShotCamChart shots={shots} showSpots markSize={1.1} /></div>
+              <div className="max-w-xl mx-auto"><ShotCamChart shots={shots} markSize={1.1} /></div>
             ) : (
               <p className="text-sm text-gray-500">The court wasn't marked for this drill, so shots are counted but not placed. Next time choose “Mark the court” after marking the rim.</p>
             )}
@@ -739,9 +739,7 @@ export default function ShotCam() {
           </div>
           {shots.some((s) => s.x != null) && (
             <div className="mt-3 bg-white border rounded-lg p-3">
-              <div className="eyebrow text-[10px] text-gray-500 mb-1">Where the shots came from</div>
-              <ShotCamChart shots={shots} showSpots />
-              <SpotTable shots={shots} />
+              <ZoneReport shots={shots} />
             </div>
           )}
           <p className="mt-3 text-sm text-gray-700">Did the camera get one wrong? Tap a shot to flip it between make and miss.</p>
@@ -763,25 +761,42 @@ export default function ShotCam() {
   );
 }
 
-// Makes / attempts / percent from each of the five spots behind the arc.
-function SpotTable({ shots }: { shots: CamShot[] }) {
-  const totals = spotTotals(shots);
+// After the workout: percentage from each section of the court (blue = cold,
+// orange = hot), the three headline areas, and where every shot was taken.
+function ZoneReport({ shots }: { shots: CamShot[] }) {
+  const areas = areaTotals(shots);
   const located = shots.filter((s) => s.x != null).length;
+  const tiles: [string, { m: number; a: number }][] = [["In the paint", areas.paint], ["Mid range", areas.mid], ["3 point", areas.three]];
   return (
-    <div className="mt-2">
-      <div className="grid grid-cols-5 gap-1 text-center text-xs">
-        {THREE_SPOTS.map((sp) => {
-          const t = totals.get(sp.key);
-          return (
-            <div key={sp.key} className="border rounded py-1.5">
-              <div className="text-gray-500 leading-tight">{sp.label}</div>
-              <div className="data-bold text-lg text-garnet leading-tight">{t ? pctText(t.m, t.a) : "–"}</div>
-              <div className="text-gray-600">{t ? `${t.m}/${t.a}` : "0/0"}</div>
-            </div>
-          );
-        })}
+    <div>
+      <div className="grid grid-cols-3 divide-x text-center mb-3">
+        {tiles.map(([name, t]) => (
+          <div key={name} className="px-1">
+            <div className="data-bold text-3xl">{t.a ? pctText(t.m, t.a) : "–"}</div>
+            <div className="eyebrow text-[10px] text-gray-500">{name}</div>
+            <div className="text-xs text-gray-500">{t.a ? `${t.m}-${t.a}` : ""}</div>
+          </div>
+        ))}
       </div>
-      {located < shots.length && <p className="mt-1 text-xs text-gray-500">{shots.length - located} of {shots.length} shots couldn't be placed on the court; they still count in the totals above.</p>}
+      <div className="grid md:grid-cols-2 gap-3 items-start">
+        <div>
+          <div className="eyebrow text-[10px] text-gray-500 mb-1">Percentage by section</div>
+          <ShotCamZones shots={shots} />
+          <div className="mt-1.5 flex items-center gap-1 text-[10px] text-gray-600">
+            <span>Cold</span>
+            {HEAT.map((h) => <span key={h.label} title={h.label} className="inline-block h-2.5 flex-1 rounded-sm" style={{ background: h.color }} />)}
+            <span>Hot</span>
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <div className="eyebrow text-[10px] text-gray-500">Where the shots came from</div>
+            <div className="text-[10px] text-gray-600"><span className="font-bold text-green-700">O</span> make · <span className="font-bold text-garnet">X</span> miss</div>
+          </div>
+          <div className="border rounded-lg"><ShotCamChart shots={shots} /></div>
+        </div>
+      </div>
+      {located < shots.length && <p className="mt-2 text-xs text-gray-500">{shots.length - located} of {shots.length} shots couldn't be placed on the court. They count in the overall total but not in the sections.</p>}
     </div>
   );
 }
