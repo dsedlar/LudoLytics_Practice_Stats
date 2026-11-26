@@ -66,52 +66,72 @@ export const HEAT: { color: string; text: string; label: string; upTo: number }[
 ];
 const heatFor = (key: PlayerZone, m: number, a: number) => HEAT.find((h) => m / a - ZONE_BENCHMARK[key] < h.upTo)!;
 
+// The sections are the ones the rest of the app uses (playerZoneFor): slices
+// fanning out from the basket, split by the 3-point line. Here they are drawn
+// on the real court — each slice is clipped to "inside the arc" or "outside
+// the arc" — so the picture is the same court as the shot chart, coloured in.
 const rad = (d: number) => (d * Math.PI) / 180;
-const P = (r: number, d: number): [number, number] => [B.x + r * Math.sin(rad(d)), B.y + r * Math.cos(rad(d))];
-const f = (n: number) => n.toFixed(2);
-function wedge(ri: number, ro: number, d1: number, d2: number): string {
-  const [ix1, iy1] = P(ri, d1), [ix2, iy2] = P(ri, d2), [ox2, oy2] = P(ro, d2), [ox1, oy1] = P(ro, d1);
-  return `M${f(ix1)},${f(iy1)} A${f(ri)},${f(ri)} 0 0 0 ${f(ix2)},${f(iy2)} L${f(ox2)},${f(oy2)} A${f(ro)},${f(ro)} 0 0 1 ${f(ox1)},${f(oy1)} Z`;
+const FAR = 90; // well past every edge of the picture
+/** A slice of floor seen from the basket between two angles (0 = straight out, + = right). */
+function slice(d1: number, d2: number): string {
+  const pts: string[] = [`M${B.x},${B.y}`];
+  const n = Math.max(1, Math.ceil((d2 - d1) / 6));
+  for (let k = 0; k <= n; k++) { const d = d1 + ((d2 - d1) * k) / n; pts.push(`L${(B.x + FAR * Math.sin(rad(d))).toFixed(2)},${(B.y + FAR * Math.cos(rad(d))).toFixed(2)}`); }
+  return pts.join(" ") + " Z";
 }
-const RIM = COURT.atrR, ARC = COURT.threeR, OUT = 60; // outer edge is clipped to the picture
-const MR = (RIM + ARC) / 2;
-// Same sections the rest of the app uses (playerZoneFor); label spots chosen to sit inside each one.
-const ZONES: { key: PlayerZone; path: string; lx: number; ly: number }[] = [
-  { key: "midLeft", path: wedge(RIM, ARC, -110, -30), lx: P(MR, -62)[0], ly: P(MR, -62)[1] },
-  { key: "paint", path: wedge(RIM, ARC, -30, 30), lx: B.x, ly: B.y + MR + 1 },
-  { key: "midRight", path: wedge(RIM, ARC, 30, 110), lx: P(MR, 62)[0], ly: P(MR, 62)[1] },
-  { key: "cornerLeft", path: wedge(ARC, OUT, -110, -68), lx: 3.5, ly: 6 },
-  { key: "wingLeft", path: wedge(ARC, OUT, -68, -24), lx: 7.5, ly: 25 },
-  { key: "top", path: wedge(ARC, OUT, -24, 24), lx: B.x, ly: 31 },
-  { key: "wingRight", path: wedge(ARC, OUT, 24, 68), lx: W - 7.5, ly: 25 },
-  { key: "cornerRight", path: wedge(ARC, OUT, 68, 110), lx: W - 3.5, ly: 6 },
+// Everything inside the painted 3-point line, baseline to arc.
+const INSIDE_ARC = (() => {
+  const a0 = Math.atan2(COURT.cornerJoinY - B.y, COURT.cornerX0 - B.x), a1 = Math.atan2(COURT.cornerJoinY - B.y, COURT.cornerX1 - B.x);
+  const pts = [`M${COURT.cornerX0},0`, `L${COURT.cornerX0},${COURT.cornerJoinY.toFixed(2)}`];
+  for (let k = 0; k <= 48; k++) { const a = a0 + ((a1 - a0) * k) / 48; pts.push(`L${(B.x + COURT.threeR * Math.cos(a)).toFixed(2)},${(B.y + COURT.threeR * Math.sin(a)).toFixed(2)}`); }
+  pts.push(`L${COURT.cornerX1},0`, "Z");
+  return pts.join(" ");
+})();
+const P = (r: number, d: number) => ({ x: B.x + r * Math.sin(rad(d)), y: B.y + r * Math.cos(rad(d)) });
+const ZONES: { key: PlayerZone; inside: boolean; path: string; at: { x: number; y: number }; small?: boolean }[] = [
+  { key: "midLeft", inside: true, path: slice(-180, -30), at: P(13.5, -66) },
+  { key: "paint", inside: true, path: slice(-30, 30), at: { x: B.x, y: B.y + 6.6 }, small: true },
+  { key: "midRight", inside: true, path: slice(30, 180), at: P(13.5, 66) },
+  { key: "cornerLeft", inside: false, path: slice(-180, -68), at: { x: COURT.cornerX0 / 2, y: 6.2 }, small: true },
+  { key: "wingLeft", inside: false, path: slice(-68, -24), at: P(25.5, -47) },
+  { key: "top", inside: false, path: slice(-24, 24), at: { x: B.x, y: B.y + 25.2 } },
+  { key: "wingRight", inside: false, path: slice(24, 68), at: P(25.5, 47) },
+  { key: "cornerRight", inside: false, path: slice(68, 180), at: { x: W - COURT.cornerX0 / 2, y: 6.2 }, small: true },
 ];
-const EMPTY = "#e5e7eb";
+const FLOOR = "#ffffff";
 
 export function ShotCamZones({ shots }: { shots: ChartShot[] }) {
   const t = zoneTotals(shots);
   const rim = t.get("rim");
+  const fillOf = (key: PlayerZone) => { const e = t.get(key); return e ? heatFor(key, e.m, e.a) : null; };
   const label = (key: PlayerZone, x: number, y: number, small = false) => {
     const e = t.get(key);
-    if (!e) return <text key={key} x={x} y={y} textAnchor="middle" fontSize="1.6" fill="#9ca3af">–</text>;
+    if (!e) return null;
     const h = heatFor(key, e.m, e.a);
     return (
       <g key={key} fill={h.text}>
-        <text x={x} y={y} textAnchor="middle" fontSize={small ? 1.7 : 2.6} fontWeight={800}>{Math.round((e.m / e.a) * 100)}%</text>
-        <text x={x} y={y + (small ? 1.6 : 2.1)} textAnchor="middle" fontSize={small ? 1.25 : 1.6}>({e.m}-{e.a})</text>
+        <text x={x} y={y} textAnchor="middle" fontSize={small ? 1.9 : 2.7} fontWeight={800}>{Math.round((e.m / e.a) * 100)}%</text>
+        <text x={x} y={y + (small ? 1.6 : 2.1)} textAnchor="middle" fontSize={small ? 1.3 : 1.6}>({e.m}-{e.a})</text>
       </g>
     );
   };
   return (
-    <svg viewBox={`0 0 ${W} ${VIEW_H}`} className="w-full block rounded-lg" role="img" aria-label="Shooting percentage from each section of the court">
-      <defs><clipPath id="shotcam-zones"><rect x={0} y={0} width={W} height={VIEW_H} /></clipPath></defs>
-      <g clipPath="url(#shotcam-zones)" stroke="#ffffff" strokeWidth={0.35}>
-        <rect x={0} y={0} width={W} height={VIEW_H} fill={EMPTY} stroke="none" />
-        {ZONES.map((z) => { const e = t.get(z.key); return <path key={z.key} d={z.path} fill={e ? heatFor(z.key, e.m, e.a).color : EMPTY} />; })}
-        <circle cx={B.x} cy={B.y} r={RIM} fill={rim ? heatFor("rim", rim.m, rim.a).color : EMPTY} />
-      </g>
-      {ZONES.map((z) => label(z.key, z.lx, z.ly, z.key === "cornerLeft" || z.key === "cornerRight"))}
-      {label("rim", B.x, B.y + 0.4, true)}
+    <svg viewBox={`0 0 ${W} ${VIEW_H}`} className="w-full block" role="img" aria-label="Shooting percentage from each section of the court">
+      <defs>
+        <clipPath id="shotcam-in"><path d={INSIDE_ARC} /></clipPath>
+        <clipPath id="shotcam-out"><path d={`M0,0 H${W} V${VIEW_H} H0 Z ${INSIDE_ARC}`} clipRule="evenodd" /></clipPath>
+      </defs>
+      <rect x={0} y={0} width={W} height={VIEW_H} fill={FLOOR} />
+      {[true, false].map((inside) => (
+        <g key={String(inside)} clipPath={`url(#shotcam-${inside ? "in" : "out"})`}>
+          {ZONES.filter((z) => z.inside === inside).map((z) => { const h = fillOf(z.key); return <path key={z.key} d={z.path} fill={h ? h.color : FLOOR} stroke="#9ca3af" strokeWidth={0.15} />; })}
+        </g>
+      ))}
+      {rim && <circle cx={B.x} cy={B.y} r={COURT.atrR} fill={heatFor("rim", rim.m, rim.a).color} clipPath="url(#shotcam-in)" />}
+      {/* the same court drawing as the shot chart, on top of the colours */}
+      <CourtBackdrop color="#4B5563" />
+      {ZONES.map((z) => label(z.key, z.at.x, z.at.y, z.small))}
+      {label("rim", B.x, B.y + 2.2, true)}
     </svg>
   );
 }
