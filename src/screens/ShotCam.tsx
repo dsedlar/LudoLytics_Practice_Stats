@@ -434,6 +434,25 @@ export default function ShotCam() {
         <div className="relative mx-auto bg-black rounded-lg overflow-hidden" style={frameStyle}>
           <video ref={videoRef} playsInline muted autoPlay className="absolute inset-0 w-full h-full" onEnded={() => { if (stageRef.current === "live") endDrill(clock() - startRef.current); }} />
           <canvas ref={overlayRef} onPointerDown={onTap} className="absolute inset-0 w-full h-full touch-none" style={{ cursor: stage === "aim" ? "crosshair" : "default" }} />
+          {/* on-video scoreboard + Ludo Arc badge */}
+          {(stage === "live" || stage === "countdown") && (
+            <div className="absolute inset-x-0 bottom-0 pointer-events-none text-white flex items-end justify-between gap-2 px-[3%] pb-[2.5%] pt-[9%] bg-gradient-to-t from-black/75 to-transparent">
+              <div className="flex items-center gap-2 min-w-0">
+                <img src="/ludo-arc.png" alt="" className="rounded-md flex-shrink-0" style={{ width: "clamp(26px, 7vw, 52px)", height: "clamp(26px, 7vw, 52px)" }} />
+                <div className="leading-tight min-w-0">
+                  <div className="text-white/80" style={{ fontSize: "clamp(8px, 1.9vw, 13px)" }}>Powered by</div>
+                  <div className="headline-bold" style={{ fontSize: "clamp(13px, 3.4vw, 24px)" }}>Ludo Arc</div>
+                </div>
+              </div>
+              <div className="flex items-end gap-3 flex-shrink-0" aria-hidden="true">
+                <div className="text-center"><div className="data-bold leading-none" style={{ fontSize: "clamp(26px, 8vw, 60px)" }}>{makes}</div><div className="eyebrow text-white/80" style={{ fontSize: "clamp(7px, 1.6vw, 11px)" }}>Makes</div></div>
+                <div className="bg-white/60 self-stretch" style={{ width: 2 }} />
+                <div className="text-center"><div className="data-bold leading-none" style={{ fontSize: "clamp(26px, 8vw, 60px)" }}>{shots.length}</div><div className="eyebrow text-white/80" style={{ fontSize: "clamp(7px, 1.6vw, 11px)" }}>Attempts</div></div>
+                <div className="bg-white/60 self-stretch" style={{ width: 2 }} />
+                <div className="text-center"><div className="data-bold leading-none" style={{ fontSize: "clamp(26px, 8vw, 60px)" }}>{clockText}</div><div className="eyebrow text-white/80" style={{ fontSize: "clamp(7px, 1.6vw, 11px)" }}>{drill?.seconds ? "Left" : "Time"}</div></div>
+              </div>
+            </div>
+          )}
           {stage === "countdown" && (
             <div className="absolute inset-0 grid place-items-center bg-black/40 text-white">
               <div className="text-center"><div className="eyebrow text-xs">Get ready</div><div className="data-bold text-8xl">{countdown}</div></div>
