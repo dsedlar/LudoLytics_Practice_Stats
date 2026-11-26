@@ -146,7 +146,10 @@ export default function ShotCam() {
     setIsFile(true); isFileRef.current = true;
     const v = videoRef.current!;
     v.src = url;
-    try { await v.play(); } catch { setError("That video can't be played in this browser."); setStage("pick"); }
+    // Hold on the first frame while the rim is marked; the drill restarts it from the top.
+    v.onloadeddata = () => { v.pause(); v.currentTime = 0; };
+    v.onerror = () => { setError("That video can't be played in this browser."); setStage("pick"); };
+    v.load();
   }
 
   function chooseDrill(d: CamDrill, file?: File) {
@@ -185,8 +188,15 @@ export default function ShotCam() {
     unlockAudio();
     pushShots([]); autoRef.current = { makes: 0, attempts: 0 };
     buzzedRef.current = false; lastTickRef.current = -1;
-    goAtRef.current = clock() + (isFile ? 2000 : 10000);
     setElapsed(0);
+    if (isFile) {
+      // Recorded video: play it from the start with the clock at zero.
+      const v = videoRef.current!;
+      det.current.reset();
+      v.currentTime = 0;
+      goAtRef.current = 0;
+      void v.play();
+    } else goAtRef.current = clock() + 10000;
     setStage("countdown");
   }
 
@@ -200,7 +210,9 @@ export default function ShotCam() {
     const ctx = roiCanvas.current.getContext("2d", { willReadFrequently: true })!;
     const dbg: FrameDebug = { balls: [], netFill: 0, phase: "idle", drift: null };
     let stop = false, frames = 0, fpsAt = performance.now(), raf = 0, vfc = 0;
-    const hasVfc = "requestVideoFrameCallback" in HTMLVideoElement.prototype;
+    // A recorded video sits paused while aiming, so drive it from the display clock instead.
+    const hasVfc = "requestVideoFrameCallback" in HTMLVideoElement.prototype && !isFileRef.current;
+    let lastMedia = -1;
     const schedule = () => {
       if (stop) return;
       if (hasVfc) vfc = v.requestVideoFrameCallback(step); else raf = requestAnimationFrame(step);
@@ -218,10 +230,14 @@ export default function ShotCam() {
         const q = roiRect(r);
         ctx.fillStyle = "#000"; ctx.fillRect(0, 0, ROI_W, ROI_H);
         ctx.drawImage(v, q.x, q.y, q.w, q.h, 0, 0, ROI_W, ROI_H);
-        const img = ctx.getImageData(0, 0, ROI_W, ROI_H);
-        const ev = det.current.process(img.data, now, dbg);
-        if (dbg.drift) { r.cx += dbg.drift.dx * q.scale; r.cy += dbg.drift.dy * q.scale; }
-        if (ev && stageRef.current === "live") addShot(ev.result === "make", "cam", ev.t);
+        // Only feed the tracker new pictures (a paused or slow video repeats frames).
+        if (!isFileRef.current || v.currentTime !== lastMedia) {
+          lastMedia = v.currentTime;
+          const img = ctx.getImageData(0, 0, ROI_W, ROI_H);
+          const ev = det.current.process(img.data, now, dbg);
+          if (dbg.drift) { r.cx += dbg.drift.dx * q.scale; r.cy += dbg.drift.dy * q.scale; }
+          if (ev && stageRef.current === "live") addShot(ev.result === "make", "cam", ev.t);
+        }
         drawZoom();
       }
       drawOverlay(dbg);
@@ -289,7 +305,7 @@ export default function ShotCam() {
 
     schedule();
     return () => { stop = true; cancelAnimationFrame(raf); if (hasVfc && vfc) v.cancelVideoFrameCallback(vfc); };
-  }, [active, addShot, clock, endDrill]);
+  }, [active, isFile, addShot, clock, endDrill]);
 
   const videoSizeRef = useRef<{ w: number; h: number } | null>(null);
   const tapsRef = useRef<{ x: number; y: number }[]>([]);

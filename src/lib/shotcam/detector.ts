@@ -56,9 +56,9 @@ const BG_ALPHA = 0.06; // background learning rate where nothing is moving
 const STALE_FRAMES = 45;
 const BG_ALPHA_FG = 0.004; // ...and under moving things (slow, so the ball never burns in)
 
-const NET_FILL_ON = 0.28; // net box counts as "filled" above this fraction
-const NET_MS_FOR_MAKE = 75; // ...for at least this long
-const NET_PEAK_FOR_MAKE = 0.36; // ...and peaking at least this high
+const NET_FILL_ON = 0.2; // net box counts as "filled" above this fraction
+const NET_MS_FOR_MAKE = 60; // ...for at least this long
+const NET_PEAK_FOR_MAKE = 0.26; // ...and peaking at least this high
 
 // Net box: directly under the rim, in rim widths relative to rim centre.
 const NET = { x0: -0.5, x1: 0.5, y0: 0.08, y1: 1.0 };
