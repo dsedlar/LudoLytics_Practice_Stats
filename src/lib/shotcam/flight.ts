@@ -150,6 +150,18 @@ function trimToFlight(track: FlightPoint[], ballPx: number): FlightPoint[] {
   return track.slice(Math.max(0, track.length - 8));
 }
 
+/**
+ * Where the ball was `msEarlier` before the start of a traced flight, assuming
+ * it was already on the same arc. Used when a trace stops short of the shooter.
+ */
+export function extendBack(track: FlightPoint[], msEarlier: number): FlightPoint | null {
+  if (track.length < 6) return null;
+  const fit = fitArc(track.slice(0, 14));
+  if (!fit) return null;
+  const t = track[0].t - msEarlier;
+  return { t, ...fit(t) };
+}
+
 /** Least-squares arc through points: x(t) linear, y(t) quadratic. */
 function fitArc(pts: FlightPoint[]): ((t: number) => { x: number; y: number }) | null {
   const t0 = pts[0].t, n = pts.length;

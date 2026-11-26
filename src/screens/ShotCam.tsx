@@ -14,7 +14,7 @@ import { isSupabaseConfigured } from "../lib/supabase";
 import { ShotDetector, ROI_W, ROI_H, RIM_PX, RIM_CX, RIM_CY, roiRect, type FrameDebug, type RimBox } from "../lib/shotcam/detector";
 import { CAM_DRILLS, camDrill, fmtClock, pctText, type CamDrill, type CamShot } from "../lib/shotcam/drills";
 import { listCamSessions, saveCamSession, deleteCamSession, type CamSessionRow } from "../lib/shotcam/store";
-import { FlightTracker } from "../lib/shotcam/flight";
+import { FlightTracker, extendBack } from "../lib/shotcam/flight";
 import { applyH, calibrateCourt, courtOutline, type Homography, type Pt } from "../lib/shotcam/geometry";
 import { findFeet, loadPose } from "../lib/shotcam/pose";
 import ShotCamChart, { ShotCamZones, HEAT, areaTotals } from "../components/ShotCamChart";
@@ -109,6 +109,7 @@ export default function ShotCam() {
   const keepIdx = useRef(0);
   const keepAt = useRef(-1e9);
   const shotSeq = useRef(0);
+  const screenRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ kind: "lane" | "arc"; idx: number; from: Pt; start: Pt } | null>(null);
   const arcsRef = useRef<{ id: number; made: boolean; pts: Pt[] }[]>([]); // traced flights, video pixels
   courtRef.current = court; courtTapsRef.current = courtTaps; arcTapsRef.current = arcTaps;
@@ -221,6 +222,7 @@ export default function ShotCam() {
     const tail = ev.path.map((p) => ({ t: p.t, x: (q.x + (RIM_CX + p.x * RIM_PX) * q.scale) / K, y: (q.y + (RIM_CY + p.y * RIM_PX) * q.scale) / K }));
     const track = fl.traceBack(tail, ballLow);
     const rel = track[0];
+    if (DEBUG) console.info("shotcam trace", id, "release", rel && Math.round(rel.x * K), rel && Math.round(rel.y * K), "flight ms", rel && Math.round(ev.t - rel.t), "tail", tail.length, "frames kept", keepRef.current.filter((f) => f.t > -1e8).length);
     if (!rel || ev.t - rel.t < 450 || Math.hypot(rel.x * K - r.cx, rel.y * K - r.cy) < r.width * 3) return; // couldn't follow the flight
     // The arc to draw: the traced flight, ending at the rim.
     const pts = track.map((p) => ({ x: p.x * K, y: p.y * K }));
@@ -229,16 +231,38 @@ export default function ShotCam() {
     if (!c) return; // court not marked: arcs only, no shot chart
     const frames = keepRef.current.filter((f) => f.t > -1e8);
     if (!frames.length) return;
-    const want = rel.t - 250; // just before the release, feet still on the floor
-    const fr = frames.reduce((a, b) => (Math.abs(b.t - want) < Math.abs(a.t - want) ? b : a));
-    const F = fr.canvas.width / v.videoWidth;
-    const feet = await findFeet(fr.canvas, { x: rel.x * K * F, y: rel.y * K * F });
-    if (DEBUG) console.info("shotcam locate", id, "release", Math.round(rel.x * K), Math.round(rel.y * K), "flight ms", Math.round(ev.t - rel.t), "feet", feet && Math.round(feet.x / F), feet && Math.round(feet.y / F));
+    const F = frames[0].canvas.width / v.videoWidth;
+    // Look for the shooter at the release point. If the trace stopped short
+    // (ball lost against a busy background), follow the same arc further back
+    // in steps until it reaches a player.
+    let feet: Pt | null = null;
+    for (const back of [0, 200, 400, 600, 800]) {
+      const at = back ? extendBack(track, back) : rel;
+      if (!at || at.x < 0 || at.y < 0 || at.x > fl.w || at.y > fl.h) break;
+      const want = at.t - 250; // just before the release, feet still on the floor
+      const fr = frames.reduce((a2, b2) => (Math.abs(b2.t - want) < Math.abs(a2.t - want) ? b2 : a2));
+      feet = await findFeet(fr.canvas, { x: at.x * K * F, y: at.y * K * F });
+      if (DEBUG) console.info("shotcam locate", id, "back", back, "at", Math.round(at.x * K), Math.round(at.y * K), "feet", feet && Math.round(feet.x / F), feet && Math.round(feet.y / F));
+      if (feet) break;
+    }
     if (!feet) return;
     const pt = applyH(c.toCourt, { x: feet.x / F, y: feet.y / F });
     if (!isFinite(pt.x) || !isFinite(pt.y) || pt.x < -4 || pt.x > 54 || pt.y < -4 || pt.y > 50) return;
     pushShots(shotsRef.current.map((s) => (s.id === id ? { ...s, x: Math.round(pt.x * 10) / 10, y: Math.round(pt.y * 10) / 10 } : s)));
   }, []);
+
+  // The X on the full-screen picture: during the drill it stops and goes to the
+  // review; during the countdown it backs out to the setup screen.
+  function stopCapture() {
+    if (stageRef.current === "live") endDrill(clock() - startRef.current);
+    else if (stageRef.current === "countdown") { if (isFile) videoRef.current?.pause(); setStage("aim"); }
+  }
+  // Leave full-screen whenever the picture is no longer full-screen.
+  useEffect(() => {
+    if (stage === "countdown" || stage === "live") return;
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    try { (screen.orientation as unknown as { unlock?: () => void }).unlock?.(); } catch { /* ignore */ }
+  }, [stage]);
 
   function undoLast() { pushShots(shotsRef.current.slice(0, -1)); }
 
@@ -257,7 +281,15 @@ export default function ShotCam() {
       v.currentTime = 0;
       goAtRef.current = 0;
       void v.play();
-    } else goAtRef.current = clock() + 10000;
+    } else goAtRef.current = clock() + 5000;
+    // Take over the screen. Real full-screen and a landscape lock where the
+    // browser allows them (Android); elsewhere the picture still fills the page.
+    const el = screenRef.current as (HTMLDivElement & { webkitRequestFullscreen?: () => void }) | null;
+    try {
+      const req = el?.requestFullscreen?.({ navigationUI: "hide" });
+      if (req) req.then(() => (screen.orientation as unknown as { lock?: (o: string) => Promise<void> }).lock?.("landscape").catch(() => {})).catch(() => {});
+      else el?.webkitRequestFullscreen?.();
+    } catch { /* not supported — the fixed layout covers the page anyway */ }
     setStage("countdown");
   }
 
@@ -545,9 +577,14 @@ export default function ShotCam() {
   const showVideo = active;
   const clockText = drill?.seconds ? fmtClock(Math.max(0, drill.seconds * 1000 - elapsed)) : fmtClock(elapsed);
   const rimTooSmall = !!rim && rim.width < MIN_RIM_PX;
-  const frameStyle = videoSize
-    ? { aspectRatio: `${videoSize.w} / ${videoSize.h}`, width: `min(100%, calc(${stage === "aim" ? 62 : 46}vh * ${videoSize.w / videoSize.h}))` }
-    : { aspectRatio: "16 / 9", width: "100%" };
+  // During the countdown and the drill the picture takes over the whole screen.
+  const full = stage === "countdown" || stage === "live";
+  const ratio = videoSize ? videoSize.w / videoSize.h : 16 / 9;
+  const frameStyle = full
+    ? { aspectRatio: `${ratio}`, width: `min(100vw, calc(100dvh * ${ratio}))`, maxHeight: "100dvh" }
+    : videoSize
+      ? { aspectRatio: `${videoSize.w} / ${videoSize.h}`, width: `min(100%, calc(62vh * ${ratio}))` }
+      : { aspectRatio: "16 / 9", width: "100%" };
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -636,13 +673,23 @@ export default function ShotCam() {
       )}
 
       {/* ---- camera picture (aim / countdown / live) ---- */}
-      <div className={showVideo ? "mt-4" : "hidden"}>
-        <div className="relative mx-auto bg-black rounded-lg overflow-hidden" style={frameStyle}>
+      <div ref={screenRef} className={full ? "fixed inset-0 z-50 bg-black flex items-center justify-center" : showVideo ? "mt-4" : "hidden"}>
+        <div className={`relative mx-auto bg-black overflow-hidden ${full ? "" : "rounded-lg"}`} style={frameStyle}>
           <video ref={videoRef} playsInline muted autoPlay className="absolute inset-0 w-full h-full" onEnded={() => { if (stageRef.current === "live") endDrill(clock() - startRef.current); }} />
           <canvas ref={overlayRef} onPointerDown={onTap} onPointerMove={onDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="absolute inset-0 w-full h-full touch-none" style={{ cursor: stage === "aim" ? "crosshair" : "default" }} />
+          {/* stop button */}
+          {full && (
+            <button
+              onClick={stopCapture}
+              aria-label={stage === "live" ? "Stop and review" : "Cancel"}
+              title={stage === "live" ? "Stop and review" : "Cancel"}
+              className="absolute z-10 grid place-items-center rounded-full bg-black/60 text-white border border-white/40"
+              style={{ top: "max(10px, env(safe-area-inset-top))", left: "max(10px, env(safe-area-inset-left))", width: 44, height: 44, fontSize: 22, lineHeight: 1 }}
+            >✕</button>
+          )}
           {/* mini shot chart */}
-          {court && (stage === "live" || stage === "countdown") && (
-            <div className="absolute top-0 right-[3%] w-[24%] min-w-[92px] pointer-events-none bg-black/55 rounded-b-lg px-1.5 pb-1.5 pt-1">
+          {court && full && (
+            <div className="absolute top-0 right-[3%] w-[26%] min-w-[104px] pointer-events-none bg-black/55 rounded-b-lg px-1.5 pb-1.5 pt-1">
               <ShotCamChart shots={shots} dark markSize={1.5} />
             </div>
           )}
@@ -650,24 +697,24 @@ export default function ShotCam() {
           {(stage === "live" || stage === "countdown") && (
             <div className="absolute inset-x-0 bottom-0 pointer-events-none text-white flex items-end justify-between gap-2 px-[3%] pb-[2.5%] pt-[9%] bg-gradient-to-t from-black/75 to-transparent">
               <div className="flex items-center gap-2 min-w-0">
-                <img src="/ludo-arc.png" alt="" className="rounded-md flex-shrink-0" style={{ width: "clamp(26px, 7vw, 52px)", height: "clamp(26px, 7vw, 52px)" }} />
+                <img src="/ludo-arc.png" alt="" className="rounded-md flex-shrink-0" style={{ width: "clamp(26px, 6vw, 72px)", height: "clamp(26px, 6vw, 72px)" }} />
                 <div className="leading-tight min-w-0">
-                  <div className="text-white/80" style={{ fontSize: "clamp(8px, 1.9vw, 13px)" }}>Powered by</div>
-                  <div className="headline-bold" style={{ fontSize: "clamp(13px, 3.4vw, 24px)" }}>Ludo Arc</div>
+                  <div className="text-white/80" style={{ fontSize: "clamp(8px, 1.7vw, 18px)" }}>Powered by</div>
+                  <div className="headline-bold" style={{ fontSize: "clamp(13px, 3vw, 34px)" }}>Ludo Arc</div>
                 </div>
               </div>
               <div className="flex items-end gap-3 flex-shrink-0" aria-hidden="true">
-                <div className="text-center"><div className="data-bold leading-none" style={{ fontSize: "clamp(26px, 8vw, 60px)" }}>{makes}</div><div className="eyebrow text-white/80" style={{ fontSize: "clamp(7px, 1.6vw, 11px)" }}>Makes</div></div>
+                <div className="text-center"><div className="data-bold leading-none" style={{ fontSize: "clamp(26px, 7vw, 84px)" }}>{makes}</div><div className="eyebrow text-white/80" style={{ fontSize: "clamp(7px, 1.5vw, 15px)" }}>Makes</div></div>
                 <div className="bg-white/60 self-stretch" style={{ width: 2 }} />
-                <div className="text-center"><div className="data-bold leading-none" style={{ fontSize: "clamp(26px, 8vw, 60px)" }}>{shots.length}</div><div className="eyebrow text-white/80" style={{ fontSize: "clamp(7px, 1.6vw, 11px)" }}>Attempts</div></div>
+                <div className="text-center"><div className="data-bold leading-none" style={{ fontSize: "clamp(26px, 7vw, 84px)" }}>{shots.length}</div><div className="eyebrow text-white/80" style={{ fontSize: "clamp(7px, 1.5vw, 15px)" }}>Attempts</div></div>
                 <div className="bg-white/60 self-stretch" style={{ width: 2 }} />
-                <div className="text-center"><div className="data-bold leading-none" style={{ fontSize: "clamp(26px, 8vw, 60px)" }}>{clockText}</div><div className="eyebrow text-white/80" style={{ fontSize: "clamp(7px, 1.6vw, 11px)" }}>{drill?.seconds ? "Left" : "Time"}</div></div>
+                <div className="text-center"><div className="data-bold leading-none" style={{ fontSize: "clamp(26px, 7vw, 84px)" }}>{clockText}</div><div className="eyebrow text-white/80" style={{ fontSize: "clamp(7px, 1.5vw, 15px)" }}>{drill?.seconds ? "Left" : "Time"}</div></div>
               </div>
             </div>
           )}
           {stage === "countdown" && (
             <div className="absolute inset-0 grid place-items-center bg-black/40 text-white">
-              <div className="text-center"><div className="eyebrow text-xs">Get ready</div><div className="data-bold text-8xl">{countdown}</div></div>
+              <div className="text-center"><div className="eyebrow text-xs">Get ready</div><div className="data-bold text-8xl">{countdown}</div><div className="hidden portrait:block text-sm mt-2">Turn your phone sideways for the full picture</div></div>
             </div>
           )}
         </div>
@@ -728,7 +775,7 @@ export default function ShotCam() {
             </div>
           ) : (
             <button disabled={!rim || (aimStep === "court" && !court)} onClick={beginCountdown} className="mt-4 w-full bg-garnet text-white rounded-lg px-5 py-4 font-semibold text-lg disabled:opacity-40">
-              Start {drill.label} {isFile ? "" : "(10-second countdown)"}
+              Start {drill.label} {isFile ? "" : "(5-second countdown)"}
             </button>
           )}
         </div>
