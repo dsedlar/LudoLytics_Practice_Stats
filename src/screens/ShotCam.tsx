@@ -11,6 +11,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { getPlayers, type PlayerRow } from "../lib/db";
 import { isSupabaseConfigured } from "../lib/supabase";
+import { COURT } from "../lib/court";
 import { ShotDetector, ROI_W, ROI_H, RIM_PX, RIM_CX, RIM_CY, roiRect, type FrameDebug, type RimBox } from "../lib/shotcam/detector";
 import { CAM_DRILLS, camDrill, fmtClock, pctText, type CamDrill, type CamShot } from "../lib/shotcam/drills";
 import { listCamSessions, saveCamSession, deleteCamSession, type CamSessionRow } from "../lib/shotcam/store";
@@ -54,6 +55,43 @@ const sound = {
   buzzer: () => beep(180, 1100, 0.35),
 };
 
+// ---- recording with the overlays burned in ---------------------------------
+const REC_W = 1280; // width of the saved video
+let logoImg: HTMLImageElement | null = null;
+const FONT = "Oswald, 'Franklin Gothic', Arial, sans-serif";
+const fmtWhen = (d: Date) => d.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+function pickRecorderType(): string {
+  if (typeof MediaRecorder === "undefined") return "";
+  return ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
+}
+
+/** The half court with O / X marks, drawn straight onto a canvas (for the saved video). */
+function paintMiniCourt(c: CanvasRenderingContext2D, x: number, y: number, w: number, shots: CamShot[]) {
+  const VIEW_H = 37, k = w / COURT.width, h = VIEW_H * k, pad = w * 0.04;
+  c.fillStyle = "rgba(0,0,0,0.55)";
+  c.fillRect(x - pad, y, w + pad * 2, h + pad);
+  c.save();
+  c.translate(x, y); c.scale(k, k);
+  c.beginPath(); c.rect(0, 0, COURT.width, VIEW_H); c.clip();
+  c.strokeStyle = "#ffffff"; c.lineWidth = 0.4; c.lineJoin = "round";
+  const B = COURT.basket, L = COURT.lane;
+  c.strokeRect(0.25, 0.25, COURT.width - 0.5, COURT.height - 0.5);
+  c.strokeRect(L.x0, 0, L.x1 - L.x0, L.ftLineY);
+  c.beginPath(); c.arc(B.x, L.ftLineY, COURT.ftCircleR, 0, Math.PI); c.stroke();
+  const a0 = Math.atan2(COURT.cornerJoinY - B.y, COURT.cornerX0 - B.x), a1 = Math.atan2(COURT.cornerJoinY - B.y, COURT.cornerX1 - B.x);
+  c.beginPath(); c.moveTo(COURT.cornerX0, 0); c.lineTo(COURT.cornerX0, COURT.cornerJoinY); c.arc(B.x, B.y, COURT.threeR, a0, a1, true); c.lineTo(COURT.cornerX1, 0); c.stroke();
+  c.beginPath(); c.moveTo(B.x - COURT.backboardHalf, COURT.backboardY); c.lineTo(B.x + COURT.backboardHalf, COURT.backboardY); c.stroke();
+  c.beginPath(); c.arc(B.x, B.y, COURT.rimR, 0, Math.PI * 2); c.stroke();
+  const r = 1.5;
+  for (const s of shots) {
+    if (s.x == null || s.y == null) continue;
+    const px = Math.min(COURT.width - 0.8, Math.max(0.8, s.x)), py = Math.min(VIEW_H - 0.8, Math.max(0.8, s.y));
+    if (s.made) { c.strokeStyle = "#4ade80"; c.lineWidth = r * 0.5; c.beginPath(); c.arc(px, py, r, 0, Math.PI * 2); c.stroke(); }
+    else { c.strokeStyle = "#ffffff"; c.lineWidth = r * 0.45; c.beginPath(); c.moveTo(px - r, py - r); c.lineTo(px + r, py + r); c.moveTo(px - r, py + r); c.lineTo(px + r, py - r); c.stroke(); }
+  }
+  c.restore();
+}
+
 export default function ShotCam() {
   const { isPlayer, playerId: myPlayerId } = useAuth();
   const [stage, setStage] = useState<Stage>("pick");
@@ -80,6 +118,8 @@ export default function ShotCam() {
   const [arcTaps, setArcTaps] = useState<Pt[]>([]); // spots along the painted 3-point line
   const [court, setCourt] = useState<{ toCourt: Homography; toImg: Homography } | null>(null);
   const [openSession, setOpenSession] = useState<string | null>(null);
+  const [startedAt, setStartedAt] = useState<Date | null>(null); // when the drill clock started
+  const [clip, setClip] = useState<{ url: string; file: File } | null>(null); // the recording of the last drill
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -110,6 +150,10 @@ export default function ShotCam() {
   const keepAt = useRef(-1e9);
   const shotSeq = useRef(0);
   const screenRef = useRef<HTMLDivElement>(null);
+  const recCanvas = useRef<HTMLCanvasElement | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const startedAtRef = useRef<Date | null>(null);
+  const countdownRef = useRef(0);
   const dragRef = useRef<{ kind: "lane" | "arc"; idx: number; from: Pt; start: Pt } | null>(null);
   const arcsRef = useRef<{ id: number; made: boolean; pts: Pt[] }[]>([]); // traced flights, video pixels
   courtRef.current = court; courtTapsRef.current = courtTaps; arcTapsRef.current = arcTaps;
@@ -264,6 +308,57 @@ export default function ShotCam() {
     try { (screen.orientation as unknown as { unlock?: () => void }).unlock?.(); } catch { /* ignore */ }
   }, [stage]);
 
+  // ---- recording -------------------------------------------------------------
+  function startRecording() {
+    stopRecording();
+    setClip((old) => { if (old) URL.revokeObjectURL(old.url); return null; });
+    const v = videoRef.current, type = pickRecorderType();
+    if (!v || !v.videoWidth || !type) return; // this browser can't record — the drill still works
+    try {
+      if (!recCanvas.current) recCanvas.current = document.createElement("canvas");
+      const cv = recCanvas.current;
+      cv.width = Math.min(REC_W, v.videoWidth);
+      cv.height = Math.round((cv.width * v.videoHeight) / v.videoWidth / 2) * 2;
+      cv.getContext("2d")!.drawImage(v, 0, 0, cv.width, cv.height);
+      const rec = new MediaRecorder(cv.captureStream(30), { mimeType: type, videoBitsPerSecond: 2_500_000 });
+      const chunks: Blob[] = [];
+      const d = drillRef.current, began = new Date();
+      rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      rec.onstop = () => {
+        if (!chunks.length) return;
+        const ext = type.includes("mp4") ? "mp4" : "webm";
+        const stamp = `${began.getFullYear()}-${String(began.getMonth() + 1).padStart(2, "0")}-${String(began.getDate()).padStart(2, "0")}-${String(began.getHours()).padStart(2, "0")}${String(began.getMinutes()).padStart(2, "0")}`;
+        const file = new File(chunks, `ludo-arc-${d?.key ?? "drill"}-${stamp}.${ext}`, { type: type.split(";")[0] });
+        setClip({ url: URL.createObjectURL(file), file });
+      };
+      rec.start(1000);
+      recorderRef.current = rec;
+    } catch (e) { console.warn("Shot Cam: recording unavailable", e); recorderRef.current = null; }
+  }
+  function stopRecording() {
+    const rec = recorderRef.current;
+    recorderRef.current = null;
+    if (rec && rec.state !== "inactive") { try { rec.stop(); } catch { /* already stopped */ } }
+  }
+  useEffect(() => () => { stopRecording(); }, []); // leaving the screen
+  // Stop a moment after the drill ends so the last make/miss is in the video.
+  useEffect(() => {
+    if (stage === "review") { const t = setTimeout(stopRecording, 700); return () => clearTimeout(t); }
+    if (stage === "pick" || stage === "aim") stopRecording();
+  }, [stage]);
+
+  async function saveClip() {
+    if (!clip) return;
+    const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
+    try {
+      // On a phone this opens the share sheet ("Save Video", AirDrop, Messages…).
+      if (nav.canShare?.({ files: [clip.file] })) { await nav.share({ files: [clip.file], title: "Ludo Arc workout" }); return; }
+    } catch (e) { if ((e as Error).name === "AbortError") return; }
+    const a = document.createElement("a");
+    a.href = clip.url; a.download = clip.file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
   function undoLast() { pushShots(shotsRef.current.slice(0, -1)); }
 
   function beginCountdown() {
@@ -282,6 +377,8 @@ export default function ShotCam() {
       goAtRef.current = 0;
       void v.play();
     } else goAtRef.current = clock() + 5000;
+    startedAtRef.current = null; setStartedAt(null);
+    startRecording();
     // Take over the screen. Real full-screen and a landscape lock where the
     // browser allows them (Android); elsewhere the picture still fills the page.
     const el = screenRef.current as (HTMLDivElement & { webkitRequestFullscreen?: () => void }) | null;
@@ -352,6 +449,7 @@ export default function ShotCam() {
         drawZoom();
       }
       drawOverlay(dbg);
+      drawRecording(now);
 
       // drill clock
       const st = stageRef.current, d = drillRef.current;
@@ -359,7 +457,8 @@ export default function ShotCam() {
         const left = goAtRef.current - now;
         const sec = Math.ceil(left / 1000);
         if (sec !== lastTickRef.current) { lastTickRef.current = sec; setCountdown(Math.max(0, sec)); if (sec > 0 && sec <= 3) sound.tick(); }
-        if (left <= 0) { startRef.current = goAtRef.current; sound.go(); stageRef.current = "live"; setStage("live"); }
+        countdownRef.current = Math.max(0, sec);
+        if (left <= 0) { startRef.current = goAtRef.current; startedAtRef.current = new Date(); setStartedAt(startedAtRef.current); sound.go(); stageRef.current = "live"; setStage("live"); }
       } else if (st === "live" && d) {
         const ms = now - startRef.current;
         if (d.seconds) {
@@ -418,6 +517,79 @@ export default function ShotCam() {
       c.beginPath(); c.moveTo((RIM_CX - RIM_PX / 2) * k, RIM_CY * k); c.lineTo((RIM_CX + RIM_PX / 2) * k, RIM_CY * k); c.stroke();
     }
 
+    // shot arcs: green for makes, red for misses; older ones fade (video-pixel coordinates)
+    function paintArcs(c: CanvasRenderingContext2D, rimWidth: number) {
+      const live = new Set(shotsRef.current.map((s2) => s2.id));
+      const arcs = arcsRef.current.filter((a) => live.has(a.id));
+      c.lineCap = "round"; c.lineJoin = "round";
+      arcs.forEach((a, i) => {
+        const age = arcs.length - 1 - i;
+        c.globalAlpha = Math.max(0.18, 0.9 - age * 0.14);
+        c.strokeStyle = a.made ? "#22c55e" : "#ef4444";
+        c.lineWidth = Math.max(3, rimWidth * 0.16);
+        c.beginPath();
+        c.moveTo(a.pts[0].x, a.pts[0].y);
+        for (let k = 1; k < a.pts.length - 1; k++) c.quadraticCurveTo(a.pts[k].x, a.pts[k].y, (a.pts[k].x + a.pts[k + 1].x) / 2, (a.pts[k].y + a.pts[k + 1].y) / 2);
+        c.lineTo(a.pts[a.pts.length - 1].x, a.pts[a.pts.length - 1].y);
+        c.stroke();
+      });
+      c.globalAlpha = 1;
+    }
+
+    // The saved video: the camera picture with every overlay drawn into it.
+    function drawRecording(now: number) {
+      const rec = recorderRef.current, cv = recCanvas.current;
+      if (!rec || rec.state !== "recording" || !cv || !v || !v.videoWidth) return;
+      const c = cv.getContext("2d")!, W = cv.width, H = cv.height, u = W / 1280; // u = size unit
+      c.drawImage(v, 0, 0, W, H);
+      const st = stageRef.current, d = drillRef.current, shotsNow = shotsRef.current;
+      if (rimRef.current && st === "live") { c.save(); c.scale(W / v.videoWidth, H / v.videoHeight); paintArcs(c, rimRef.current.width); c.restore(); }
+      // bottom shade
+      const g = c.createLinearGradient(0, H * 0.72, 0, H);
+      g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.78)");
+      c.fillStyle = g; c.fillRect(0, H * 0.72, W, H * 0.28);
+      // bottom left: Ludo Arc
+      if (!logoImg) { logoImg = new Image(); logoImg.src = "/ludo-arc.png"; }
+      const m = 36 * u, logo = 74 * u;
+      if (logoImg.complete && logoImg.naturalWidth) c.drawImage(logoImg, m, H - m - logo, logo, logo);
+      c.fillStyle = "rgba(255,255,255,0.85)"; c.textAlign = "left"; c.textBaseline = "alphabetic";
+      c.font = `400 ${20 * u}px Arial, sans-serif`; c.fillText("Powered by", m + logo + 14 * u, H - m - logo * 0.58);
+      c.fillStyle = "#ffffff"; c.font = `600 ${38 * u}px ${FONT}`; c.fillText("LUDO ARC", m + logo + 14 * u, H - m - logo * 0.08);
+      // bottom right: makes | attempts | clock
+      const ms = st === "live" ? now - startRef.current : 0;
+      const clockTxt = d?.seconds ? fmtClock(Math.max(0, d.seconds * 1000 - ms)) : fmtClock(ms);
+      const cols: [string, string][] = [[String(shotsNow.filter((s2) => s2.made).length), "MAKES"], [String(shotsNow.length), "ATTEMPTS"], [clockTxt, d?.seconds ? "LEFT" : "TIME"]];
+      let right = W - m;
+      c.textAlign = "center";
+      for (let i = cols.length - 1; i >= 0; i--) {
+        c.font = `600 ${84 * u}px ${FONT}`;
+        const colW = Math.max(c.measureText(cols[i][0]).width, 120 * u) + 30 * u;
+        c.fillStyle = "#ffffff"; c.fillText(cols[i][0], right - colW / 2, H - m - 24 * u);
+        c.font = `400 ${16 * u}px Arial, sans-serif`; c.fillStyle = "rgba(255,255,255,0.85)"; c.fillText(cols[i][1], right - colW / 2, H - m);
+        right -= colW;
+        if (i > 0) { c.fillStyle = "rgba(255,255,255,0.6)"; c.fillRect(right - 1 * u, H - m - 100 * u, 2 * u, 100 * u); }
+      }
+      // top right: shot chart
+      if (courtRef.current) paintMiniCourt(c, W * 0.71, 0, W * 0.25, shotsNow);
+      // top left: drill, date and time it started
+      const when = fmtWhen(startedAtRef.current ?? new Date());
+      c.textAlign = "left";
+      c.font = `600 ${26 * u}px ${FONT}`;
+      const label = (d?.label ?? "").toUpperCase(), tw = Math.max(c.measureText(label).width, 0);
+      c.font = `400 ${18 * u}px Arial, sans-serif`;
+      const bw = Math.max(tw, c.measureText(when).width) + 28 * u;
+      c.fillStyle = "rgba(0,0,0,0.55)"; c.fillRect(0, 0, bw + m * 0.5, 78 * u);
+      c.fillStyle = "#ffffff"; c.font = `600 ${26 * u}px ${FONT}`; c.fillText(label, m * 0.6, 34 * u);
+      c.fillStyle = "rgba(255,255,255,0.9)"; c.font = `400 ${18 * u}px Arial, sans-serif`; c.fillText(when, m * 0.6, 60 * u);
+      // countdown
+      if (st === "countdown") {
+        c.fillStyle = "rgba(0,0,0,0.4)"; c.fillRect(0, 0, W, H);
+        c.fillStyle = "#ffffff"; c.textAlign = "center";
+        c.font = `400 ${22 * u}px Arial, sans-serif`; c.fillText("GET READY", W / 2, H / 2 - 90 * u);
+        c.font = `600 ${180 * u}px ${FONT}`; c.fillText(String(countdownRef.current), W / 2, H / 2 + 80 * u);
+      }
+    }
+
     function drawOverlay(d: FrameDebug) {
       const o = overlayRef.current;
       if (!o || !v || !v.videoWidth) return;
@@ -445,22 +617,7 @@ export default function ShotCam() {
       if (!r) return;
       const q = roiRect(r);
       if (stageRef.current === "live") {
-        // shot arcs: green for makes, red for misses; older ones fade
-        const live = new Set(shotsRef.current.map((s2) => s2.id));
-        const arcs = arcsRef.current.filter((a) => live.has(a.id));
-        c.lineCap = "round"; c.lineJoin = "round";
-        arcs.forEach((a, i) => {
-          const age = arcs.length - 1 - i;
-          c.globalAlpha = Math.max(0.18, 0.9 - age * 0.14);
-          c.strokeStyle = a.made ? "#22c55e" : "#ef4444";
-          c.lineWidth = Math.max(3, r.width * 0.16);
-          c.beginPath();
-          c.moveTo(a.pts[0].x, a.pts[0].y);
-          for (let k = 1; k < a.pts.length - 1; k++) c.quadraticCurveTo(a.pts[k].x, a.pts[k].y, (a.pts[k].x + a.pts[k + 1].x) / 2, (a.pts[k].y + a.pts[k + 1].y) / 2);
-          c.lineTo(a.pts[a.pts.length - 1].x, a.pts[a.pts.length - 1].y);
-          c.stroke();
-        });
-        c.globalAlpha = 1;
+        paintArcs(c, r.width);
         return; // keep the picture clean during the drill (no rim box)
       }
       c.strokeStyle = "rgba(255,255,255,0.55)"; c.lineWidth = lw / 2; c.strokeRect(q.x, q.y, q.w, q.h);
@@ -565,7 +722,8 @@ export default function ShotCam() {
       setError(`Couldn't save: ${(e as Error).message}`);
     } finally { setSaving(false); }
   }
-  function discard() { setStage("pick"); setNotice(""); }
+  function dropClip() { setClip((old) => { if (old) URL.revokeObjectURL(old.url); return null; }); }
+  function discard() { dropClip(); setStage("pick"); setNotice(""); }
   function leave() { stopSource(); setRim(null); setTaps([]); resetCourt(); setAimStep("rim"); setStage("pick"); }
 
   async function removeSession(id: string) {
@@ -603,6 +761,12 @@ export default function ShotCam() {
       {/* ---- 1. pick a drill ---- */}
       {stage === "pick" && (
         <div className="mt-4">
+          {clip && (
+            <div className="mb-4 bg-white border rounded-lg px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm"><b>Video of your last workout</b> is still on this phone. It's gone once you start another drill or leave this page.</div>
+              <button onClick={saveClip} className="bg-garnet text-white rounded-lg px-4 py-2 font-semibold text-sm">Save video to this device</button>
+            </div>
+          )}
           {!isPlayer && (
             <label className="block mb-4 text-sm">
               <span className="font-semibold">Who is shooting?</span>
@@ -686,6 +850,13 @@ export default function ShotCam() {
               className="absolute z-10 grid place-items-center rounded-full bg-black/60 text-white border border-white/40"
               style={{ top: "max(10px, env(safe-area-inset-top))", left: "max(10px, env(safe-area-inset-left))", width: 44, height: 44, fontSize: 22, lineHeight: 1 }}
             >✕</button>
+          )}
+          {/* drill, date and time it started */}
+          {full && (
+            <div className="absolute pointer-events-none text-white leading-tight bg-black/55 rounded-lg px-2.5 py-1.5" style={{ top: "max(10px, env(safe-area-inset-top))", left: "calc(max(10px, env(safe-area-inset-left)) + 54px)" }}>
+              <div className="headline-bold" style={{ fontSize: "clamp(11px, 2vw, 20px)" }}>{drill?.label}</div>
+              <div className="text-white/90" style={{ fontSize: "clamp(9px, 1.4vw, 14px)" }}>{fmtWhen(startedAt ?? new Date())}</div>
+            </div>
           )}
           {/* mini shot chart */}
           {court && full && (
@@ -830,6 +1001,18 @@ export default function ShotCam() {
           {shots.some((s) => s.x != null) && (
             <div className="mt-3 bg-white border rounded-lg p-3">
               <ZoneReport shots={shots} />
+            </div>
+          )}
+          {clip && (
+            <div className="mt-3 bg-white border rounded-lg p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <div>
+                  <div className="eyebrow text-[10px] text-gray-500">Video of this workout</div>
+                  <div className="text-xs text-gray-600">Stays on this phone — it isn't uploaded. Save it now if you want to keep it.</div>
+                </div>
+                <button onClick={saveClip} className="bg-garnet text-white rounded-lg px-4 py-2 font-semibold text-sm">Save video to this device</button>
+              </div>
+              <video src={clip.url} controls playsInline className="w-full rounded bg-black" style={{ maxHeight: "50vh" }} />
             </div>
           )}
           <p className="mt-3 text-sm text-gray-700">Did the camera get one wrong? Tap a shot to flip it between make and miss.</p>
