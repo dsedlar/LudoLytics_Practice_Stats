@@ -1,6 +1,6 @@
 // Shot Cam drills — the three program drills a player can run on camera.
-// Attempt counts come from the same config the practice report uses, so the
-// two always agree.
+// Baylor and 90 Seconds run on a countdown clock; free throws end after a set
+// number of shots (taken from the same config the practice report uses).
 import { SHOOTING_DRILLS } from "../config";
 
 export type CamDrillKey = "baylor" | "ft" | "ninety";
@@ -18,7 +18,7 @@ export interface CamDrill {
 const denom = (k: string, fallback: number) => SHOOTING_DRILLS.find((d) => d.key === k)?.denominator ?? fallback;
 
 export const CAM_DRILLS: CamDrill[] = [
-  { key: "baylor", label: "Baylor Shooting", blurb: `${denom("baylor", 75)} shots, on the clock`, attempts: denom("baylor", 75) },
+  { key: "baylor", label: "Baylor Shooting", blurb: "As many makes as you can in 5 minutes", seconds: 300 },
   { key: "ft", label: `${denom("ft", 20)} Free Throws`, blurb: `${denom("ft", 20)} free throws`, attempts: denom("ft", 20) },
   { key: "ninety", label: "90 Seconds", blurb: "As many makes as you can in 90 seconds", seconds: 90 },
 ];
