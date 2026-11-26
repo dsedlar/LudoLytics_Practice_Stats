@@ -712,6 +712,18 @@ export default function ShotCam() {
               </div>
             </>
           )}
+          {/* live half court: O = make, X = miss, where each shot was taken */}
+          <div className="mt-3 bg-white border rounded-lg p-3">
+            <div className="flex items-center justify-between mb-1">
+              <div className="eyebrow text-[10px] text-gray-500">Shot chart</div>
+              <div className="text-xs text-gray-600"><span className="font-bold text-green-700">O</span> make · <span className="font-bold text-garnet">X</span> miss</div>
+            </div>
+            {court ? (
+              <div className="max-w-xl mx-auto"><ShotCamChart shots={shots} showSpots markSize={1.1} /></div>
+            ) : (
+              <p className="text-sm text-gray-500">The court wasn't marked for this drill, so shots are counted but not placed. Next time choose “Mark the court” after marking the rim.</p>
+            )}
+          </div>
           <ShotStrip shots={shots} />
         </div>
       )}

@@ -1,5 +1,5 @@
-// Half-court chart for Shot Cam: every located shot as a mark (filled dot =
-// make, X = miss) and, with `showSpots`, the percentage from each of the five
+// Half-court chart for Shot Cam: every located shot as a mark (O = make,
+// X = miss) and, with `showSpots`, the percentage from each of the five
 // spots behind the 3-point arc.
 import { COURT, playerZoneFor, type PlayerZone } from "../lib/court";
 import CourtBackdrop from "./CourtBackdrop";
@@ -53,7 +53,7 @@ export default function ShotCamChart({ shots, showSpots = false, dark = false, m
       {located.map((s, i) => {
         const p = clampPt(s);
         return s.made
-          ? <circle key={i} cx={p.x} cy={p.y} r={r} fill="#16a34a" stroke="#ffffff" strokeWidth={r * 0.25} />
+          ? <circle key={i} cx={p.x} cy={p.y} r={r} fill={dark ? "rgba(0,0,0,0.35)" : "#ffffff"} stroke={dark ? "#4ade80" : "#16a34a"} strokeWidth={r * 0.5} />
           : <g key={i} stroke={dark ? "#ffffff" : "#B20000"} strokeWidth={r * 0.45} strokeLinecap="round"><line x1={p.x - r} y1={p.y - r} x2={p.x + r} y2={p.y + r} /><line x1={p.x - r} y1={p.y + r} x2={p.x + r} y2={p.y - r} /></g>;
       })}
     </svg>
