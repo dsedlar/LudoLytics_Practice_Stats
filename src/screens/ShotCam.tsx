@@ -16,7 +16,7 @@ import { ShotDetector, ROI_W, ROI_H, RIM_PX, RIM_CX, RIM_CY, roiRect, type Frame
 import { CAM_DRILLS, camDrill, fmtClock, pctText, type CamDrill, type CamShot } from "../lib/shotcam/drills";
 import { listCamSessions, saveCamSession, deleteCamSession, type CamSessionRow } from "../lib/shotcam/store";
 import { FlightTracker, extendBack } from "../lib/shotcam/flight";
-import { applyH, calibrateCourt, courtOutline, type CourtFit, type Homography, type Pt } from "../lib/shotcam/geometry";
+import { applyH, calibrateCourt, courtOutline, findCourt, type CourtFit, type Homography, type Pt } from "../lib/shotcam/geometry";
 import { findFeet, loadPose } from "../lib/shotcam/pose";
 import { detectRim } from "../lib/shotcam/rimfind";
 import ShotCamChart, { ShotCamZones, HEAT, areaTotals } from "../components/ShotCamChart";
@@ -171,6 +171,10 @@ export default function ShotCam() {
   const loupeRef = useRef<Pt | null>(null); // where the magnifier is looking, video pixels
   const fitRef = useRef<CourtFit["state"] | null>(null);
   const [fitError, setFitError] = useState(0); // how far the marks are from the fitted court, in 1080p pixels
+  const [courtGuess, setCourtGuess] = useState<"" | "looking" | "found" | "none">(""); // the automatic first guess at the court
+  const [courtOk, setCourtOk] = useState(false); // the player has said the yellow lines look right
+  const seededRef = useRef(false); // current court started from the automatic guess (so adjust it, don't start over)
+  const guessTriedRef = useRef(false);
   const arcsRef = useRef<{ id: number; made: boolean; pts: Pt[] }[]>([]); // traced flights, video pixels
   courtRef.current = court; courtTapsRef.current = courtTaps; arcTapsRef.current = arcTaps;
 
@@ -827,11 +831,41 @@ export default function ShotCam() {
   function cancelDrag() { dragRef.current = null; placingRef.current = null; loupeRef.current = null; }
   function solveCourt(lane: Pt[], arc: Pt[], quick = false) {
     if (!rim || !videoSize) return;
-    const fit = calibrateCourt(lane, { x: rim.cx, y: rim.cy, width: rim.width }, videoSize, arc, quick ? fitRef.current ?? undefined : undefined);
+    const fit = calibrateCourt(lane, { x: rim.cx, y: rim.cy, width: rim.width }, videoSize, arc, quick || seededRef.current ? fitRef.current ?? undefined : undefined);
+    setCourtOk(false);
     if (fit) { fitRef.current = fit.state; setFitError(fit.error * (1920 / videoSize.w)); setError(""); setCourt({ toCourt: fit.toCourt, toImg: fit.toImg }); void loadPose(); }
     else { fitRef.current = null; setCourt(null); setError("Those four points don't make a lane — tap Redo court and mark its four corners again."); }
   }
-  function resetCourt() { fitRef.current = null; setCourt(null); setCourtTaps([]); setArcTaps([]); }
+  function resetCourt() { fitRef.current = null; seededRef.current = false; setCourt(null); setCourtTaps([]); setArcTaps([]); setCourtOk(false); setCourtGuess((g) => (g === "found" ? "none" : g)); }
+  // On reaching the court step, have a go at finding the court without any marks.
+  useEffect(() => {
+    if (stage !== "aim" || aimStep !== "court" || !rim || !videoSize || court || courtTaps.length || guessTriedRef.current) return;
+    guessTriedRef.current = true;
+    setCourtGuess("looking");
+    const id = window.setTimeout(() => {
+      const v = videoRef.current;
+      let fit: ReturnType<typeof findCourt> = null;
+      try {
+        if (v && v.videoWidth) {
+          const w = 960, h = Math.round((960 * v.videoHeight) / v.videoWidth);
+          const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+          const c = cv.getContext("2d", { willReadFrequently: true })!;
+          c.drawImage(v, 0, 0, w, h);
+          const px = c.getImageData(0, 0, w, h).data, gray = new Uint8Array(w * h);
+          for (let i = 0; i < w * h; i++) gray[i] = (px[i * 4] * 77 + px[i * 4 + 1] * 150 + px[i * 4 + 2] * 29) >> 8;
+          fit = findCourt({ gray, w, h, scale: w / v.videoWidth }, { x: rim.cx, y: rim.cy, width: rim.width }, videoSize);
+        }
+      } catch (e) { noteError("court finder", e); }
+      if (fit && fit.confidence >= 1.5) {
+        fitRef.current = fit.state; seededRef.current = true;
+        setCourtTaps(fit.corners); setArcTaps([]); setFitError(0);
+        setCourt({ toCourt: fit.toCourt, toImg: fit.toImg }); setCourtGuess("found"); void loadPose();
+      } else setCourtGuess("none");
+    }, 60);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, aimStep, rim, videoSize, court, courtTaps.length]);
+  useEffect(() => { guessTriedRef.current = false; }, [rim?.cx, rim?.cy, rim?.width, isFile]); // a new rim deserves a new guess
   function undoArc() { const arc = arcTaps.slice(0, -1); setArcTaps(arc); solveCourt(courtTaps, arc); }
   function nudge(dx: number, dy: number, grow = 1) {
     const r = rimRef.current;
@@ -1053,20 +1087,29 @@ export default function ShotCam() {
             </p>
           ) : (
             <div className="text-sm text-gray-700">
-              {courtTaps.length < 4 ? (
-                <p><b>Step 1.</b> Mark the <b>four corners of the lane</b> (the painted rectangle under the basket: two corners on the baseline, two at the ends of the free-throw line), in any order. Press, slide until the magnifier's cross is exactly on the corner, then lift. <b>{courtTaps.length} of 4</b> marked.</p>
+              {courtGuess === "looking" ? (
+                <p>Looking for your court…</p>
+              ) : courtGuess === "found" && seededRef.current ? (
+                <>
+                  <p><b>Here's my best guess at your court</b> (yellow). If the yellow arc and lane sit on the painted lines, tap <b>The lines look right</b>.</p>
+                  <p className="mt-1">If they're off, <b>drag the yellow dots</b> onto the four corners of the lane, and add spots along the 3-point line (press, slide onto the line, lift). The lines follow as you go. <b>{arcTaps.length}</b> 3-point spot{arcTaps.length === 1 ? "" : "s"} added.</p>
+                </>
+              ) : courtTaps.length < 4 ? (
+                <p>{courtGuess === "none" && <>Couldn't find the court by itself here, so mark it by hand. </>}<b>Step 1.</b> Mark the <b>four corners of the lane</b> (the painted rectangle under the basket: two corners on the baseline, two at the ends of the free-throw line), in any order. Press, slide until the magnifier's cross is exactly on the corner, then lift. <b>{courtTaps.length} of 4</b> marked.</p>
               ) : (
                 <>
                   <p><b>Step 2.</b> Mark <b>4 or more spots along the painted 3-point line</b>, spread from one end to the other (blue dots), the same way: press, slide onto the line, lift. <b>{arcTaps.length}</b> marked{arcTaps.length < 4 ? "" : " — good"}.</p>
                   <p className="mt-1">The yellow lines show where the app thinks your arc and lane are. They should sit on the paint. To fix one, <b>drag a dot</b> — it moves slower than your finger so small changes are easy.</p>
-                  {court && arcTaps.length < 4 && <p className="mt-1 text-amber-800">The court isn't pinned down yet — add {4 - arcTaps.length} more spot{4 - arcTaps.length === 1 ? "" : "s"} on the 3-point line before you start.</p>}
+                  {court && arcTaps.length < 4 && !courtOk && <p className="mt-1 text-amber-800">The court isn't pinned down yet — add {4 - arcTaps.length} more spot{4 - arcTaps.length === 1 ? "" : "s"} on the 3-point line, or tap “The lines look right” if they already do.</p>}
                   {court && arcTaps.length >= 4 && fitError > 14 && <p className="mt-1 text-amber-800">The marks don't fit a court very well (off by about {Math.round(fitError)} pixels). Check each yellow dot is exactly on a lane corner — drag any that isn't.</p>}
                   {court && arcTaps.length >= 4 && fitError <= 14 && <p className="mt-1 text-green-700 font-medium">The marks fit a court well.</p>}
                 </>
               )}
+              {court && courtOk && <p className="mt-1 text-green-700 font-medium">Court set.</p>}
               <div className="mt-2 flex flex-wrap gap-2">
+                {court && !courtOk && <button onClick={() => setCourtOk(true)} className="rounded px-3 py-2 bg-green-700 text-white text-xs font-semibold">✓ The lines look right</button>}
                 {arcTaps.length > 0 && <button onClick={undoArc} className="border rounded px-3 py-2 bg-white text-xs">Undo last 3-point spot</button>}
-                <button onClick={resetCourt} className="border rounded px-3 py-2 bg-white text-xs">Redo court</button>
+                <button onClick={resetCourt} className="border rounded px-3 py-2 bg-white text-xs">{courtGuess === "found" && seededRef.current ? "Mark it by hand" : "Redo court"}</button>
                 <button onClick={() => { resetCourt(); setAimStep("rim"); }} className="border rounded px-3 py-2 bg-white text-xs">← Back to the rim</button>
               </div>
             </div>
@@ -1099,7 +1142,7 @@ export default function ShotCam() {
               <button disabled={!rim} onClick={beginCountdown} className="border border-garnet text-garnet rounded-lg px-5 py-4 font-semibold disabled:opacity-40">Skip — just count makes</button>
             </div>
           ) : (
-            <button disabled={!rim || (aimStep === "court" && (!court || arcTaps.length < 4))} onClick={beginCountdown} className="mt-4 w-full bg-garnet text-white rounded-lg px-5 py-4 font-semibold text-lg disabled:opacity-40">
+            <button disabled={!rim || (aimStep === "court" && (!court || (arcTaps.length < 4 && !courtOk)))} onClick={beginCountdown} className="mt-4 w-full bg-garnet text-white rounded-lg px-5 py-4 font-semibold text-lg disabled:opacity-40">
               Start {drill.label} {isFile ? "" : "(5-second countdown)"}
             </button>
           )}

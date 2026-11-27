@@ -10,20 +10,42 @@ import type { RimBox } from "./detector";
 
 export interface RimCandidate extends RimBox { score: number; }
 
-/** Orange-red, the colour of a rim — not the purple-red of gym padding or the brown of wood. */
-function rimColour(r: number, g: number, b: number): boolean {
-  return r > 110 && r - g > 45 && r - b > 60 && g >= b - 8 && g < r * 0.72;
+/**
+ * Orange-red, the colour of a rim — not the purple-red of gym padding (its hue
+ * sits on the other side of pure red) or the yellow-brown of wood. Judged by
+ * hue, with "how colourful counts as colourful" set from the picture itself
+ * (`satMin`), so a dim gym or washed-out video still works.
+ */
+function rimColour(r: number, g: number, b: number, satMin: number): boolean {
+  // First choice (satMin = 0): a plain, strict "bright orange-red" test. It is the most selective.
+  if (satMin === 0) return r > 110 && r - g > 45 && r - b > 60 && g >= b - 8 && g < r * 0.72;
+  if (r < 70 || r < g || r < b) return false;
+  const mn = g < b ? g : b, span = r - mn;
+  if (span < r * satMin) return false;
+  const tilt = (g - b) / span; // hue: 0 = pure red, +1 = yellow, negative = toward purple
+  return tilt > -0.07 && tilt < 0.42;
+}
+
+/** How colourful the colourful parts of this picture are (90th percentile of saturation), turned into a threshold. */
+function saturationFloor(rgba: Uint8ClampedArray | Uint8Array, n: number): number {
+  const hist = new Uint32Array(101);
+  let count = 0;
+  for (let i = 0; i < n; i += 7) { const r = rgba[i * 4], g = rgba[i * 4 + 1], b = rgba[i * 4 + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b); if (mx < 40) continue; hist[Math.round(((mx - mn) / mx) * 100)]++; count++; }
+  let acc = 0, s90 = 50;
+  for (let k = 0; k <= 100; k++) { acc += hist[k]; if (acc >= count * 0.9) { s90 = k; break; } }
+  return Math.min(0.45, Math.max(0.16, (s90 / 100) * 0.55));
 }
 
 /**
  * Find rim candidates in an RGBA picture, best first. Coordinates are in the
  * picture's own pixels. `near` restricts the search to around that point.
  */
-export function findRims(rgba: Uint8ClampedArray | Uint8Array, w: number, h: number, near?: { x: number; y: number }): RimCandidate[] {
+export function findRims(rgba: Uint8ClampedArray | Uint8Array, w: number, h: number, near?: { x: number; y: number }, tolerant = false): RimCandidate[] {
+  const satMin = tolerant ? saturationFloor(rgba, w * h) : 0;
   const mask = new Uint8Array(w * h);
   let x0 = 0, x1 = w, y0 = 0, y1 = h;
   if (near) { const rx = w * 0.14, ry = h * 0.2; x0 = Math.max(0, Math.round(near.x - rx)); x1 = Math.min(w, Math.round(near.x + rx)); y0 = Math.max(0, Math.round(near.y - ry)); y1 = Math.min(h, Math.round(near.y + ry)); }
-  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * w + x) * 4; if (rimColour(rgba[i], rgba[i + 1], rgba[i + 2])) mask[y * w + x] = 1; }
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * w + x) * 4; if (rimColour(rgba[i], rgba[i + 1], rgba[i + 2], satMin)) mask[y * w + x] = 1; }
   // Close 1-pixel gaps sideways (net cords and highlights break a thin rim into pieces).
   for (let y = y0; y < y1; y++) for (let x = x0 + 1; x < x1 - 1; x++) { const i = y * w + x; if (!mask[i] && mask[i - 1] && mask[i + 1]) mask[i] = 2; }
 
@@ -72,7 +94,17 @@ export function findRims(rgba: Uint8ClampedArray | Uint8Array, w: number, h: num
  * rim, and the width of that band is the rim's width. `rgba` should be the
  * picture at full resolution; `guess` is in its pixels.
  */
-export function refineRim(rgba: Uint8ClampedArray | Uint8Array, w: number, h: number, guess: RimBox): RimBox & { net: number } {
+/** A looser "this could be part of the rim" test for the close look: thin, blurred parts of a rim are pale. */
+function reddish(r: number, g: number, b: number, tolerant: boolean): boolean {
+  if (!tolerant) return r > 90 && r > g + 30 && r > b + 30 && g >= b - 12;
+  if (r < 70 || r < g || r < b) return false;
+  const mn = g < b ? g : b, span = r - mn;
+  if (span < r * 0.13) return false;
+  const tilt = (g - b) / span;
+  return tilt > -0.12 && tilt < 0.5;
+}
+
+export function refineRim(rgba: Uint8ClampedArray | Uint8Array, w: number, h: number, guess: RimBox, tolerant = false): RimBox & { net: number } {
   const W0 = guess.width;
   const X0 = Math.max(1, Math.round(guess.cx - 1.3 * W0)), X1 = Math.min(w - 1, Math.round(guess.cx + 1.3 * W0));
   const Y0 = Math.max(0, Math.round(guess.cy - 0.6 * W0)), Y1 = Math.min(h, Math.round(guess.cy + 0.6 * W0));
@@ -82,7 +114,7 @@ export function refineRim(rgba: Uint8ClampedArray | Uint8Array, w: number, h: nu
   let rowMax = 0;
   for (let y = Y0; y < Y1; y++) {
     let n = 0;
-    for (let x = X0; x < X1; x++) { const i = (y * w + x) * 4, r = rgba[i], g = rgba[i + 1], b = rgba[i + 2]; if (r > 90 && r > g + 30 && r > b + 30 && g >= b - 12) n++; }
+    for (let x = X0; x < X1; x++) { const i = (y * w + x) * 4; if (reddish(rgba[i], rgba[i + 1], rgba[i + 2], tolerant)) n++; }
     rowCount.push(n); if (n > rowMax) rowMax = n;
   }
   if (rowMax < W0 * 0.2) return { ...guess, net: 0 };
@@ -113,7 +145,7 @@ export function refineRim(rgba: Uint8ClampedArray | Uint8Array, w: number, h: nu
   // 3. Width: the net narrows as it hangs, so it gives a low figure. The orange
   // itself reaches the rim's true edge on the side away from the bracket, so
   // measure outward from the net's centre both ways and trust the shorter reach.
-  const red = (x: number) => { for (let y = yt; y <= yb; y++) { const i = (y * w + x) * 4, rr = rgba[i], g = rgba[i + 1], b = rgba[i + 2]; if (rr > 90 && rr > g + 30 && rr > b + 30 && g >= b - 12) return true; } return false; };
+  const red = (x: number) => { for (let y = yt; y <= yb; y++) { const i = (y * w + x) * 4; if (reddish(rgba[i], rgba[i + 1], rgba[i + 2], tolerant)) return true; } return false; };
   const reach = (dir: 1 | -1) => { let last = 0, gap = 0; for (let d = 0; d < W0 * 1.2; d++) { const x = Math.round(cx) + dir * d; if (x <= X0 || x >= X1) break; if (red(x)) { last = d; gap = 0; } else if (++gap > W0 * 0.12) break; } return last; };
   const half = Math.min(reach(1), reach(-1));
   return { cx, cy, width: Math.max(netW / 0.9, half * 2 + 1), net };
@@ -127,12 +159,17 @@ export function refineRim(rgba: Uint8ClampedArray | Uint8Array, w: number, h: nu
  */
 export function detectRim(small: Uint8ClampedArray | Uint8Array, sw: number, sh: number, full: Uint8ClampedArray | Uint8Array, fw: number, fh: number, near?: { x: number; y: number }): RimBox | null {
   const k = fw / sw;
-  const shortlist = findRims(small, sw, sh, near && { x: near.x / k, y: near.y / k }).slice(0, 10);
   let best: RimBox | null = null, bestScore = 0;
-  for (const c of shortlist) {
-    const r = refineRim(full, fw, fh, { cx: c.cx * k, cy: c.cy * k, width: c.width * k });
-    const score = c.score * (0.15 + Math.min(2, r.net));
-    if (score > bestScore) { bestScore = score; best = { cx: r.cx, cy: r.cy, width: r.width }; }
+  // Strict colour test first. Only if nothing with a net under it turns up
+  // (dim gym, washed-out video) fall back to the tolerant, hue-based test.
+  for (const tolerant of [false, true]) {
+    for (const c of findRims(small, sw, sh, near && { x: near.x / k, y: near.y / k }, tolerant).slice(0, 20)) {
+      const r = refineRim(full, fw, fh, { cx: c.cx * k, cy: c.cy * k, width: c.width * k }, tolerant);
+      if (r.width < fw * 0.012) continue;
+      const score = c.score * (0.15 + Math.min(2, r.net)) * (tolerant ? 0.6 : 1);
+      if (score > bestScore) { bestScore = score; best = { cx: r.cx, cy: r.cy, width: r.width }; }
+    }
+    if (bestScore > 3) break;
   }
   return best;
 }

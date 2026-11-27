@@ -242,6 +242,155 @@ function cameraPose(c: Camera) {
   return { x: C[0], y: C[1], height: C[2], roll: (Math.atan2(up[0], -up[1]) * 180) / Math.PI, pitch: (Math.asin(Math.max(-1, Math.min(1, up[2]))) * 180) / Math.PI };
 }
 
+// ---- find the court automatically ---------------------------------------------
+/** A greyscale picture of the court. `scale` = its pixels per video pixel. */
+export interface CourtPicture { gray: Uint8Array | Uint8ClampedArray; w: number; h: number; scale: number; }
+
+function boxBlur(src: Float32Array, w: number, h: number, r: number): Float32Array {
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    let acc = 0;
+    for (let x = -r; x <= r; x++) acc += src[y * w + Math.min(w - 1, Math.max(0, x))];
+    for (let x = 0; x < w; x++) { tmp[y * w + x] = acc / (2 * r + 1); acc += src[y * w + Math.min(w - 1, x + r + 1)] - src[y * w + Math.max(0, x - r)]; }
+  }
+  for (let x = 0; x < w; x++) {
+    let acc = 0;
+    for (let y = -r; y <= r; y++) acc += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+    for (let y = 0; y < h; y++) { out[y * w + x] = acc / (2 * r + 1); acc += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x]; }
+  }
+  return out;
+}
+
+/**
+ * "Painted line here" strength for every pixel: a line is a thin stripe that
+ * is lighter or darker than the floor on BOTH sides of it. (The edge of a big
+ * patch — wall meets floor, a shadow — differs on one side only and scores 0.)
+ */
+function lineMap(pic: CourtPicture): Float32Array {
+  const { w, h, gray } = pic, out = new Float32Array(w * h);
+  const d = Math.max(2, Math.round(w / 300));
+  for (let y = d; y < h - d; y++) for (let x = d; x < w - d; x++) {
+    const c = gray[y * w + x];
+    let best = 0;
+    for (const [dx, dy] of [[d, 0], [0, d], [d, d], [d, -d]]) {
+      const a = c - gray[(y - dy) * w + x - dx], b = c - gray[(y + dy) * w + x + dx];
+      if (a * b > 0) { const m = Math.min(Math.abs(a), Math.abs(b)); if (m > best) best = m; }
+    }
+    out[y * w + x] = Math.min(50, best);
+  }
+  return out;
+}
+
+/** Points along the painted 3-point line and lane (court feet), with weights, for scoring a camera against the picture. */
+function paintedLinePoints(): { x: number; y: number; wgt: number }[] {
+  const pts: { x: number; y: number; wgt: number }[] = [];
+  const along = (a: Pt, b: Pt, n: number, wgt: number) => { for (let k = 0; k <= n; k++) pts.push({ x: a.x + ((b.x - a.x) * k) / n, y: a.y + ((b.y - a.y) * k) / n, wgt }); };
+  const B = COURT.basket, L = COURT.lane;
+  const a0 = Math.atan2(COURT.cornerJoinY - B.y, COURT.cornerX0 - B.x), a1 = Math.atan2(COURT.cornerJoinY - B.y, COURT.cornerX1 - B.x);
+  for (let k = 0; k <= 120; k++) { const a = a0 + ((a1 - a0) * k) / 120; pts.push({ x: B.x + COURT.threeR * Math.cos(a), y: B.y + COURT.threeR * Math.sin(a), wgt: 1 }); }
+  along({ x: COURT.cornerX0, y: 0.8 }, { x: COURT.cornerX0, y: COURT.cornerJoinY }, 8, 1);
+  along({ x: COURT.cornerX1, y: 0.8 }, { x: COURT.cornerX1, y: COURT.cornerJoinY }, 8, 1);
+  along({ x: L.x0, y: 1.5 }, { x: L.x0, y: L.ftLineY }, 24, 1);
+  along({ x: L.x1, y: 1.5 }, { x: L.x1, y: L.ftLineY }, 24, 1);
+  along({ x: L.x0, y: L.ftLineY }, { x: L.x1, y: L.ftLineY }, 16, 1);
+  return pts;
+}
+
+/**
+ * Find the court with no marks from the player. We already know where the rim
+ * is, and that the phone is level and somewhere around the half court at knee
+ * to head height. So: try every such camera (thousands), draw where the
+ * 3-point line and lane would fall for each, and keep the one whose drawn
+ * lines land on painted lines in the picture; then fine-tune it.
+ * `confidence` is how much better the winner is than a typical candidate.
+ */
+export function findCourt(pic: CourtPicture, rim: { x: number; y: number; width: number }, size: { w: number; h: number }): (CourtFit & { confidence: number }) | null {
+  const { w, h, scale: S } = pic, dim = Math.max(size.w, size.h);
+  const raw = lineMap(pic);
+  const coarse = boxBlur(raw, w, h, Math.max(3, Math.round(w / 110))), fine = boxBlur(raw, w, h, Math.max(1, Math.round(w / 420)));
+  const lines = paintedLinePoints();
+  const nArc = 121 + 18; // the first points are the 3-point line, the rest the lane
+  // "On a line" = stronger than most of the picture. Counting hits, not adding
+  // up strength, stops one very bold line (a wall edge, a border) from winning
+  // by itself: the whole arc AND the lane have to be found.
+  const level = (map: Float32Array) => { const v: number[] = []; for (let i = 0; i < map.length; i += 13) v.push(map[i]); v.sort((a, b) => a - b); return Math.max(1.5, v[Math.floor(v.length * 0.88)]); };
+  const levels = new Map<Float32Array, number>();
+  const score = (cam: Camera, map: Float32Array): number => {
+    let lv = levels.get(map);
+    if (lv === undefined) { lv = level(map); levels.set(map, lv); }
+    let hitA = 0, seenA = 0, hitL = 0, seenL = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const p = lines[i], q = project(cam, size, p.x, p.y, 0);
+      if (!q) continue;
+      const x = Math.round(q.x * S), y = Math.round(q.y * S);
+      if (x < 0 || y < 0 || x >= w || y >= h) continue;
+      const v = Math.min(1, map[y * w + x] / lv);
+      if (i < nArc) { seenA++; hitA += v; } else { seenL++; hitL += v; }
+    }
+    if (seenA < nArc * 0.45 || seenL < (lines.length - nArc) * 0.5) return 0; // most of the court must be in the picture
+    // the floor under the hoop must be below the rim in the picture
+    const B = COURT.basket, under = project(cam, size, B.x, B.y, 0);
+    if (!under || under.y < rim.y + rim.width) return 0;
+    const a = hitA / seenA, l = hitL / seenL;
+    return Math.sqrt(a * l) * Math.min(1, seenA / (nArc * 0.8)); // both must be good
+  };
+  const make = (x: number, y: number, hgt: number, f: number) => lookAtRim([x, y, hgt], f, MIRROR, rim, size);
+
+  // 1. coarse sweep
+  const cands: { x: number; y: number; hgt: number; f: number; s: number }[] = [];
+  let sumS = 0, nS = 0;
+  for (const fr of [0.45, 0.56, 0.68, 0.8, 0.95, 1.15, 1.45]) for (const hgt of [3.5, 4.5, 5.5]) for (let x = -25; x <= 75; x += 5) for (let y = 12; y <= 85; y += 5) {
+    const cam = make(x, y, hgt, fr * dim);
+    if (!cam) continue;
+    const s2 = score(cam, coarse);
+    if (s2 > 0) { cands.push({ x, y, hgt, f: fr * dim, s: s2 }); sumS += s2; nS++; }
+  }
+  if (!cands.length) return null;
+  cands.sort((a, b) => b.s - a.s);
+  // 2. fine-tune the best few, coarse map then fine map
+  let best: { cam: Camera; s: number } | null = null;
+  const tried: { x: number; y: number }[] = [];
+  for (const c0 of cands) {
+    if (tried.length >= 8) break;
+    if (tried.some((t) => Math.hypot(t.x - c0.x, t.y - c0.y) < 8)) continue; // already exploring this neighbourhood
+    tried.push({ x: c0.x, y: c0.y });
+    let p = [c0.x, c0.y, c0.hgt, Math.log(c0.f)], cur = c0.s;
+    for (const map of [coarse, fine]) {
+      const camNow = make(p[0], p[1], p[2], Math.exp(p[3]));
+      cur = camNow ? score(camNow, map) : 0;
+      let step = map === coarse ? [2.5, 2.5, 0.75, 0.08] : [0.8, 0.8, 0.3, 0.03];
+      for (let round = 0; round < 40; round++) {
+        let moved = false;
+        for (let k = 0; k < 4; k++) for (const dir of [1, -1]) {
+          const q = p.slice(); q[k] += dir * step[k];
+          if (q[2] < 2.8 || q[2] > 7.5 || q[3] < Math.log(0.36 * dim) || q[3] > Math.log(2 * dim)) continue;
+          const cam = make(q[0], q[1], q[2], Math.exp(q[3]));
+          const s2 = cam ? score(cam, map) : 0;
+          if (s2 > cur * 1.0005) { p = q; cur = s2; moved = true; }
+        }
+        if (!moved) { step = step.map((v) => v / 2); if (step[0] < 0.1) break; }
+      }
+    }
+    const cam = make(p[0], p[1], p[2], Math.exp(p[3]));
+    if (cam && (!best || cur > best.s)) best = { cam, s: cur };
+  }
+  if (!best) return null;
+  const toImg = floorMapping(best.cam, size), toCourt = invertH(toImg);
+  if (!toCourt) return null;
+  // typical line strength along a random believable camera's lines, on the fine map
+  let base = 0, nb = 0;
+  for (let i = 0; i < cands.length; i += Math.max(1, Math.floor(cands.length / 60))) { const c1 = cands[i], cam = make(c1.x, c1.y, c1.hgt, c1.f); if (cam) { base += score(cam, fine); nb++; } }
+  const typical = nb ? base / nb : 1;
+  void sumS; void nS;
+  return {
+    toCourt, toImg, corners: LANE.map((p) => applyH(toImg, p)), error: 0, cameraHeight: cameraPose(best.cam).height,
+    state: { cam: best.cam, order: [0, 1, 2, 3] }, confidence: typical > 0 ? best.s / typical : 0,
+  };
+}
+
+/** Which way round a real camera sees the court (the other is a mirror image). Set by `lookAtRim`'s construction. */
+const MIRROR: 1 | -1 = -1;
+
 /** A camera looking from `at` (court x, y, height) straight at the rim, level, with the rim landing on `rimPix`. */
 function lookAtRim(at: V3, f: number, mirror: 1 | -1, rimPix: Pt, size: { w: number; h: number }): Camera | null {
   const B = COURT.basket;
