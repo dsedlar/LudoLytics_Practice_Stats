@@ -18,6 +18,7 @@ import { listCamSessions, saveCamSession, deleteCamSession, type CamSessionRow }
 import { FlightTracker, extendBack } from "../lib/shotcam/flight";
 import { applyH, calibrateCourt, courtOutline, type CourtFit, type Homography, type Pt } from "../lib/shotcam/geometry";
 import { findFeet, loadPose } from "../lib/shotcam/pose";
+import { detectRim } from "../lib/shotcam/rimfind";
 import ShotCamChart, { ShotCamZones, HEAT, areaTotals } from "../components/ShotCamChart";
 import type { ShotEvent } from "../lib/shotcam/detector";
 
@@ -106,6 +107,8 @@ export default function ShotCam() {
   const [isFile, setIsFile] = useState(false);
   const [rim, setRimState] = useState<RimBox | null>(null);
   const [taps, setTaps] = useState<{ x: number; y: number }[]>([]);
+  const [rimMode, setRimMode] = useState<"auto" | "hand">("auto"); // find the rim automatically, or mark its two edges by hand
+  const [rimNote, setRimNote] = useState<"" | "found" | "missed">("");
   const [fps, setFps] = useState(0);
   const [shots, setShots] = useState<CamShot[]>([]);
   const [elapsed, setElapsed] = useState(0); // ms on the drill clock
@@ -579,15 +582,17 @@ export default function ShotCam() {
       if (!z || stageRef.current !== "aim") return;
       const c = z.getContext("2d")!;
       c.imageSmoothingEnabled = false;
-      c.drawImage(roiCanvas.current!, 0, 0, z.width, z.height);
-      const k = z.width / ROI_W;
+      // Show just the rim and net, large: 3.5 rim-widths across, centred on the rim.
+      const vw = 3.5 * RIM_PX, vh = (vw * z.height) / z.width, vx = RIM_CX - vw / 2, vy = RIM_CY - vh * 0.42;
+      c.drawImage(roiCanvas.current!, vx, vy, vw, vh, 0, 0, z.width, z.height);
+      const k = z.width / vw, X = (x: number) => (x - vx) * k, Y = (y: number) => (y - vy) * k;
       // net box
-      c.strokeStyle = "rgba(255,255,255,0.7)"; c.lineWidth = 1; c.setLineDash([4, 3]);
-      c.strokeRect((RIM_CX - RIM_PX / 2) * k, RIM_CY * k, RIM_PX * k, RIM_PX * k);
+      c.strokeStyle = "rgba(255,255,255,0.8)"; c.lineWidth = 1.5; c.setLineDash([6, 4]);
+      c.strokeRect(X(RIM_CX - RIM_PX / 2), Y(RIM_CY), RIM_PX * k, RIM_PX * k);
       c.setLineDash([]);
       // rim line
-      c.strokeStyle = "#22c55e"; c.lineWidth = 3;
-      c.beginPath(); c.moveTo((RIM_CX - RIM_PX / 2) * k, RIM_CY * k); c.lineTo((RIM_CX + RIM_PX / 2) * k, RIM_CY * k); c.stroke();
+      c.strokeStyle = "#22c55e"; c.lineWidth = 4;
+      c.beginPath(); c.moveTo(X(RIM_CX - RIM_PX / 2), Y(RIM_CY)); c.lineTo(X(RIM_CX + RIM_PX / 2), Y(RIM_CY)); c.stroke();
     }
 
     // shot arcs: green for makes, red for misses; older ones fade (video-pixel coordinates)
@@ -789,6 +794,7 @@ export default function ShotCam() {
       }
       return;
     }
+    if (rimMode === "auto") { autoRim(p); return; } // "the hoop is about here"
     if (taps.length !== 1) { setTaps([p]); setRim(null); return; }
     const a = taps[0];
     const width = Math.hypot(p.x - a.x, p.y - a.y);
@@ -796,6 +802,28 @@ export default function ShotCam() {
     if (width < 8) return;
     setRim({ cx: (a.x + p.x) / 2, cy: (a.y + p.y) / 2, width });
   }
+  // Look for the rim in the current picture — everywhere, or near where the player touched.
+  function autoRim(near?: Pt): boolean {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) return false;
+    try {
+      const fw = v.videoWidth, fh = v.videoHeight, sw = 960, sh = Math.round((960 * fh) / fw);
+      const grab = (w: number, h: number) => { const cv = document.createElement("canvas"); cv.width = w; cv.height = h; const c = cv.getContext("2d", { willReadFrequently: true })!; c.drawImage(v, 0, 0, w, h); return c.getImageData(0, 0, w, h).data; };
+      const found = detectRim(grab(sw, sh), sw, sh, grab(fw, fh), fw, fh, near);
+      if (found) { setTaps([]); setRim(found); setRimNote("found"); return true; }
+    } catch (e) { noteError("rim finder", e); }
+    if (near) setRimNote("missed");
+    return false;
+  }
+  // When the camera comes up, try to find the rim without being asked (a few tries, in case someone walks through).
+  useEffect(() => {
+    if (stage !== "aim" || aimStep !== "rim" || rim || rimMode !== "auto" || !videoSize) return;
+    let tries = 0;
+    const id = window.setInterval(() => { if (autoRim() || ++tries >= 6) { window.clearInterval(id); if (tries >= 6) setRimNote("missed"); } }, 700);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, aimStep, rim, rimMode, videoSize]);
+
   function cancelDrag() { dragRef.current = null; placingRef.current = null; loupeRef.current = null; }
   function solveCourt(lane: Pt[], arc: Pt[], quick = false) {
     if (!rim || !videoSize) return;
@@ -1012,8 +1040,16 @@ export default function ShotCam() {
           <h2 className="headline-bold text-xl text-garnet">{drill.label} — {aimStep === "rim" ? "mark the rim" : "mark the court"}</h2>
           {aimStep === "rim" ? (
             <p className="text-sm text-gray-700">
-              {!rim ? (taps.length === 0 ? "Press on the LEFT edge of the rim. A magnifier appears: slide until the cross is on the edge, then lift." : "Now do the same on the RIGHT edge of the rim.")
-                : "Check the close-up: the green line should sit on the rim, edge to edge, with the net inside the dashed box."}
+              {rim
+                ? (rimNote === "found" && rimMode === "auto" ? "Found the rim. Check the close-up: the green line should sit on the rim, edge to edge, with the net inside the dashed box. Use the arrows if it needs a nudge." : "Check the close-up: the green line should sit on the rim, edge to edge, with the net inside the dashed box.")
+                : rimMode === "auto"
+                  ? (rimNote === "missed" ? "Couldn't pick out the rim. Touch the picture on or near the hoop and it will look there — or mark it by hand." : "Looking for the rim… If it doesn't find it, touch the picture on or near the hoop.")
+                  : (taps.length === 0 ? "Press on the LEFT edge of the rim. A magnifier appears: slide until the cross is on the edge, then lift." : "Now do the same on the RIGHT edge of the rim.")}
+              <span className="block mt-1">
+                {rimMode === "auto"
+                  ? <button onClick={() => { setRimMode("hand"); setRim(null); setTaps([]); setRimNote(""); }} className="underline text-garnet text-xs">Mark the rim by hand instead</button>
+                  : <button onClick={() => { setRimMode("auto"); setRim(null); setTaps([]); setRimNote(""); }} className="underline text-garnet text-xs">Find the rim automatically</button>}
+              </span>
             </p>
           ) : (
             <div className="text-sm text-gray-700">
@@ -1042,7 +1078,7 @@ export default function ShotCam() {
                 <div className="grid grid-cols-3 gap-1 w-36">
                   <span /><button onClick={() => nudge(0, -1)} className="border rounded py-2 bg-white" aria-label="Move up">↑</button><span />
                   <button onClick={() => nudge(-1, 0)} className="border rounded py-2 bg-white" aria-label="Move left">←</button>
-                  <button onClick={() => { setRim(null); setTaps([]); }} className="border rounded py-2 bg-white text-xs">Redo</button>
+                  <button onClick={() => { setRim(null); setTaps([]); setRimNote(""); }} className="border rounded py-2 bg-white text-xs">Redo</button>
                   <button onClick={() => nudge(1, 0)} className="border rounded py-2 bg-white" aria-label="Move right">→</button>
                   <span /><button onClick={() => nudge(0, 1)} className="border rounded py-2 bg-white" aria-label="Move down">↓</button><span />
                 </div>

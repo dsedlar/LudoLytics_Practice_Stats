@@ -60,7 +60,8 @@ const BG_ALPHA_FG = 0.004; // ...and under moving things (slow, so the ball neve
 
 const NET_FILL_ON = 0.2; // net box counts as "filled" above this fraction
 const NET_MS_FOR_MAKE = 60; // ...for at least this long
-const NET_PEAK_FOR_MAKE = 0.26; // ...and peaking at least this high
+const NET_PEAK_FOR_MAKE = 0.26;
+const NET_ENTRY_SPEED = 4; // rim widths per second: a shot drops in fast, a roll-off dribbles in // ...and peaking at least this high
 
 // Net box: directly under the rim, in rim widths relative to rim centre.
 const NET = { x0: -0.5, x1: 0.5, y0: 0.08, y1: 1.0 };
@@ -91,6 +92,8 @@ export class ShotDetector {
   private cooldownUntil = 0;
   private path: BallSighting[] = []; // the falling ball's sightings since arming
   private pathDone = false;
+  private inNet: BallSighting | null = null; // the ball's latest sighting inside the net
+  private netEntry = 0; // how fast it came down into the net (rim widths per second)
 
   reset() {
     this.bg = null; this.tpl = null; this.age.fill(0); this.frames = 0; this.quietFrames = 0;
@@ -99,6 +102,7 @@ export class ShotDetector {
 
   private disarm() {
     this.armedAt = null; this.lastAbove = null; this.closest = Infinity; this.netMs = 0; this.netPeak = 0; this.rimT = 0; this.nearT = 0;
+    this.inNet = null; this.netEntry = 0;
   }
 
   /**
@@ -223,7 +227,12 @@ export class ShotDetector {
       const d = Math.hypot(p.x, p.y);
       if (d < 2.2) this.nearT = t;
       if (d < this.closest) { this.closest = d; this.rimT = t; }
-      if (p.y < -0.1 && d < 2.5 && this.netMs === 0) this.lastAbove = p;
+      if (p.y < -0.1 && d < 2.5 && this.netMs === 0 && !this.inNet) this.lastAbove = p;
+      // the ball itself seen inside the net, on its way down
+      if (Math.abs(p.x) < 0.4 && p.y > 0.12 && p.y < 0.95 && (!this.inNet || p.y > this.inNet.y)) {
+        if (!this.inNet) this.netEntry = this.lastAbove ? (p.y - this.lastAbove.y) / Math.max(1, t - this.lastAbove.t) * 1000 : 0; // rim widths per second
+        this.inNet = p;
+      }
     }
     if (netFill > NET_FILL_ON) { this.netMs += dt; this.nearT = t; }
     if (netFill > this.netPeak) this.netPeak = netFill;
@@ -240,6 +249,14 @@ export class ShotDetector {
     // and stayed filled — the ball inside the net, and the net kicking out.
     const entered = !!this.lastAbove && Math.abs(this.lastAbove.x) < 0.9;
     if (entered && this.netMs >= NET_MS_FOR_MAKE && this.netPeak >= NET_PEAK_FOR_MAKE) return done("make");
+
+    // MAKE, second way (for nets that don't show up against their background):
+    // the ball came down into the rim at speed, was seen inside the net, and
+    // then came out underneath it. A ball that only rolled off the rim and
+    // dropped past the net arrives slowly, so the entry speed rules that out.
+    if (this.inNet && this.lastAbove && Math.abs(this.lastAbove.x) < 0.6 && this.netEntry > NET_ENTRY_SPEED && t - this.inNet.t < 450) {
+      if (pts.some((p) => p.y > 0.95 && p.y < 2.3 && Math.abs(p.x) < 0.7 && p.y > this.inNet!.y)) return done("make");
+    }
 
     // MISS: the ball got to the hoop and has now come down beside it or gone.
     const reached = this.closest < 1.5;
