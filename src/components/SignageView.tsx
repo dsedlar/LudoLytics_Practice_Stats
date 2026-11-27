@@ -22,11 +22,11 @@ function GradeChart({ grades, liftGrades }: { grades: GradePoint[]; liftGrades: 
   const dates = Array.from(new Set([...grades, ...liftGrades].map((d) => d.date))).sort((a, b) => (a < b ? -1 : 1));
   const n = dates.length;
   const xForDate = (date: string) => (n <= 1 ? L + plotW / 2 : L + (dates.indexOf(date) / (n - 1)) * plotW);
-  const Series = ({ pts, color }: { pts: GradePoint[]; color: string }) => (
-    <>
-      {pts.length >= 2 && <polyline points={pts.map((g) => `${xForDate(g.date).toFixed(1)},${yFor(g.grade).toFixed(1)}`).join(" ")} fill="none" stroke={color} strokeWidth={4} strokeLinejoin="round" />}
+  const Series = ({ pts, color, dashed, opacity = 1 }: { pts: GradePoint[]; color: string; dashed?: boolean; opacity?: number }) => (
+    <g opacity={opacity}>
+      {pts.length >= 2 && <polyline points={pts.map((g) => `${xForDate(g.date).toFixed(1)},${yFor(g.grade).toFixed(1)}`).join(" ")} fill="none" stroke={color} strokeWidth={4} strokeLinejoin="round" strokeDasharray={dashed ? "7 6" : undefined} strokeLinecap="round" />}
       {pts.map((g, i) => <circle key={i} cx={xForDate(g.date)} cy={yFor(g.grade)} r={5} fill={color} />)}
-    </>
+    </g>
   );
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%" }}>
@@ -37,7 +37,7 @@ function GradeChart({ grades, liftGrades }: { grades: GradePoint[]; liftGrades: 
         </g>
       ))}
       <Series pts={grades} color="#B20000" />
-      <Series pts={liftGrades} color={LIFT_LINE} />
+      <Series pts={liftGrades} color={LIFT_LINE} dashed opacity={0.6} />
       {n === 0 && <text x={W / 2} y={H / 2} textAnchor="middle" fontSize={16} fill="#64748b">No graded practices yet</text>}
     </svg>
   );
