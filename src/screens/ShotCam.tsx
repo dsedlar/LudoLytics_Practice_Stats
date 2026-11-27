@@ -150,6 +150,15 @@ export default function ShotCam() {
   const keepAt = useRef(-1e9);
   const shotSeq = useRef(0);
   const screenRef = useRef<HTMLDivElement>(null);
+  // Health numbers for the last drill, shown under "Diagnostics" on the review
+  // screen so a player can screenshot them when something goes wrong.
+  const statsRef = useRef({ frames: 0, ballFrames: 0, armedFrames: 0, events: 0, located: 0, clockSource: "?", clockGlitches: 0, slowestFps: 0, errors: [] as string[], rec: "not started", browser: "" });
+  const [diagTick, setDiagTick] = useState(0);
+  const [showDiag, setShowDiag] = useState(DEBUG);
+  const showDiagRef = useRef(DEBUG);
+  const liveDiagRef = useRef("");
+  showDiagRef.current = showDiag;
+  const noteError = (where: string, e: unknown) => { const m = `${where}: ${(e as Error)?.message ?? e}`; const errs = statsRef.current.errors; if (errs[errs.length - 1] !== m && errs.length < 6) errs.push(m); };
   const recCanvas = useRef<HTMLCanvasElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const startedAtRef = useRef<Date | null>(null);
@@ -292,6 +301,7 @@ export default function ShotCam() {
     if (!feet) return;
     const pt = applyH(c.toCourt, { x: feet.x / F, y: feet.y / F });
     if (!isFinite(pt.x) || !isFinite(pt.y) || pt.x < -4 || pt.x > 54 || pt.y < -4 || pt.y > 50) return;
+    statsRef.current.located++;
     pushShots(shotsRef.current.map((s) => (s.id === id ? { ...s, x: Math.round(pt.x * 10) / 10, y: Math.round(pt.y * 10) / 10 } : s)));
   }, []);
 
@@ -312,35 +322,46 @@ export default function ShotCam() {
   function startRecording() {
     stopRecording();
     setClip((old) => { if (old) URL.revokeObjectURL(old.url); return null; });
-    const v = videoRef.current, type = pickRecorderType();
-    if (!v || !v.videoWidth || !type) return; // this browser can't record — the drill still works
+    const v = videoRef.current, type = pickRecorderType(), stats = statsRef.current;
+    if (!v || !v.videoWidth) { stats.rec = "no camera picture yet"; return; }
+    if (!type) { stats.rec = "this browser can't record video"; return; } // the drill still works
     try {
-      if (!recCanvas.current) recCanvas.current = document.createElement("canvas");
+      if (!recCanvas.current) {
+        // Kept in the page (invisibly): some browsers only capture a canvas that is.
+        const cv0 = document.createElement("canvas");
+        cv0.style.cssText = "position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1";
+        document.body.appendChild(cv0);
+        recCanvas.current = cv0;
+      }
       const cv = recCanvas.current;
       cv.width = Math.min(REC_W, v.videoWidth);
       cv.height = Math.round((cv.width * v.videoHeight) / v.videoWidth / 2) * 2;
       cv.getContext("2d")!.drawImage(v, 0, 0, cv.width, cv.height);
       const rec = new MediaRecorder(cv.captureStream(30), { mimeType: type, videoBitsPerSecond: 2_500_000 });
       const chunks: Blob[] = [];
+      let bytes = 0;
       const d = drillRef.current, began = new Date();
-      rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      rec.ondataavailable = (e) => { if (e.data.size) { chunks.push(e.data); bytes += e.data.size; stats.rec = `${type} · recording · ${(bytes / 1e6).toFixed(1)} MB`; } };
+      rec.onerror = (e) => { stats.rec = `${type} · error: ${(e as unknown as { error?: Error }).error?.message ?? "unknown"}`; };
       rec.onstop = () => {
-        if (!chunks.length) return;
+        if (!chunks.length) { stats.rec = `${type} · stopped with no video data`; setDiagTick((n) => n + 1); return; }
         const ext = type.includes("mp4") ? "mp4" : "webm";
         const stamp = `${began.getFullYear()}-${String(began.getMonth() + 1).padStart(2, "0")}-${String(began.getDate()).padStart(2, "0")}-${String(began.getHours()).padStart(2, "0")}${String(began.getMinutes()).padStart(2, "0")}`;
         const file = new File(chunks, `ludo-arc-${d?.key ?? "drill"}-${stamp}.${ext}`, { type: type.split(";")[0] });
+        stats.rec = `${type} · saved in the page · ${(file.size / 1e6).toFixed(1)} MB`;
         setClip({ url: URL.createObjectURL(file), file });
       };
       rec.start(1000);
+      stats.rec = `${type} · recording`;
       recorderRef.current = rec;
-    } catch (e) { console.warn("Shot Cam: recording unavailable", e); recorderRef.current = null; }
+    } catch (e) { stats.rec = `couldn't start: ${(e as Error).message}`; recorderRef.current = null; }
   }
   function stopRecording() {
     const rec = recorderRef.current;
     recorderRef.current = null;
     if (rec && rec.state !== "inactive") { try { rec.stop(); } catch { /* already stopped */ } }
   }
-  useEffect(() => () => { stopRecording(); }, []); // leaving the screen
+  useEffect(() => () => { stopRecording(); recCanvas.current?.remove(); recCanvas.current = null; }, []); // leaving the screen
   // Stop a moment after the drill ends so the last make/miss is in the video.
   useEffect(() => {
     if (stage === "review") { const t = setTimeout(stopRecording, 700); return () => clearTimeout(t); }
@@ -349,11 +370,21 @@ export default function ShotCam() {
 
   async function saveClip() {
     if (!clip) return;
+    setError("");
     const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
-    try {
-      // On a phone this opens the share sheet ("Save Video", AirDrop, Messages…).
-      if (nav.canShare?.({ files: [clip.file] })) { await nav.share({ files: [clip.file], title: "Ludo Arc workout" }); return; }
-    } catch (e) { if ((e as Error).name === "AbortError") return; }
+    // On a phone this opens the share sheet ("Save Video", AirDrop, Messages…).
+    if (nav.canShare?.({ files: [clip.file] })) {
+      try { await nav.share({ files: [clip.file] }); return; }
+      catch (e) {
+        if ((e as Error).name === "AbortError") return; // the player closed the sheet
+        setError(`The share sheet didn't open (${(e as Error).name}). Use the "Download instead" link under the video.`);
+        return;
+      }
+    }
+    downloadClip();
+  }
+  function downloadClip() {
+    if (!clip) return;
     const a = document.createElement("a");
     a.href = clip.url; a.download = clip.file.name;
     document.body.appendChild(a); a.click(); a.remove();
@@ -378,6 +409,7 @@ export default function ShotCam() {
       void v.play();
     } else goAtRef.current = clock() + 5000;
     startedAtRef.current = null; setStartedAt(null);
+    statsRef.current = { frames: 0, ballFrames: 0, armedFrames: 0, events: 0, located: 0, clockSource: "?", clockGlitches: 0, slowestFps: 0, errors: [], rec: "not started", browser: navigator.userAgent };
     startRecording();
     // Take over the screen. Real full-screen and a landscape lock where the
     // browser allows them (Android); elsewhere the picture still fills the page.
@@ -401,7 +433,28 @@ export default function ShotCam() {
     const dbg: FrameDebug = { balls: [], netFill: 0, phase: "idle", drift: null };
     let stop = false, frames = 0, fpsAt = performance.now(), raf = 0, vfc = 0, watchdog = 0;
     const hasVfc = "requestVideoFrameCallback" in HTMLVideoElement.prototype;
-    let lastMedia = -1, camOffset: number | null = null;
+    let lastMedia = -1, camOffset: number | null = null, lastFt = -Infinity, trustMedia = true, secBall = 0;
+    // A frame's own time. The camera's per-frame timestamp is the most accurate,
+    // but not every browser reports a usable one (some give zero or a value that
+    // doesn't advance) — so check it against the wall clock and fall back.
+    const frameTime = (now: number, mediaTime?: number): number => {
+      let ft = now;
+      if (mediaTime != null && isFileRef.current) ft = mediaTime * 1000;
+      else if (mediaTime != null && trustMedia) {
+        camOffset ??= now - mediaTime * 1000;
+        ft = mediaTime * 1000 + camOffset;
+        if (!(ft > lastFt) || Math.abs(ft - now) > 300) {
+          ft = now; camOffset = now - mediaTime * 1000;
+          if (++statsRef.current.clockGlitches >= 4) trustMedia = false;
+        }
+      }
+      if (!isFileRef.current) {
+        if (ft <= lastFt) ft = lastFt + 1; // time must move forward
+        statsRef.current.clockSource = mediaTime != null && trustMedia ? "camera frame time" : "wall clock";
+      }
+      lastFt = ft;
+      return ft;
+    };
     // While the video is playing, run once per video frame and take that frame's
     // exact timestamp (the ball's path is fitted against time, so jitter matters).
     // A paused recording has no new frames, so fall back to the display clock —
@@ -414,20 +467,22 @@ export default function ShotCam() {
       } else raf = requestAnimationFrame(() => step());
     };
 
+    // One bad frame must never stop the drill: catch, note it, keep going.
     function step(mediaTime?: number) {
       if (stop || !v) return;
       clearTimeout(watchdog);
+      try { work(mediaTime); } catch (e) { noteError("frame", e); }
+      schedule();
+    }
+
+    function work(mediaTime?: number) {
+      if (!v) return;
       if (v.videoWidth && (!videoSizeRef.current || videoSizeRef.current.w !== v.videoWidth || videoSizeRef.current.h !== v.videoHeight)) {
         videoSizeRef.current = { w: v.videoWidth, h: v.videoHeight };
         setVideoSize(videoSizeRef.current);
       }
       const now = clock();
-      // this frame's own time, on the same timeline as the drill clock
-      let ft = now;
-      if (mediaTime != null) {
-        if (isFileRef.current) ft = mediaTime * 1000;
-        else { camOffset ??= now - mediaTime * 1000; ft = mediaTime * 1000 + camOffset; }
-      }
+      const ft = frameTime(now, mediaTime); // this frame's own time, on the drill clock's timeline
       const r = rimRef.current;
       if (r && v.readyState >= 2) {
         const q = roiRect(r);
@@ -440,6 +495,11 @@ export default function ShotCam() {
           const img = ctx.getImageData(0, 0, ROI_W, ROI_H);
           const ev = det.current.process(img.data, ft, dbg);
           if (dbg.drift) { r.cx += dbg.drift.dx * q.scale; r.cy += dbg.drift.dy * q.scale; }
+          if (stageRef.current === "live") {
+            const st2 = statsRef.current;
+            st2.frames++; if (dbg.balls.length) { st2.ballFrames++; secBall++; } if (dbg.phase === "armed") st2.armedFrames++;
+            if (ev) st2.events++;
+          }
           if (ev && stageRef.current === "live") {
             const id = addShot(ev.result === "make", "cam", ev.t);
             if (id) setTimeout(() => void locateShot(ev, id), 0); // after this frame's work is done
@@ -449,7 +509,7 @@ export default function ShotCam() {
         drawZoom();
       }
       drawOverlay(dbg);
-      drawRecording(now);
+      try { drawRecording(now); } catch (e) { noteError("recording", e); }
 
       // drill clock
       const st = stageRef.current, d = drillRef.current;
@@ -471,10 +531,16 @@ export default function ShotCam() {
       frames++;
       const real = performance.now();
       if (real - fpsAt >= 1000) {
-        setFps(Math.round((frames * 1000) / (real - fpsAt))); frames = 0; fpsAt = real;
-        if (stageRef.current === "live") setElapsed(clock() - startRef.current);
+        const f = Math.round((frames * 1000) / (real - fpsAt));
+        setFps(f); frames = 0; fpsAt = real;
+        if (stageRef.current === "live") {
+          setElapsed(clock() - startRef.current);
+          const st2 = statsRef.current;
+          if (!st2.slowestFps || f < st2.slowestFps) st2.slowestFps = f;
+          if (showDiagRef.current) { liveDiagRef.current = `${f} fps · ball seen in ${secBall} frames · ${dbg.phase} · net ${dbg.netFill.toFixed(2)} · ${st2.clockSource} · rec ${recorderRef.current?.state ?? "off"}${st2.errors.length ? " · ERR " + st2.errors[st2.errors.length - 1] : ""}`; setDiagTick((n) => n + 1); }
+        }
+        secBall = 0;
       }
-      schedule();
     }
 
     // Low-res view of the whole picture (to follow the ball) + a short memory of
@@ -858,6 +924,10 @@ export default function ShotCam() {
               <div className="text-white/90" style={{ fontSize: "clamp(9px, 1.4vw, 14px)" }}>{fmtWhen(startedAt ?? new Date())}</div>
             </div>
           )}
+          {/* live diagnostics line */}
+          {full && showDiag && stage === "live" && (
+            <div data-tick={diagTick} className="absolute left-1/2 -translate-x-1/2 pointer-events-none bg-black/70 text-green-300 font-mono rounded px-2 py-1 text-center" style={{ top: "max(6px, env(safe-area-inset-top))", fontSize: 10, maxWidth: "46%" }}>{liveDiagRef.current || "starting…"}</div>
+          )}
           {/* mini shot chart */}
           {court && full && (
             <div className="absolute top-0 right-[3%] w-[26%] min-w-[104px] pointer-events-none bg-black/55 rounded-b-lg px-1.5 pb-1.5 pt-1">
@@ -934,6 +1004,7 @@ export default function ShotCam() {
                   <button onClick={() => nudge(0, 0, 1.04)} className="border rounded py-2 bg-white text-xs">Wider</button>
                 </div>
                 <p className="mt-2 text-xs text-gray-500">Camera speed: {fps} frames/sec</p>
+                <label className="mt-1 flex items-center gap-1.5 text-xs text-gray-500"><input type="checkbox" checked={showDiag} onChange={(e) => setShowDiag(e.target.checked)} /> Show tracking info during the drill</label>
               </div>
             </div>
           )}
@@ -1013,8 +1084,15 @@ export default function ShotCam() {
                 <button onClick={saveClip} className="bg-garnet text-white rounded-lg px-4 py-2 font-semibold text-sm">Save video to this device</button>
               </div>
               <video src={clip.url} controls playsInline className="w-full rounded bg-black" style={{ maxHeight: "50vh" }} />
+              <p className="mt-2 text-xs text-gray-600">
+                Button not working? <button onClick={downloadClip} className="underline text-garnet">Download instead</button> — on an iPhone it lands in the Files app under Downloads; open it there and choose Save Video.
+              </p>
             </div>
           )}
+          {!clip && (
+            <p className="mt-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2">No video was recorded for this workout ({statsRef.current.rec}). Your stats are not affected.</p>
+          )}
+          <DiagnosticsBlock key={diagTick} stats={statsRef.current} shots={shots.length} rimWidth={rim?.width ?? 0} video={videoSize} />
           <p className="mt-3 text-sm text-gray-700">Did the camera get one wrong? Tap a shot to flip it between make and miss.</p>
           <ShotStrip shots={shots} onFlip={flip} />
           <div className="mt-3 flex flex-wrap gap-2 text-sm">
@@ -1071,6 +1149,32 @@ function ZoneReport({ shots }: { shots: CamShot[] }) {
       </div>
       {located < shots.length && <p className="mt-2 text-xs text-gray-500">{shots.length - located} of {shots.length} shots couldn't be placed on the court. They count in the overall total but not in the sections.</p>}
     </div>
+  );
+}
+
+// What the tracker saw during the last drill — for screenshots when something goes wrong.
+function DiagnosticsBlock({ stats, shots, rimWidth, video }: { stats: { frames: number; ballFrames: number; armedFrames: number; events: number; located: number; clockSource: string; clockGlitches: number; slowestFps: number; errors: string[]; rec: string; browser: string }; shots: number; rimWidth: number; video: { w: number; h: number } | null }) {
+  const rows: [string, string][] = [
+    ["Camera picture", video ? `${video.w} × ${video.h}` : "none"],
+    ["Rim width in the picture", `${Math.round(rimWidth)} pixels`],
+    ["Frames checked", String(stats.frames)],
+    ["Slowest speed", `${stats.slowestFps} frames/sec`],
+    ["Frames with a ball near the rim", String(stats.ballFrames)],
+    ["Frames following a falling ball", String(stats.armedFrames)],
+    ["Shots the camera called", `${stats.events} (${shots} on the sheet)`],
+    ["Shots placed on the court", String(stats.located)],
+    ["Frame clock", `${stats.clockSource}${stats.clockGlitches ? ` (${stats.clockGlitches} glitches)` : ""}`],
+    ["Video recording", stats.rec],
+    ["Errors", stats.errors.length ? stats.errors.join(" | ") : "none"],
+    ["Browser", stats.browser],
+  ];
+  return (
+    <details className="mt-3 bg-white border rounded-lg px-3 py-2 text-xs text-gray-700">
+      <summary className="cursor-pointer font-semibold text-gray-600">Diagnostics (screenshot this if something went wrong)</summary>
+      <table className="mt-2 w-full"><tbody>
+        {rows.map(([k, v2]) => <tr key={k} className="border-t align-top"><td className="py-1 pr-3 text-gray-500 whitespace-nowrap">{k}</td><td className="py-1 break-all">{v2}</td></tr>)}
+      </tbody></table>
+    </details>
   );
 }
 
