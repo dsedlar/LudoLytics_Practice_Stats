@@ -487,7 +487,10 @@ export default function ShotCam() {
       if (r && v.readyState >= 2) {
         const q = roiRect(r);
         ctx.fillStyle = "#000"; ctx.fillRect(0, 0, ROI_W, ROI_H);
-        ctx.drawImage(v, q.x, q.y, q.w, q.h, 0, 0, ROI_W, ROI_H);
+        // Crop only the part of the window that is inside the picture: some
+        // browsers draw nothing at all if the source box pokes outside it.
+        const sx0 = Math.max(0, q.x), sy0 = Math.max(0, q.y), sx1 = Math.min(v.videoWidth, q.x + q.w), sy1 = Math.min(v.videoHeight, q.y + q.h);
+        if (sx1 > sx0 && sy1 > sy0) ctx.drawImage(v, sx0, sy0, sx1 - sx0, sy1 - sy0, (sx0 - q.x) / q.scale, (sy0 - q.y) / q.scale, (sx1 - sx0) / q.scale, (sy1 - sy0) / q.scale);
         // Only feed the tracker new pictures (a paused or slow video repeats frames).
         const stamp = mediaTime ?? v.currentTime;
         if (!isFileRef.current || stamp !== lastMedia) {
