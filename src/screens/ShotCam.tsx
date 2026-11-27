@@ -16,7 +16,7 @@ import { ShotDetector, ROI_W, ROI_H, RIM_PX, RIM_CX, RIM_CY, roiRect, type Frame
 import { CAM_DRILLS, camDrill, fmtClock, pctText, type CamDrill, type CamShot } from "../lib/shotcam/drills";
 import { listCamSessions, saveCamSession, deleteCamSession, type CamSessionRow } from "../lib/shotcam/store";
 import { FlightTracker, extendBack } from "../lib/shotcam/flight";
-import { applyH, calibrateCourt, courtOutline, type Homography, type Pt } from "../lib/shotcam/geometry";
+import { applyH, calibrateCourt, courtOutline, type CourtFit, type Homography, type Pt } from "../lib/shotcam/geometry";
 import { findFeet, loadPose } from "../lib/shotcam/pose";
 import ShotCamChart, { ShotCamZones, HEAT, areaTotals } from "../components/ShotCamChart";
 import type { ShotEvent } from "../lib/shotcam/detector";
@@ -164,6 +164,10 @@ export default function ShotCam() {
   const startedAtRef = useRef<Date | null>(null);
   const countdownRef = useRef(0);
   const dragRef = useRef<{ kind: "lane" | "arc"; idx: number; from: Pt; start: Pt } | null>(null);
+  const placingRef = useRef<Pt | null>(null); // a mark being placed (finger still down)
+  const loupeRef = useRef<Pt | null>(null); // where the magnifier is looking, video pixels
+  const fitRef = useRef<CourtFit["state"] | null>(null);
+  const [fitError, setFitError] = useState(0); // how far the marks are from the fitted court, in 1080p pixels
   const arcsRef = useRef<{ id: number; made: boolean; pts: Pt[] }[]>([]); // traced flights, video pixels
   courtRef.current = court; courtTapsRef.current = courtTaps; arcTapsRef.current = arcTaps;
 
@@ -682,6 +686,23 @@ export default function ShotCam() {
         }
         for (const p of courtTapsRef.current) dot(p, "#facc15");
         for (const p of arcTapsRef.current) dot(p, "#22d3ee");
+        // magnifier: a 3x view of what is under the finger, drawn clear of it
+        const lp = loupeRef.current;
+        if (lp) {
+          const R = o.width * 0.1, zoom = 3, half = R / zoom;
+          const cx = Math.min(o.width - R - 4, Math.max(R + 4, lp.x));
+          const cy = lp.y - R * 1.7 > R + 4 ? lp.y - R * 1.7 : lp.y + R * 1.7;
+          c.save();
+          c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.clip();
+          c.fillStyle = "#000"; c.fillRect(cx - R, cy - R, R * 2, R * 2);
+          const sx0 = Math.max(0, lp.x - half), sy0 = Math.max(0, lp.y - half), sx1 = Math.min(v.videoWidth, lp.x + half), sy1 = Math.min(v.videoHeight, lp.y + half);
+          if (sx1 > sx0 && sy1 > sy0) c.drawImage(v, sx0, sy0, sx1 - sx0, sy1 - sy0, cx + (sx0 - lp.x) * zoom, cy + (sy0 - lp.y) * zoom, (sx1 - sx0) * zoom, (sy1 - sy0) * zoom);
+          c.restore();
+          c.strokeStyle = "#ffffff"; c.lineWidth = lw; c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.stroke();
+          c.strokeStyle = "#22c55e"; c.lineWidth = Math.max(1, lw / 2);
+          c.beginPath(); c.moveTo(cx - R * 0.35, cy); c.lineTo(cx - R * 0.06, cy); c.moveTo(cx + R * 0.06, cy); c.lineTo(cx + R * 0.35, cy);
+          c.moveTo(cx, cy - R * 0.35); c.lineTo(cx, cy - R * 0.06); c.moveTo(cx, cy + R * 0.06); c.lineTo(cx, cy + R * 0.35); c.stroke();
+        }
       }
       if (!r) return;
       const q = roiRect(r);
@@ -708,32 +729,64 @@ export default function ShotCam() {
   useEffect(() => { if (!videoSize) videoSizeRef.current = null; }, [videoSize]);
 
   // ---- aiming ---------------------------------------------------------------
+  // Marks are placed press–slide–release: while the finger is down a magnifier
+  // shows exactly what is under it, and the mark lands where the finger lifts.
+  const toVideo = (e: React.PointerEvent<HTMLCanvasElement>): Pt => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return { x: ((e.clientX - rect.left) / rect.width) * videoSize!.w, y: ((e.clientY - rect.top) / rect.height) * videoSize!.h };
+  };
   function onTap(e: React.PointerEvent<HTMLCanvasElement>) {
     if (stage !== "aim" || !videoSize) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const p = { x: ((e.clientX - rect.left) / rect.width) * videoSize.w, y: ((e.clientY - rect.top) / rect.height) * videoSize.h };
-    if (aimStep === "court") {
-      if (!rim) return;
-      if (courtTaps.length < 4) {
-        const next = [...courtTaps, p];
-        setCourtTaps(next);
-        if (next.length === 4) solveCourt(next, arcTaps);
-        return;
-      }
+    const p = toVideo(e);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    if (aimStep === "court" && rim && courtTaps.length >= 4) {
       // Lane is marked. A touch on an existing dot grabs it to fine-tune (it moves
       // at 40% of the finger's speed); a touch anywhere else adds a 3-point-line spot.
-      const grab = 34 * (videoSize.w / rect.width); // ~34 screen pixels
+      const grab = 30 * (videoSize.w / e.currentTarget.getBoundingClientRect().width); // ~30 screen pixels
       let hit: { kind: "lane" | "arc"; idx: number; start: Pt } | null = null, hd = grab;
       courtTaps.forEach((t, i) => { const d = Math.hypot(t.x - p.x, t.y - p.y); if (d < hd) { hd = d; hit = { kind: "lane", idx: i, start: t }; } });
       arcTaps.forEach((t, i) => { const d = Math.hypot(t.x - p.x, t.y - p.y); if (d < hd) { hd = d; hit = { kind: "arc", idx: i, start: t }; } });
       if (hit) {
-        dragRef.current = { ...(hit as { kind: "lane" | "arc"; idx: number; start: Pt }), from: p };
-        e.currentTarget.setPointerCapture(e.pointerId);
+        const h2 = hit as { kind: "lane" | "arc"; idx: number; start: Pt };
+        dragRef.current = { ...h2, from: p };
+        loupeRef.current = h2.start;
         return;
       }
-      const nextArc = [...arcTaps, p];
-      setArcTaps(nextArc);
-      solveCourt(courtTaps, nextArc);
+    }
+    if (aimStep === "court" && !rim) return;
+    placingRef.current = p;
+    loupeRef.current = p;
+  }
+  function onDrag(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (!videoSize) return;
+    const d = dragRef.current;
+    if (d) {
+      const p = toVideo(e);
+      const moved = { x: d.start.x + (p.x - d.from.x) * 0.4, y: d.start.y + (p.y - d.from.y) * 0.4 };
+      const lane = d.kind === "lane" ? courtTaps.map((t, i) => (i === d.idx ? moved : t)) : courtTaps;
+      const arc = d.kind === "arc" ? arcTaps.map((t, i) => (i === d.idx ? moved : t)) : arcTaps;
+      setCourtTaps(lane); setArcTaps(arc);
+      loupeRef.current = moved;
+      solveCourt(lane, arc, true);
+      return;
+    }
+    if (placingRef.current) { placingRef.current = toVideo(e); loupeRef.current = placingRef.current; }
+  }
+  function endDrag() {
+    const p = placingRef.current, wasDrag = !!dragRef.current;
+    dragRef.current = null; placingRef.current = null; loupeRef.current = null;
+    if (wasDrag) { solveCourt(courtTaps, arcTaps); return; } // full re-fit once the dot is let go
+    if (!p || stage !== "aim") return;
+    if (aimStep === "court") {
+      if (courtTaps.length < 4) {
+        const next = [...courtTaps, p];
+        setCourtTaps(next);
+        if (next.length === 4) solveCourt(next, arcTaps);
+      } else {
+        const nextArc = [...arcTaps, p];
+        setArcTaps(nextArc);
+        solveCourt(courtTaps, nextArc);
+      }
       return;
     }
     if (taps.length !== 1) { setTaps([p]); setRim(null); return; }
@@ -743,26 +796,15 @@ export default function ShotCam() {
     if (width < 8) return;
     setRim({ cx: (a.x + p.x) / 2, cy: (a.y + p.y) / 2, width });
   }
-  function solveCourt(lane: Pt[], arc: Pt[]) {
+  function cancelDrag() { dragRef.current = null; placingRef.current = null; loupeRef.current = null; }
+  function solveCourt(lane: Pt[], arc: Pt[], quick = false) {
     if (!rim || !videoSize) return;
-    const fit = calibrateCourt(lane, { x: rim.cx, y: rim.cy, width: rim.width }, videoSize, arc);
-    if (fit) { setError(""); setCourt({ toCourt: fit.toCourt, toImg: fit.toImg }); void loadPose(); }
-    else { setCourt(null); setError("Those four points don't make a lane — tap Redo court and mark its four corners again."); }
+    const fit = calibrateCourt(lane, { x: rim.cx, y: rim.cy, width: rim.width }, videoSize, arc, quick ? fitRef.current ?? undefined : undefined);
+    if (fit) { fitRef.current = fit.state; setFitError(fit.error * (1920 / videoSize.w)); setError(""); setCourt({ toCourt: fit.toCourt, toImg: fit.toImg }); void loadPose(); }
+    else { fitRef.current = null; setCourt(null); setError("Those four points don't make a lane — tap Redo court and mark its four corners again."); }
   }
-  function onDrag(e: React.PointerEvent<HTMLCanvasElement>) {
-    const d = dragRef.current;
-    if (!d || !videoSize) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const p = { x: ((e.clientX - rect.left) / rect.width) * videoSize.w, y: ((e.clientY - rect.top) / rect.height) * videoSize.h };
-    const moved = { x: d.start.x + (p.x - d.from.x) * 0.4, y: d.start.y + (p.y - d.from.y) * 0.4 };
-    const lane = d.kind === "lane" ? courtTaps.map((t, i) => (i === d.idx ? moved : t)) : courtTaps;
-    const arc = d.kind === "arc" ? arcTaps.map((t, i) => (i === d.idx ? moved : t)) : arcTaps;
-    setCourtTaps(lane); setArcTaps(arc);
-    solveCourt(lane, arc);
-  }
-  function resetCourt() { setCourt(null); setCourtTaps([]); setArcTaps([]); }
+  function resetCourt() { fitRef.current = null; setCourt(null); setCourtTaps([]); setArcTaps([]); }
   function undoArc() { const arc = arcTaps.slice(0, -1); setArcTaps(arc); solveCourt(courtTaps, arc); }
-  function endDrag() { dragRef.current = null; }
   function nudge(dx: number, dy: number, grow = 1) {
     const r = rimRef.current;
     if (!r) return;
@@ -810,7 +852,7 @@ export default function ShotCam() {
   const frameStyle = full
     ? { aspectRatio: `${ratio}`, width: `min(100vw, calc(100dvh * ${ratio}))`, maxHeight: "100dvh" }
     : videoSize
-      ? { aspectRatio: `${videoSize.w} / ${videoSize.h}`, width: `min(100%, calc(62vh * ${ratio}))` }
+      ? { aspectRatio: `${videoSize.w} / ${videoSize.h}`, width: `min(100%, calc(88vh * ${ratio}))` } // as big as fits: marking needs the room
       : { aspectRatio: "16 / 9", width: "100%" };
 
   return (
@@ -909,7 +951,7 @@ export default function ShotCam() {
       <div ref={screenRef} className={full ? "fixed inset-0 z-50 bg-black flex items-center justify-center" : showVideo ? "mt-4" : "hidden"}>
         <div className={`relative mx-auto bg-black overflow-hidden ${full ? "" : "rounded-lg"}`} style={frameStyle}>
           <video ref={videoRef} playsInline muted autoPlay className="absolute inset-0 w-full h-full" onEnded={() => { if (stageRef.current === "live") endDrill(clock() - startRef.current); }} />
-          <canvas ref={overlayRef} onPointerDown={onTap} onPointerMove={onDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className="absolute inset-0 w-full h-full touch-none" style={{ cursor: stage === "aim" ? "crosshair" : "default" }} />
+          <canvas ref={overlayRef} onPointerDown={onTap} onPointerMove={onDrag} onPointerUp={endDrag} onPointerCancel={cancelDrag} className="absolute inset-0 w-full h-full touch-none" style={{ cursor: stage === "aim" ? "crosshair" : "default" }} />
           {/* stop button */}
           {full && (
             <button
@@ -970,18 +1012,20 @@ export default function ShotCam() {
           <h2 className="headline-bold text-xl text-garnet">{drill.label} — {aimStep === "rim" ? "mark the rim" : "mark the court"}</h2>
           {aimStep === "rim" ? (
             <p className="text-sm text-gray-700">
-              {!rim ? (taps.length === 0 ? "Tap the LEFT edge of the rim in the picture." : "Now tap the RIGHT edge of the rim.")
+              {!rim ? (taps.length === 0 ? "Press on the LEFT edge of the rim. A magnifier appears: slide until the cross is on the edge, then lift." : "Now do the same on the RIGHT edge of the rim.")
                 : "Check the close-up: the green line should sit on the rim, edge to edge, with the net inside the dashed box."}
             </p>
           ) : (
             <div className="text-sm text-gray-700">
               {courtTaps.length < 4 ? (
-                <p><b>Step 1.</b> Tap the <b>four corners of the lane</b> (the painted rectangle under the basket: two corners on the baseline, two at the ends of the free-throw line), in any order. <b>{courtTaps.length} of 4</b> marked.</p>
+                <p><b>Step 1.</b> Mark the <b>four corners of the lane</b> (the painted rectangle under the basket: two corners on the baseline, two at the ends of the free-throw line), in any order. Press, slide until the magnifier's cross is exactly on the corner, then lift. <b>{courtTaps.length} of 4</b> marked.</p>
               ) : (
                 <>
-                  <p><b>Step 2.</b> Tap <b>4 or more spots along the painted 3-point line</b>, spread from one end to the other (blue dots). <b>{arcTaps.length}</b> marked{arcTaps.length < 4 ? "" : " — good"}.</p>
+                  <p><b>Step 2.</b> Mark <b>4 or more spots along the painted 3-point line</b>, spread from one end to the other (blue dots), the same way: press, slide onto the line, lift. <b>{arcTaps.length}</b> marked{arcTaps.length < 4 ? "" : " — good"}.</p>
                   <p className="mt-1">The yellow lines show where the app thinks your arc and lane are. They should sit on the paint. To fix one, <b>drag a dot</b> — it moves slower than your finger so small changes are easy.</p>
-                  {court && arcTaps.length < 3 && <p className="mt-1 text-amber-800">Without the 3-point-line spots, shots can land several feet off on the chart.</p>}
+                  {court && arcTaps.length < 4 && <p className="mt-1 text-amber-800">The court isn't pinned down yet — add {4 - arcTaps.length} more spot{4 - arcTaps.length === 1 ? "" : "s"} on the 3-point line before you start.</p>}
+                  {court && arcTaps.length >= 4 && fitError > 14 && <p className="mt-1 text-amber-800">The marks don't fit a court very well (off by about {Math.round(fitError)} pixels). Check each yellow dot is exactly on a lane corner — drag any that isn't.</p>}
+                  {court && arcTaps.length >= 4 && fitError <= 14 && <p className="mt-1 text-green-700 font-medium">The marks fit a court well.</p>}
                 </>
               )}
               <div className="mt-2 flex flex-wrap gap-2">
@@ -1019,7 +1063,7 @@ export default function ShotCam() {
               <button disabled={!rim} onClick={beginCountdown} className="border border-garnet text-garnet rounded-lg px-5 py-4 font-semibold disabled:opacity-40">Skip — just count makes</button>
             </div>
           ) : (
-            <button disabled={!rim || (aimStep === "court" && !court)} onClick={beginCountdown} className="mt-4 w-full bg-garnet text-white rounded-lg px-5 py-4 font-semibold text-lg disabled:opacity-40">
+            <button disabled={!rim || (aimStep === "court" && (!court || arcTaps.length < 4))} onClick={beginCountdown} className="mt-4 w-full bg-garnet text-white rounded-lg px-5 py-4 font-semibold text-lg disabled:opacity-40">
               Start {drill.label} {isFile ? "" : "(5-second countdown)"}
             </button>
           )}

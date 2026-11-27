@@ -126,6 +126,24 @@ function rotate(R: number[], w: V3): number[] {
 const RIM_WEIGHT = 2;
 const ARC_PX_PER_FT = 12; // how hard a 3-point-line tap pulls, relative to a pixel of error on a lane corner
 
+/**
+ * What we know about the camera before looking at any taps: it is a phone,
+ * on a tripod or propped up, held about level, somewhere between knee and
+ * head height. Finger taps on a small screen are rough, and without these
+ * the fit happily explains rough taps with an absurd camera (tilted on its
+ * side, a mile away, or under the floor). Returned as extra error terms, in
+ * the same pixel-ish units as the taps.
+ */
+function priors(c: Camera, size: { w: number; h: number }): number[] {
+  const p = cameraPose(c), dim = Math.max(size.w, size.h), lf = Math.log(c.f / dim);
+  const lo = Math.log(0.38), hi = Math.log(1.9); // ultra-wide to 2x lens, in picture widths
+  return [
+    p.roll * 2.5, // degrees off level
+    p.height < 2 ? (2 - p.height) * 40 : p.height > 9 ? (p.height - 9) * 40 : 0,
+    lf < lo ? (lo - lf) * 300 : lf > hi ? (lf - hi) * 300 : 0,
+  ];
+}
+
 /** Where a picture point lies on the floor (court feet), by casting its ray down to the floor. */
 function toFloor(c: Camera, size: { w: number; h: number }, p: Pt): Pt | null {
   const R = c.R, k: V3 = [(p.x - size.w / 2) / c.f, (p.y - size.h / 2) / c.f, 1];
@@ -162,6 +180,7 @@ function fitCamera(start: Camera, img: Pt[], rim: Pt, size: { w: number; h: numb
       if (!g) return null;
       r.push(distToThreeLine(g) * ARC_PX_PER_FT);
     }
+    r.push(...priors(c, size));
     return r;
   };
   const cost = (r: number[]) => r.reduce((s2, v) => s2 + v * v, 0);
@@ -215,39 +234,110 @@ function floorMapping(c: Camera, size: { w: number; h: number }): Homography {
   return h.map((v) => v / h[8]);
 }
 
-export interface CourtFit { toCourt: Homography; toImg: Homography; /** where the fit puts the four lane corners in the picture */ corners: Pt[]; }
+/** Where the camera is and how it is held, for sanity checks: height (ft), roll and pitch (degrees), floor position (court ft). */
+function cameraPose(c: Camera) {
+  const R = c.R, t = c.t;
+  const C: V3 = [-(R[0] * t[0] + R[3] * t[1] + R[6] * t[2]), -(R[1] * t[0] + R[4] * t[1] + R[7] * t[2]), -(R[2] * t[0] + R[5] * t[1] + R[8] * t[2])];
+  const up: V3 = [R[2], R[5], R[8]]; // the court's "up" as the camera sees it (x right, y down, z forward)
+  return { x: C[0], y: C[1], height: C[2], roll: (Math.atan2(up[0], -up[1]) * 180) / Math.PI, pitch: (Math.asin(Math.max(-1, Math.min(1, up[2]))) * 180) / Math.PI };
+}
+
+/** A camera looking from `at` (court x, y, height) straight at the rim, level, with the rim landing on `rimPix`. */
+function lookAtRim(at: V3, f: number, mirror: 1 | -1, rimPix: Pt, size: { w: number; h: number }): Camera | null {
+  const B = COURT.basket;
+  let fwd: V3 = [B.x - at[0], B.y - at[1], RIM_HEIGHT_FT - at[2]];
+  const n = norm(fwd);
+  if (n < 1) return null;
+  fwd = scale(fwd, 1 / n);
+  let right = cross(fwd, [0, 0, 1]);
+  const nr = norm(right);
+  if (nr < 1e-6) return null;
+  right = scale(right, mirror / nr);
+  let down = cross(fwd, right);
+  // "down" must point at the floor
+  if (down[2] > 0) down = scale(down, -1);
+  const R = [right[0], right[1], right[2], down[0], down[1], down[2], fwd[0], fwd[1], fwd[2]];
+  // turn so the rim sits where it was marked, not at the picture centre
+  const k: V3 = [(rimPix.x - size.w / 2) / f, (rimPix.y - size.h / 2) / f, 1];
+  const kn = scale(k, 1 / norm(k));
+  const axis = cross(kn, [0, 0, 1]), sn = norm(axis), ang = Math.asin(Math.min(1, sn));
+  const R2 = sn > 1e-9 ? rotate(R, scale(axis, -ang / sn)) : R;
+  const t: V3 = [-(R2[0] * at[0] + R2[1] * at[1] + R2[2] * at[2]), -(R2[3] * at[0] + R2[4] * at[1] + R2[5] * at[2]), -(R2[6] * at[0] + R2[7] * at[1] + R2[8] * at[2])];
+  return { f, R: R2, t };
+}
+
+export interface CourtFit {
+  toCourt: Homography; toImg: Homography;
+  /** where the fit puts the four lane corners in the picture */
+  corners: Pt[];
+  /** typical distance (video pixels) between the marks and where the fit puts them — big means "check your marks" */
+  error: number;
+  /** camera height in feet, as a sanity readout */
+  cameraHeight: number;
+  /** opaque: lets a small adjustment (dragging a dot) refit quickly from here */
+  state: { cam: Camera; order: number[] };
+}
 
 /**
- * Build the picture<->court mapping from four taps on the corners of the lane,
- * in ANY order, the rim the player already marked, and (strongly recommended)
- * a few taps anywhere along the painted 3-point line. The lane taps alone
- * can't say which side of the lane is the baseline, so we try all four ways
- * round (and a range of lens focal lengths as starting points), fit a camera
- * each time, and keep the one that explains everything best. The lane is a
- * small patch of floor far from the camera, so on its own it leaves the outer
- * court loose; the 3-point-line taps span the whole court and tie it down.
+ * Build the picture<->court mapping from four marks on the corners of the lane
+ * (any order), the rim the player already marked, and — strongly recommended —
+ * a few marks along the painted 3-point line.
+ *
+ * We fit an actual camera (lens, position, tilt). The lane marks alone can't
+ * say which side of the lane is the baseline, so every way round is tried,
+ * each from many believable starting cameras (standing around the half court
+ * at different spots and heights), and the best-explained one is kept.
+ * `from` (a previous fit) skips the search: used while a dot is being dragged.
  */
-export function calibrateCourt(taps: Pt[], rim: { x: number; y: number; width: number }, size: { w: number; h: number }, arcTaps: Pt[] = []): CourtFit | null {
+export function calibrateCourt(taps: Pt[], rim: { x: number; y: number; width: number }, size: { w: number; h: number }, arcTaps: Pt[] = [], from?: CourtFit["state"], report?: (line: string) => void): CourtFit | null {
   if (taps.length !== 4) return null;
-  const c = { x: (taps[0].x + taps[1].x + taps[2].x + taps[3].x) / 4, y: (taps[0].y + taps[1].y + taps[2].y + taps[3].y) / 4 };
-  const cw = taps.slice().sort((a, b) => Math.atan2(a.y - c.y, a.x - c.x) - Math.atan2(b.y - c.y, b.x - c.x)); // clockwise on screen (y down)
   const dim = Math.max(size.w, size.h);
-  let best: Camera | null = null, bestErr = Infinity;
+  const finish = (cam: Camera, order: number[], err: number): CourtFit | null => {
+    const toImg = floorMapping(cam, size), toCourt = invertH(toImg);
+    if (!toCourt) return null;
+    const corners = LANE.map((p) => applyH(toImg, p));
+    // error on the marks themselves (lane corners + rim), without the camera-sense terms
+    const B = COURT.basket, rp = project(cam, size, B.x, B.y, RIM_HEIGHT_FT);
+    let sum = rp ? (rp.x - rim.x) ** 2 + (rp.y - rim.y) ** 2 : 1e6;
+    corners.forEach((p, i) => { sum += (p.x - taps[order[i]].x) ** 2 + (p.y - taps[order[i]].y) ** 2; });
+    void err;
+    return { toCourt, toImg, corners, error: Math.sqrt(sum / 5), cameraHeight: cameraPose(cam).height, state: { cam, order } };
+  };
+
+  if (from) {
+    const img = from.order.map((i) => taps[i]);
+    const { cam, err } = fitCamera(from.cam, img, rim, size, arcTaps);
+    return finish(cam, from.order, err);
+  }
+
+  const c = { x: (taps[0].x + taps[1].x + taps[2].x + taps[3].x) / 4, y: (taps[0].y + taps[1].y + taps[2].y + taps[3].y) / 4 };
+  const idx = [0, 1, 2, 3].sort((a, b) => Math.atan2(taps[a].y - c.y, taps[a].x - c.x) - Math.atan2(taps[b].y - c.y, taps[b].x - c.x)); // clockwise on screen (y down)
+  const cost0 = (cam: Camera, img: Pt[]): number => {
+    let sum = 0;
+    for (let i = 0; i < 4; i++) { const p = project(cam, size, LANE[i].x, LANE[i].y, 0); if (!p) return Infinity; sum += (p.x - img[i].x) ** 2 + (p.y - img[i].y) ** 2; }
+    return sum;
+  };
+  let best: Camera | null = null, bestErr = Infinity, bestOrder: number[] = idx;
   for (let r = 0; r < 4; r++) {
-    const img = [0, 1, 2, 3].map((k) => cw[(k + r) % 4]);
-    const toCourt = solveHomography(img, LANE);
-    const toImg = toCourt && invertH(toCourt);
-    if (!toImg) continue;
-    for (const fr of [0.55, 0.8, 1.1, 1.6, 2.3]) { // phone lenses, in picture widths
-      const start = cameraFrom(toImg, size, fr * dim);
-      if (!start) continue;
-      const { cam, err } = fitCamera(start, img, rim, size, arcTaps);
-      if (cam.f < 0.35 * dim || cam.f > 4 * dim) continue; // not a believable lens
-      if (err < bestErr) { bestErr = err; best = cam; }
+    const order = [0, 1, 2, 3].map((k) => idx[(k + r) % 4]);
+    const img = order.map((i) => taps[i]);
+    const starts: { cam: Camera; c0: number }[] = [];
+    // believable cameras: around the half court, knee to head height, common phone lenses
+    for (const fr of [0.45, 0.62, 0.8, 1.1, 1.5]) for (const h of [3, 5.5]) for (let x = -15; x <= 65; x += 10) for (let y = 8; y <= 78; y += 10) for (const mirror of [1, -1] as const) {
+      const cam = lookAtRim([x, y, h], fr * dim, mirror, rim, size);
+      if (cam) starts.push({ cam, c0: cost0(cam, img) });
+    }
+    // plus the cameras implied directly by the four marks
+    const toCourt = solveHomography(img, LANE), toImg0 = toCourt && invertH(toCourt);
+    if (toImg0) for (const fr of [0.55, 0.8, 1.1, 1.6]) { const cam = cameraFrom(toImg0, size, fr * dim); if (cam) starts.push({ cam, c0: 0 }); }
+    starts.sort((a, b) => a.c0 - b.c0);
+    for (const st of starts.slice(0, 14)) {
+      const { cam, err } = fitCamera(st.cam, img, rim, size, arcTaps);
+      const pose = cameraPose(cam);
+      report?.(`way ${r}: err ${err.toFixed(1)} f ${(cam.f / dim).toFixed(2)} height ${pose.height.toFixed(1)}ft roll ${pose.roll.toFixed(0)} pitch ${pose.pitch.toFixed(0)} at (${pose.x.toFixed(0)},${pose.y.toFixed(0)})`);
+      if (err < bestErr) { bestErr = err; best = cam; bestOrder = order; }
     }
   }
   if (!best) return null;
-  const toImg = floorMapping(best, size), toCourt = invertH(toImg);
-  if (!toCourt) return null;
-  return { toCourt, toImg, corners: LANE.map((p) => applyH(toImg, p)) };
+  return finish(best, bestOrder, bestErr);
 }
